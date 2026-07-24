@@ -34,6 +34,25 @@
 
         /* 教師聊天室樣式 */
         .chat-bubble-me { background-color: #3b82f6; color: white; }
+        .teacher-week-day {
+            min-width: 3.15rem;
+            min-height: 4.35rem;
+            border-radius: 1rem;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #64748b;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.2rem;
+            font-weight: 700;
+            transition: transform .16s ease, background .16s ease;
+        }
+        .teacher-week-day:active { transform: scale(.95); }
+        .teacher-week-day.is-selected { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 8px 18px rgba(37,99,235,.22); }
+        .teacher-week-day.is-today:not(.is-selected) { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
+        .teacher-week-day.has-note::after { content: ''; width: .25rem; height: .25rem; border-radius: 999px; background: currentColor; opacity: .75; }
         /* 與家長端一致的行動版操作節奏：內容優先、分頁置底、觸控目標加大。 */
         @media (max-width: 767px) {
             #teacherDashboard > header {
@@ -78,6 +97,15 @@
             }
             #privateChatSidebar { border-right: 0; }
             .t-calendar-day { min-height: 2rem; }
+            #dashboardPage { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+            #dashboardPage > div:first-child { height: auto; min-height: 0; flex: 0 0 auto; border-bottom: 1px solid #e2e8f0; }
+            #dashboardPage > div:first-child > .p-4 { display: none; }
+            #teacherWeekStrip { display: block; }
+            #dashboardPage > div:nth-child(2) { overflow: visible; flex: 0 0 auto; }
+            #dashboardPage > div:nth-child(2) > .flex-1 { overflow: visible; padding: 1rem 1rem 6.5rem; }
+            #teacherSignatureCard { order: -1; }
+            #teacherComposerCard > div, #teacherSignatureCard > div { min-height: 0; }
+            #teacherComposerCard textarea { min-height: 12rem; }
         }
     </style>
 </head>
@@ -585,6 +613,7 @@
             if (!document.getElementById('teacherDashboard').classList.contains('hidden')) {
                 if (window.activeTab === 'dashboard') {
                     renderCalendar();
+                    renderWeekStrip();
                     if (window.selectedDateStr) renderContent();
                     if (!document.getElementById('studentHistoryModal').classList.contains('hidden')) {
                         renderHistoryCalendar();
@@ -732,6 +761,52 @@
                 filterButton.innerText = window.showOnlyUnsigned ? '顯示全部' : `未簽 ${unsignedCount}`;
             }
         }
+
+        function renderWeekStrip() {
+            const host = document.getElementById('teacherWeekStrip');
+            if (!host || !window.selectedDateStr) return;
+            const [year, month, day] = window.selectedDateStr.split('/').map(Number);
+            const selectedDate = new Date(year, month - 1, day);
+            const days = Array.from({ length: 7 }, (_, index) => {
+                const date = new Date(selectedDate);
+                date.setDate(selectedDate.getDate() + index - 3);
+                const dateStr = window.normalizeDate(date);
+                const hasNote = window.fbNotes.some(note => note.date === dateStr && note.content && note.content.trim() !== '');
+                const hasEvent = window.fbEvents.some(event => event.date === dateStr && event.event && event.event.trim() !== '');
+                const className = `teacher-week-day ${dateStr === window.selectedDateStr ? 'is-selected' : ''} ${dateStr === window.todayStr ? 'is-today' : ''} ${hasNote || hasEvent ? 'has-note' : ''}`;
+                const weekday = date.toLocaleDateString('zh-TW', { weekday: 'short' });
+                return `<button type="button" class="${className}" onclick="window.selectTeacherDate('${dateStr}')"><span class="text-[11px] opacity-80">${weekday}</span><strong class="text-lg leading-none">${date.getDate()}</strong></button>`;
+            }).join('');
+
+            host.innerHTML = `
+                <div class="px-4 py-3 bg-white border-b border-slate-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <button type="button" onclick="window.shiftSelectedDate(-1)" class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 font-bold text-xl" aria-label="Previous day">&#8249;</button>
+                        <button type="button" onclick="window.goToToday()" class="px-4 min-h-10 rounded-xl bg-blue-50 text-blue-700 text-sm font-bold">&#20170;&#26085;</button>
+                        <button type="button" onclick="window.shiftSelectedDate(1)" class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 font-bold text-xl" aria-label="Next day">&#8250;</button>
+                    </div>
+                    <div class="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">${days}</div>
+                </div>`;
+        }
+
+        window.selectTeacherDate = function(dateStr) {
+            window.selectedDateStr = dateStr;
+            const [year, month, day] = dateStr.split('/').map(Number);
+            window.viewDate = new Date(year, month - 1, day);
+            window.checkSemesterSwitch(window.viewDate);
+            window.refreshUI();
+        };
+
+        window.shiftSelectedDate = function(offset) {
+            const [year, month, day] = window.selectedDateStr.split('/').map(Number);
+            const nextDate = new Date(year, month - 1, day);
+            nextDate.setDate(nextDate.getDate() + offset);
+            window.selectTeacherDate(window.normalizeDate(nextDate));
+        };
+
+        window.goToToday = function() {
+            window.selectTeacherDate(window.todayStr);
+        };
 
         // ==========================
         // 🌟 班級群聊渲染 (支援圖片與月份折疊)
@@ -1510,6 +1585,8 @@
                     </div>
                 </div>
 
+                <div id="teacherWeekStrip" class="hidden"></div>
+
                 <div class="p-4 flex-1 overflow-y-auto custom-scrollbar">
                     <div class="grid grid-cols-7 text-center text-[10px] font-black text-slate-400 mb-3 uppercase tracking-wider">
                         <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
@@ -1546,7 +1623,7 @@
                         <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
                             
                             <!-- 左側：發布聯絡事項 (高度已拉滿) -->
-                            <div class="xl:col-span-6">
+                            <div id="teacherComposerCard" class="xl:col-span-6">
                                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[500px]">
                                     <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                                         <div class="flex items-center gap-2"><i data-lucide="file-edit" class="w-5 h-5 text-blue-500"></i><h3 class="font-bold text-slate-700">發布聯絡事項</h3></div>
@@ -1573,7 +1650,7 @@
                             </div>
 
                             <!-- 右側：簽到與請假追蹤 -->
-                            <div class="xl:col-span-6">
+                            <div id="teacherSignatureCard" class="xl:col-span-6">
                                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[500px]">
                                     <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                                         <div class="flex items-center gap-2"><i data-lucide="users" class="w-5 h-5 text-emerald-500"></i><h3 class="font-bold text-slate-700">簽到與請假追蹤</h3></div>
