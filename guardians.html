@@ -63,7 +63,7 @@
                 font-size: 0.75rem;
                 line-height: 1.1;
             }
-            #mainPage > nav #tabBook.has-attention::after {
+            #mainPage > nav #tabContactBook.has-attention::after {
                 content: '';
                 position: absolute;
                 top: 0.35rem;
@@ -84,6 +84,7 @@
                 font-size: 1rem;
             }
             #bookPage #footerAction { padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom)); }
+            #parentBookAction #footerAction { padding: 0.75rem 0; border-top: 0; box-shadow: none; }
             #groupChatScrollArea, #privateChatScrollArea { padding: 0.875rem; }
             #groupChatPage > div:first-child, #privateChatPage > div:first-child { padding: 0.875rem 1rem; }
             #groupChatPage > div:last-child, #privateChatPage > div:last-child { padding: 0.625rem 0.75rem max(0.625rem, env(safe-area-inset-bottom)); }
@@ -182,7 +183,7 @@
 
         let fbUser = null;
         window.currentUser = null;
-        window.activeTab = 'book'; 
+        window.activeTab = 'calendar';
         
         window.lastGroupChatCount = 0;
         window.lastPrivateChatCount = 0;
@@ -203,7 +204,7 @@
         window.todayStr = "";
 
         window.updateBookAttention = function() {
-            const tabBook = document.getElementById('tabBook');
+            const tabBook = document.getElementById('tabContactBook');
             if (!tabBook || !window.currentUser) return;
 
             const todayNote = window.fbNotes.find(note => note.date === window.todayStr && note.content && note.content.trim() !== '');
@@ -361,7 +362,35 @@
             }, e => console.error(e)));
         }
 
-        window.onload = () => window.restoreUnifiedSession();
+        window.ensureParentContactBookPage = () => {
+            if (document.getElementById('parentContactBookPage')) return;
+            const mainPage = document.getElementById('mainPage');
+            const footerAction = document.getElementById('footerAction');
+            if (!mainPage || !footerAction) return;
+            const contactBookPage = document.createElement('main');
+            contactBookPage.id = 'parentContactBookPage';
+            contactBookPage.className = 'hidden flex flex-1 w-full max-w-2xl mx-auto flex-col min-h-0 overflow-y-auto bg-white custom-scrollbar';
+            contactBookPage.innerHTML = `
+                <section class="w-full p-5 sm:p-8">
+                    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
+                        <div>
+                            <p class="text-xs font-black tracking-widest text-[#d97706] mb-1">CONTACT BOOK</p>
+                            <h2 class="text-3xl font-black text-slate-800">&#32879;&#32097;&#31807;</h2>
+                            <p class="mt-1 text-sm text-slate-500">&#26597;&#30475;&#26412;&#26085;&#31805;&#38321;&#29376;&#24907;&#65292;&#20006;&#23436;&#25104;&#35201;&#31705;&#30340;&#32879;&#32097;&#20107;&#38917;&#12290;</p>
+                        </div>
+                        <span id="parentBookDateLabel" class="inline-flex w-fit items-center rounded-xl bg-amber-50 border border-amber-100 px-3 py-2 text-xs font-black text-[#b45309]">&#32113;&#35336;&#26085;&#26399; ----/--/--</span>
+                    </div>
+                    <div id="parentBookStatus" class="mb-5"></div>
+                    <div id="parentBookAction"></div>
+                </section>`;
+            mainPage.appendChild(contactBookPage);
+            document.getElementById('parentBookAction').appendChild(footerAction);
+        };
+
+        window.onload = () => {
+            window.ensureParentContactBookPage();
+            window.restoreUnifiedSession();
+        };
 
         window.togglePasswordVisibility = () => {
             const input = document.getElementById('idNumber');
@@ -416,28 +445,35 @@
 
         window.switchTab = (tab) => {
             window.activeTab = tab;
-            const bookPage = document.getElementById('bookPage');
+            const calendarPage = document.getElementById('bookPage');
+            const contactBookPage = document.getElementById('parentContactBookPage');
             const groupChatPage = document.getElementById('groupChatPage');
             const privateChatPage = document.getElementById('privateChatPage');
             
-            const tabBook = document.getElementById('tabBook');
+            const tabCalendar = document.getElementById('tabCalendar');
+            const tabBook = document.getElementById('tabContactBook');
             const tabGroup = document.getElementById('tabGroup');
             const tabPrivate = document.getElementById('tabPrivate');
             
             const groupUnreadBadge = document.getElementById('groupUnreadBadge');
             const privateUnreadBadge = document.getElementById('privateUnreadBadge');
 
-            bookPage.classList.add('hidden');
+            calendarPage.classList.add('hidden');
+            contactBookPage.classList.add('hidden');
             groupChatPage.classList.add('hidden');
             privateChatPage.classList.add('hidden');
 
             const inactiveClass = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all relative whitespace-nowrap";
+            tabCalendar.className = inactiveClass;
             tabBook.className = inactiveClass;
             tabGroup.className = inactiveClass;
             tabPrivate.className = inactiveClass;
 
-            if (tab === 'book') {
-                bookPage.classList.remove('hidden');
+            if (tab === 'calendar') {
+                calendarPage.classList.remove('hidden');
+                tabCalendar.className = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#d97706] transition-all whitespace-nowrap";
+            } else if (tab === 'book') {
+                contactBookPage.classList.remove('hidden');
                 tabBook.className = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#d97706] transition-all whitespace-nowrap";
             } else if (tab === 'group') {
                 groupChatPage.classList.remove('hidden');
@@ -470,7 +506,7 @@
             window.updateBookAttention();
             window.updateChatUnreadIndicators();
             
-            if (window.activeTab === 'book') {
+            if (window.activeTab === 'calendar' || window.activeTab === 'book') {
                 renderCalendar();
                 renderContent();
             } else if (window.activeTab === 'group') {
@@ -552,6 +588,31 @@
                 statusBadgeHtml = '<span class="bg-amber-50 text-[#d97706] px-3 py-1 rounded-full text-xs font-bold border border-amber-100">待簽署</span>';
             }
 
+            if (isFuture && !isSigned && !isLeave && !isHoliday) {
+                statusBadgeHtml = '<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold border border-slate-200">● 尚未開放簽閱</span>';
+            }
+
+            const parentBookDateLabel = document.getElementById('parentBookDateLabel');
+            const parentBookStatus = document.getElementById('parentBookStatus');
+            if (parentBookDateLabel) parentBookDateLabel.innerText = `統計日期 ${window.selectedDateStr}`;
+            if (parentBookStatus) {
+                const statusMessage = isLeave
+                    ? '學生當日請假，無須簽閱。'
+                    : isHoliday
+                        ? '當日為假日，無須簽閱。'
+                        : isSigned
+                            ? '已完成簽閱，謝謝您的確認。'
+                            : isFuture
+                                ? '日期尚未到，簽閱開放後可在此完成。'
+                                : '請確認聯絡事項後完成簽閱。';
+                parentBookStatus.innerHTML = `
+                    <div class="rounded-3xl border border-amber-100 bg-amber-50/60 p-6 text-center">
+                        <p class="text-sm font-bold text-slate-500 mb-3">${dateTitle}</p>
+                        <p class="mb-3">${statusBadgeHtml}</p>
+                        <p class="text-sm text-slate-600">${statusMessage}</p>
+                    </div>`;
+            }
+
             let eventBannerHtml = '';
             if (eventObj && eventObj.event) {
                 eventBannerHtml = `
@@ -565,14 +626,19 @@
                 `;
             }
 
+            const calendarSignPrompt = (!isSigned && !isLeave && !isHoliday && !isFuture)
+                ? `<button type="button" onclick="window.switchTab('book')" class="w-full max-w-md mx-auto bg-amber-50 border border-amber-200 text-[#b45309] font-bold py-3 rounded-xl active:scale-[.98] transition-transform">前往聯絡簿完成簽閱</button>`
+                : '';
+
             container.innerHTML = `
                 <div class="fade-in max-w-2xl mx-auto w-full">
-                    <div class="text-center mb-8"><p class="mb-3">${statusBadgeHtml}</p><h2 class="text-3xl font-black text-slate-800 tracking-tight">${dateTitle}</h2></div>
+                    <div class="text-center mb-8"><p class="mb-2 text-xs font-bold tracking-widest text-[#d97706]">行事曆公告</p><h2 class="text-3xl font-black text-slate-800 tracking-tight">${dateTitle}</h2></div>
                     ${eventBannerHtml}
                     <div class="bg-slate-50/50 rounded-3xl p-6 lg:p-8 border border-slate-100 shadow-inner mb-6">
                         <div class="flex items-center gap-2 mb-4 text-[#d97706] font-bold text-sm">今日聯絡事項</div>
                         <div class="note-content-area">${displayContent}</div>
                     </div>
+                    ${calendarSignPrompt}
                 </div>
             `;
 
@@ -1063,7 +1129,14 @@
 
     <!-- 登入頁面 -->
     <div id="loginPage" class="flex-1 flex flex-col items-center justify-center p-4 overflow-y-auto min-h-0">
-        <div class="w-full max-w-sm fade-in my-auto">
+        <div id="parentSessionLoading" class="w-full max-w-sm my-auto text-center fade-in">
+            <div class="w-20 h-20 mx-auto rounded-[1.4rem] bg-white shadow-sm border border-slate-100 flex items-center justify-center text-[#d97706] mb-5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
+            </div>
+            <h1 class="text-2xl font-black text-slate-800">正在驗證登入</h1>
+            <p class="mt-2 text-sm text-slate-500">請稍候，正在開啟班級聯絡簿。</p>
+        </div>
+        <div class="hidden w-full max-w-sm fade-in my-auto">
             <div class="text-center mb-10">
                 <div class="inline-flex items-center justify-center w-20 h-20 bg-white rounded-[1.4rem] shadow-sm mb-4 border border-slate-100">
                     <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
@@ -1111,14 +1184,15 @@
         
         <nav class="bg-[#f2f2f7]/95 backdrop-blur-xl border-b border-[#e5e5ea] px-3 py-2.5 shrink-0 z-50">
             <div class="max-w-6xl mx-auto flex justify-between items-center">
-                <div class="flex items-center gap-1 bg-[#e5e5ea]/80 p-1 rounded-xl w-full max-w-[320px] justify-between">
-                    <button onclick="window.switchTab('book')" id="tabBook" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#d97706] transition-all whitespace-nowrap">聯絡簿</button>
+                <div class="flex items-center gap-1 bg-[#e5e5ea]/80 p-1 rounded-xl w-full max-w-[400px] justify-between">
+                    <button onclick="window.switchTab('calendar')" id="tabCalendar" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#d97706] transition-all whitespace-nowrap">行事曆</button>
+                    <button onclick="window.switchTab('book')" id="tabContactBook" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all whitespace-nowrap">聯絡簿</button>
                     <button onclick="window.switchTab('group')" id="tabGroup" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all relative whitespace-nowrap">
-                        班級群聊 
+                        班群
                         <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#ff3b30] hidden shadow-sm" id="groupUnreadBadge"></span>
                     </button>
                     <button onclick="window.switchTab('private')" id="tabPrivate" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all relative whitespace-nowrap">
-                        私訊老師
+                        私訊
                         <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#ff3b30] hidden shadow-sm" id="privateUnreadBadge"></span>
                     </button>
                 </div>
@@ -1180,7 +1254,7 @@
                 <div class="flex gap-2 items-end bg-white rounded-[20px] p-1.5 border border-gray-200">
                     
                     <!-- 📸 圖片上傳按鈕 -->
-                    <label class="w-[42px] h-[42px] shrink-0 hover:bg-slate-100 rounded-full flex items-center justify-center transition-transform active:scale-90 mb-0.5 cursor-pointer text-slate-500">
+                    <label class="hidden w-[42px] h-[42px] shrink-0 hover:bg-slate-100 rounded-full flex items-center justify-center transition-transform active:scale-90 mb-0.5 cursor-pointer text-slate-500">
                         <input type="file" accept="image/*" class="hidden" onchange="window.handleImageUpload(this, 'group')">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                     </label>
@@ -1218,7 +1292,7 @@
                 <div class="flex gap-2 items-end bg-slate-50 rounded-[20px] p-1.5 border border-slate-200 focus-within:border-blue-300 focus-within:ring-1 transition-all">
                     
                     <!-- 📸 圖片上傳按鈕 -->
-                    <label class="w-[42px] h-[42px] shrink-0 hover:bg-slate-200 rounded-full flex items-center justify-center transition-transform active:scale-90 mb-0.5 cursor-pointer text-slate-500">
+                    <label class="hidden w-[42px] h-[42px] shrink-0 hover:bg-slate-200 rounded-full flex items-center justify-center transition-transform active:scale-90 mb-0.5 cursor-pointer text-slate-500">
                         <input type="file" accept="image/*" class="hidden" onchange="window.handleImageUpload(this, 'private')">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                     </label>
