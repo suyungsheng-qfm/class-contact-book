@@ -720,7 +720,9 @@
             date.value = new Date().toISOString().slice(0, 10);
             window.populateTeacherPhotoSeats();
 
+            let statusTimer = null;
             const setStatus = (message, type) => {
+                if (statusTimer) clearTimeout(statusTimer);
                 status.textContent = message;
                 status.className = `rounded-lg px-3 py-2 text-sm ${type === 'error' ? 'bg-red-50 text-red-700' : type === 'success' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`;
                 status.classList.remove('hidden');
@@ -734,6 +736,12 @@
                 pick.classList.remove('hidden');
                 status.classList.add('hidden');
                 retry.classList.add('hidden');
+            };
+            const resetPhotoForm = () => {
+                clearPhoto();
+                fileName.textContent = '';
+                date.value = new Date().toISOString().slice(0, 10);
+                window.selectTeacherPhotoSeat('');
             };
             const selectPhoto = (file) => {
                 if (!file || !file.type.startsWith('image/')) return setStatus('請選擇圖片檔案。', 'error');
@@ -774,7 +782,10 @@
                     });
                     const result = JSON.parse(await response.text());
                     if (result.status !== 'success') throw new Error(result.message || '上傳失敗。');
-                    setStatus(`上傳完成：${seat.value}.${extension}`, 'success');
+                    const uploadedName = `${seat.value}.${extension}`;
+                    resetPhotoForm();
+                    setStatus(`上傳完成：${uploadedName}，已重置表單。`, 'success');
+                    statusTimer = setTimeout(() => status.classList.add('hidden'), 2500);
                 } catch (error) {
                     setStatus(error.message || '上傳失敗，請再試一次。', 'error');
                     retry.classList.remove('hidden');
