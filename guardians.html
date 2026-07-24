@@ -528,7 +528,8 @@
             grid.innerHTML = "";
             const year = window.viewDate.getFullYear();
             const month = window.viewDate.getMonth();
-            display.innerText = `${year}年 ${month + 1}月`;
+            const [selectedYear, selectedMonth, selectedDay] = window.selectedDateStr.split('/').map(Number);
+            display.innerHTML = `<span class="font-black text-slate-800">${selectedYear}年${selectedMonth}月${selectedDay}日</span><span class="ml-2 text-[11px] font-bold text-[#d97706] whitespace-nowrap">行事曆公告</span>`;
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
@@ -636,7 +637,6 @@
 
             container.innerHTML = `
                 <div class="fade-in max-w-2xl mx-auto w-full">
-                    <div class="text-center mb-8"><p class="mb-2 text-xs font-bold tracking-widest text-[#d97706]">行事曆公告</p><h2 class="text-3xl font-black text-slate-800 tracking-tight">${dateTitle}</h2></div>
                     ${eventBannerHtml}
                     <div class="bg-slate-50/50 rounded-3xl p-6 lg:p-8 border border-slate-100 shadow-inner mb-6">
                         <div class="flex items-center gap-2 mb-4 text-[#d97706] font-bold text-sm">今日聯絡事項</div>
