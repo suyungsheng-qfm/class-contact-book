@@ -947,6 +947,13 @@
             if(!container) return;
 
             const myChats = window.fbPrivateChats.filter(c => c.studentId === window.currentUser.studentId);
+            const pendingRequest = myChats.find(message => message.messageType === 'call_request' && Number(message.callRequestExpiresAt || 0) > Date.now());
+            const requestButton = document.getElementById('parentVoiceRequestButton');
+            if (requestButton) {
+                requestButton.disabled = Boolean(pendingRequest);
+                requestButton.textContent = pendingRequest ? '等待老師' : '申請通話';
+                requestButton.classList.toggle('opacity-50', Boolean(pendingRequest));
+            }
 
             if(myChats.length === 0) {
                 container.innerHTML = '<div class="text-center text-slate-400 mt-10 text-sm font-bold bg-white mx-auto px-4 py-2 rounded-full w-max shadow-sm border border-slate-200">這是您與老師的專屬空間，有問題隨時發問！</div>';
@@ -997,6 +1004,7 @@
                         const msgTime = msg.timestamp.split(' ')[1];
                         const isMe = msg.sender === 'parent';
                         const isImage = msg.messageType === 'image';
+                        const isCallRequest = msg.messageType === 'call_request';
                         
                         if(msgDate !== lastDate) {
                             html += `<div class="text-center my-4"><span class="bg-slate-200 text-slate-500 text-xs font-medium px-3 py-1 rounded-full shadow-sm">${msgDate}</span></div>`;
@@ -1005,7 +1013,9 @@
 
                         const bubbleContent = isImage 
                             ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-sm border border-slate-200" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
-                            : msg.text;
+                            : (isCallRequest
+                                ? `<div class="font-black">&#128222; 申請語音通話</div><div class="mt-1 text-xs opacity-80">${Number(msg.callRequestExpiresAt || 0) > Date.now() ? '30 分鐘內有效' : '申請已逾時'}</div>`
+                                : msg.text);
 
                         if(isMe) {
                             html += `
@@ -1248,6 +1258,12 @@
 
         window.requestVoiceCall = async () => {
             if (!checkFbAuth() || !window.currentUser) return;
+            const existingRequest = window.fbPrivateChats.find(message => message.studentId === window.currentUser.studentId && message.messageType === 'call_request' && Number(message.callRequestExpiresAt || 0) > Date.now());
+            if (existingRequest) {
+                const minutesLeft = Math.max(1, Math.ceil((Number(existingRequest.callRequestExpiresAt) - Date.now()) / 60000));
+                Swal.fire('申請已送出', `請等待老師回覆，申請約 ${minutesLeft} 分鐘後失效。`, 'info');
+                return;
+            }
             const confirmation = await Swal.fire({
                 icon: 'question',
                 title: '申請語音通話',
@@ -1266,9 +1282,11 @@
                     sender: 'parent',
                     text: '📞 申請語音通話',
                     messageType: 'call_request',
+                    callRequestExpiresAt: Date.now() + (30 * 60 * 1000),
                     timestamp: window.getPreciseTime()
                 });
                 window.updateParentVoiceCallPolling && window.updateParentVoiceCallPolling();
+                setTimeout(() => window.refreshUI(), (30 * 60 * 1000) + 1000);
                 Swal.fire({ icon: 'success', title: '已通知老師', text: '請保持在私訊頁面，等待老師發起通話。', showConfirmButton: false, timer: 1800 });
             } catch (error) {
                 Swal.fire('系統錯誤', error.message || '無法送出申請，請再試一次。', 'error');
@@ -1500,7 +1518,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><path d="M13 8H7"></path><path d="M17 8h.01"></path></svg>
                     與老師的私密對話
                 </h3>
-                <button type="button" onclick="window.requestVoiceCall()" class="shrink-0 min-h-10 rounded-xl bg-emerald-50 px-3 text-sm font-black text-emerald-700 active:scale-[.98]">申請通話</button>
+                <button id="parentVoiceRequestButton" type="button" onclick="window.requestVoiceCall()" class="shrink-0 min-h-10 rounded-xl bg-emerald-50 px-3 text-sm font-black text-emerald-700 active:scale-[.98] disabled:active:scale-100">申請通話</button>
             </div>
             <div id="privateChatScrollArea" class="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col relative scroll-smooth bg-slate-50/50">
                 <div id="privateChatMessageList" class="flex flex-col min-h-full justify-end"></div>

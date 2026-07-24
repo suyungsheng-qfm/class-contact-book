@@ -478,6 +478,12 @@
             if (!window.activeChatStudentId || !checkFbAuth()) return;
             if (window.voiceCall.peer) return;
             const studentId = window.activeChatStudentId;
+            const hasActiveRequest = window.fbPrivateChats.some(message => message.studentId === studentId && message.sender === 'parent' && message.messageType === 'call_request' && Number(message.callRequestExpiresAt || 0) > Date.now());
+            if (!hasActiveRequest) {
+                Swal.fire('通話申請已逾時', '請家長重新送出通話申請後再發起通話。', 'info');
+                window.refreshUI();
+                return;
+            }
             const student = window.allStudents.find(item => item.studentId === studentId);
             const displayName = student ? `${student.name} 家長` : '家長';
             window.updateTeacherVoiceCallUi(`正在呼叫 ${displayName}`, '正在請求麥克風權限…');
@@ -1134,6 +1140,7 @@
                         const msgTime = msg.timestamp.split(' ')[1];
                         const isMe = msg.sender === 'teacher';
                         const isImage = msg.messageType === 'image';
+                        const isCallRequest = msg.messageType === 'call_request';
                         
                         if(msgDate !== lastDate) {
                             html += `<div class="text-center my-4"><span class="bg-slate-200 text-slate-500 text-xs font-medium px-3 py-1 rounded-full shadow-sm">${msgDate}</span></div>`;
@@ -1143,7 +1150,9 @@
                         // 圖片渲染
                         const bubbleContent = isImage 
                             ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-sm border border-slate-200" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
-                            : msg.text;
+                            : (isCallRequest
+                                ? `<div class="font-black">&#128222; 申請語音通話</div><div class="mt-1 text-xs opacity-80">${Number(msg.callRequestExpiresAt || 0) > Date.now() ? '可按右上電話圖示回應' : '申請已逾時'}</div>`
+                                : msg.text);
 
                         if(isMe) {
                             html += `
@@ -1253,9 +1262,13 @@
             }
 
             inputArea.classList.remove('hidden');
-            if (callButton) callButton.classList.remove('hidden');
 
             const studentChats = window.fbPrivateChats.filter(c => c.studentId === window.activeChatStudentId);
+            const activeCallRequest = studentChats.find(message => message.sender === 'parent' && message.messageType === 'call_request' && Number(message.callRequestExpiresAt || 0) > Date.now());
+            if (callButton) {
+                callButton.classList.toggle('hidden', !activeCallRequest);
+                callButton.title = activeCallRequest ? '回應通話申請' : '目前沒有有效的通話申請';
+            }
             
             if(studentChats.length === 0) {
                 container.innerHTML = '<div class="text-center text-slate-400 mt-10 text-sm font-bold bg-slate-100 mx-auto px-4 py-2 rounded-full w-max">這是您與該家長的專屬私密空間</div>';
