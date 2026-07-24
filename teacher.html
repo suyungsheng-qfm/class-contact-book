@@ -977,10 +977,7 @@
                     dayEl.appendChild(dotsContainer);
                 }
                 
-                dayEl.onclick = () => { 
-                    window.selectedDateStr = dStr; 
-                    window.refreshUI(); 
-                };
+                dayEl.onclick = () => window.selectTeacherDate(dStr);
                 grid.appendChild(dayEl);
             }
         }
@@ -1662,10 +1659,15 @@
             }
         };
 
-        window.changeMonth = (offset) => { 
-            window.viewDate.setMonth(window.viewDate.getMonth() + offset); 
-            window.checkSemesterSwitch(window.viewDate);
-            window.refreshUI(); 
+        window.changeMonth = (offset) => {
+            const selectedParts = String(window.selectedDateStr || '').split('/').map(Number);
+            const selectedDay = selectedParts.length === 3 && selectedParts.every(Number.isFinite)
+                ? selectedParts[2]
+                : window.viewDate.getDate();
+            const targetMonth = new Date(window.viewDate.getFullYear(), window.viewDate.getMonth() + offset, 1);
+            const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+            targetMonth.setDate(Math.min(selectedDay, lastDay));
+            window.selectTeacherDate(window.normalizeDate(targetMonth));
         };
         
         window.clearInput = () => { 
