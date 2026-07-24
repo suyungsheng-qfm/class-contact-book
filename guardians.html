@@ -593,6 +593,9 @@
             const record = window.fbRecords.find(r => r.date === window.selectedDateStr && r.studentId === window.currentUser.studentId);
             const isLeave = record ? record.isLeave : false;
             const isSigned = record ? record.signed : false;
+            const canManageLeave = !isHoliday && !isSigned && window.selectedDateStr >= window.todayStr;
+            const todayButton = document.getElementById('goTodayButton');
+            if (todayButton) todayButton.textContent = window.selectedDateStr === window.todayStr ? '今日' : '回到今天';
 
             let statusBadgeHtml = '';
             if (isLeave) {
@@ -643,9 +646,11 @@
                 `;
             }
 
-            const calendarSignPrompt = (!isSigned && !isLeave && !isHoliday && !isFuture)
+            const calendarActionPrompt = (!isSigned && !isLeave && !isHoliday && !isFuture)
                 ? `<button type="button" onclick="window.switchTab('book')" class="w-full max-w-md mx-auto bg-amber-50 border border-amber-200 text-[#b45309] font-bold py-3 rounded-xl active:scale-[.98] transition-transform">前往聯絡簿完成簽閱</button>`
-                : '';
+                : (canManageLeave && isFuture
+                    ? `<button type="button" onclick="window.switchTab('book')" class="w-full max-w-md mx-auto bg-blue-50 border border-blue-200 text-blue-700 font-bold py-3 rounded-xl active:scale-[.98] transition-transform">前往聯絡簿登記請假</button>`
+                    : '');
 
             container.innerHTML = `
                 <div class="fade-in max-w-2xl mx-auto w-full">
@@ -653,7 +658,7 @@
                     <div class="bg-slate-50/50 rounded-3xl p-6 lg:p-8 border border-slate-100 shadow-inner mb-6">
                         <div class="note-content-area">${displayContent}</div>
                     </div>
-                    ${calendarSignPrompt}
+                    ${calendarActionPrompt}
                 </div>
             `;
 
@@ -662,6 +667,13 @@
                 footerHtml += `
                     <button onclick="window.handleSign('${window.selectedDateStr}')" id="signBtn" class="w-full max-w-md mx-auto bg-[#d97706] text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-[0.98] text-[17px] flex items-center justify-center gap-2 hover:bg-[#b45309] transition-all">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>確認並簽署聯絡簿
+                    </button>
+                `;
+            }
+            if (canManageLeave) {
+                footerHtml += `
+                    <button onclick="window.handleLeave('${window.selectedDateStr}', ${isLeave ? 'false' : 'true'})" id="leaveBtn" class="w-full max-w-md mx-auto ${isLeave ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-blue-50 text-blue-700 border border-blue-200'} font-bold py-3.5 rounded-xl active:scale-[0.98] text-[16px] flex items-center justify-center gap-2 transition-all ${footerHtml ? 'mt-2' : ''}">
+                        ${isLeave ? '取消請假登記' : '我要登記請假'}
                     </button>
                 `;
             }
@@ -1139,6 +1151,43 @@
                 Swal.fire('系統錯誤', '簽署失敗：' + err.message, 'error');
             }
         };
+
+        window.handleLeave = async (dateToManage, shouldLeave) => {
+            if (!checkFbAuth() || !window.currentUser) return;
+            if (dateToManage < window.todayStr) {
+                Swal.fire('無法設定', '只能登記今天或未來日期的請假。', 'info');
+                return;
+            }
+            const actionLabel = shouldLeave ? '登記請假' : '取消請假登記';
+            const confirmation = await Swal.fire({
+                icon: 'question',
+                title: actionLabel,
+                text: shouldLeave ? `${dateToManage} 將標記為請假，當日無須簽閱。` : `${dateToManage} 將恢復為一般出席狀態。`,
+                showCancelButton: true,
+                confirmButtonText: '確認',
+                cancelButtonText: '返回',
+                confirmButtonColor: shouldLeave ? '#2563eb' : '#64748b'
+            });
+            if (!confirmation.isConfirmed) return;
+
+            const button = document.getElementById('leaveBtn');
+            if (button) { button.disabled = true; button.innerHTML = '<span class="loading-spinner mx-auto"></span>'; }
+            try {
+                const docId = `${window.toDocId(dateToManage)}_${window.currentUser.studentId}`;
+                const docRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', docId);
+                await setDoc(docRef, {
+                    date: dateToManage,
+                    studentId: window.currentUser.studentId,
+                    signed: false,
+                    isLeave: shouldLeave,
+                    leaveTime: window.getPreciseTime()
+                }, { merge: true });
+                Swal.fire({ icon: 'success', title: shouldLeave ? '已登記請假' : '已取消請假', showConfirmButton: false, timer: 1300 });
+            } catch (error) {
+                if (button) { button.disabled = false; button.textContent = shouldLeave ? '我要登記請假' : '取消請假登記'; }
+                Swal.fire('系統錯誤', error.message || '請假設定失敗，請再試一次。', 'error');
+            }
+        };
     </script>
 
     <!-- 登入頁面 -->
@@ -1223,7 +1272,7 @@
                 <div class="sticky top-0 bg-[#f2f2f7] z-20 px-4 py-3 flex justify-between items-center border-b border-[#e5e5ea]/50 shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
                     <h3 id="currentMonthDisplay" class="font-bold text-[20px] lg:text-[22px] tracking-tight text-slate-800 bg-[#f2f2f7]"></h3>
                     <div class="flex items-center gap-1">
-                        <button onclick="window.goToToday()" class="text-[#d97706] bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors">今日</button>
+                        <button id="goTodayButton" onclick="window.goToToday()" class="text-[#d97706] bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors">今日</button>
                         <button onclick="window.changeMonth(-1)" title="上個月" aria-label="上個月" class="text-[#d97706] hover:bg-black/5 w-10 h-10 flex items-center justify-center rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
                         <button onclick="window.changeMonth(1)" title="下個月" aria-label="下個月" class="text-[#d97706] hover:bg-black/5 w-10 h-10 flex items-center justify-center rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
                     </div>
