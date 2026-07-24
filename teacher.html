@@ -684,7 +684,7 @@
         function renderContent() {
             const dateParts = window.selectedDateStr.split('/');
             document.getElementById('tDateTitle').innerText = `${dateParts[0]}年${parseInt(dateParts[1])}月${parseInt(dateParts[2])}日`;
-            document.getElementById('tSelectedDateLabel').innerText = window.selectedDateStr;
+            document.getElementById('tSelectedDateLabel').innerText = `發布日期 ${window.selectedDateStr}`;
             
             const noteObj = window.fbNotes.find(n => n.date === window.selectedDateStr);
             document.getElementById('tNoteInput').value = noteObj ? noteObj.content : "";
@@ -1653,7 +1653,7 @@
                                             <label class="flex items-center gap-2 cursor-pointer text-sm font-bold text-rose-500">
                                                 <input type="checkbox" id="tHolidayToggle" onchange="window.handleToggleHoliday(this.checked)" class="w-4 h-4 accent-rose-500 rounded">設為假日
                                             </label>
-                                            <span id="tSelectedDateLabel" class="text-xs font-bold text-slate-400 hidden sm:inline">----/--/--</span>
+                                            <span id="tSelectedDateLabel" class="inline-flex items-center rounded-lg bg-blue-50 border border-blue-100 px-2.5 py-1.5 text-[11px] font-black text-blue-700 whitespace-nowrap">發布日期 ----/--/--</span>
                                         </div>
                                     </div>
                                     <div class="p-5 flex-1 flex flex-col gap-4">
