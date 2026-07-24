@@ -118,6 +118,46 @@
             #teacherSignatureCard { order: -1; }
             #teacherComposerCard > div, #teacherSignatureCard > div { min-height: 0; }
             #teacherComposerCard textarea { min-height: 12rem; }
+            #loginPage input[type="text"], #loginPage input[type="password"] { min-height: 48px; }
+            #loginPage #loginBtn { min-height: 52px; }
+            #dashboardPage > div:first-child > div:first-child button { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+            #teacherComposerCard > div:first-child { flex-wrap: wrap; gap: .7rem; }
+            #teacherComposerCard > div:first-child > div:last-child { width: 100%; justify-content: space-between; gap: .5rem; }
+            #teacherComposerCard #saveBtn, #teacherComposerCard button[title="清除"] { min-height: 48px; }
+            #teacherSignatureCard table, #teacherSignatureCard tbody { display: block; width: 100%; }
+            #teacherSignatureCard thead { display: none; }
+            #teacherSignatureCard tbody tr {
+                display: grid;
+                grid-template-columns: 2.5rem minmax(0, 1fr);
+                gap: 0 .75rem;
+                margin: .5rem;
+                padding: .7rem;
+                border: 1px solid #e2e8f0;
+                border-radius: 1rem;
+                background: #fff;
+            }
+            #teacherSignatureCard tbody td { display: block; padding: .22rem 0 !important; border: 0 !important; text-align: left !important; }
+            #teacherSignatureCard tbody td:first-child {
+                grid-row: 1 / span 3;
+                align-self: center;
+                width: 2.5rem;
+                height: 2.5rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: .85rem !important;
+                background: #eff6ff;
+                color: #2563eb;
+            }
+            #teacherSignatureCard tbody td[colspan] { grid-column: 1 / -1; grid-row: auto; width: auto; height: auto; display: block; background: transparent; color: #94a3b8; }
+            #teacherSignatureCard tbody td:nth-child(2) { font-size: 1rem; }
+            #teacherSignatureCard tbody td:nth-child(3)::before { content: '簽閱'; }
+            #teacherSignatureCard tbody td:nth-child(4)::before { content: '出缺席'; }
+            #teacherSignatureCard tbody td:nth-child(3)::before, #teacherSignatureCard tbody td:nth-child(4)::before { display: inline-block; min-width: 3.6rem; font-size: .7rem; font-weight: 800; color: #94a3b8; }
+            #teacherSignatureCard tbody td:last-child { grid-column: 1 / -1; padding-top: .55rem !important; border-top: 1px solid #f1f5f9 !important; }
+            #teacherSignatureCard tbody td:last-child > div { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+            #teacherSignatureCard tbody td:last-child button { min-height: 44px; font-size: .78rem; }
+            #studentHistoryModal button { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
             #photoPage > section { padding: .75rem .75rem 6.5rem; }
             #photoPage .photo-upload-card { border-radius: 1.5rem; }
             #photoPage .photo-seat-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .45rem; }

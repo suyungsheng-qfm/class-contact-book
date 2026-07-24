@@ -63,6 +63,13 @@
                 font-size: 0.75rem;
                 line-height: 1.1;
             }
+            #mainPage > nav > div > div:last-child > button {
+                width: 44px;
+                height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
             #mainPage > nav #tabContactBook.has-attention::after {
                 content: '';
                 position: absolute;
@@ -80,6 +87,8 @@
                 overflow-y: auto;
             }
             #bookPage > div:first-child > .p-3 { padding: 0.5rem 0.75rem; }
+            #bookPage > div:first-child > div:first-child button { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+            #bookPage > div:first-child > div:first-child button:first-child { padding-left: .7rem; padding-right: .7rem; }
             #bookPage .calendar-day { aspect-ratio: auto; min-height: 1.85rem; height: 1.85rem; font-size: 0.75rem; }
             #bookPage .calendar-header { margin-bottom: 0.45rem; font-size: 0.6875rem; }
             #bookPage > div:first-child > .p-3 > .mt-3 { display: none; }
@@ -93,6 +102,9 @@
             #groupChatPage > div:first-child, #privateChatPage > div:first-child { padding: 0.875rem 1rem; }
             #groupChatPage > div:last-child, #privateChatPage > div:last-child { padding: 0.625rem 0.75rem max(0.625rem, env(safe-area-inset-bottom)); }
             .calendar-day { min-height: 2rem; font-size: 0.8125rem; }
+            #loginPage input { min-height: 48px; }
+            #loginPage button[type="button"] { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+            #loginPage #loginBtn { min-height: 52px; }
         }
     </style>
 </head>
