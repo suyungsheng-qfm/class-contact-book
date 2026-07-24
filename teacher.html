@@ -66,6 +66,37 @@
         .photo-seat-option:active { transform: scale(.94); }
         .photo-seat-option.is-selected { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 6px 14px rgba(37, 99, 235, .22); }
         /* 與家長端一致的行動版操作節奏：內容優先、分頁置底、觸控目標加大。 */
+        /* 平板採用「加大的單欄 App」配置；雙欄只留給較寬的桌面。 */
+        @media (min-width: 768px) and (max-width: 1023px) {
+            #teacherDashboard > header { flex-wrap: wrap; gap: .6rem; padding: .7rem .9rem; }
+            #teacherDashboard > header > div:first-child > div:last-child,
+            #teacherDashboard > header > div:last-child > div:first-child { display: none; }
+            #teacherDashboard > header > div:nth-child(2) { order: 3; width: 100%; justify-content: stretch; }
+            #teacherDashboard > header button[id^="tab"] { flex: 1 1 0; min-width: 0; min-height: 44px; padding: .5rem .35rem; font-size: .875rem; white-space: normal; line-height: 1.15; }
+            #teacherDashboard > header > div:last-child > button { min-width: 44px; min-height: 44px; }
+            #dashboardPage:not(.hidden) { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+            #dashboardPage > div:first-child { height: 21rem; min-height: 21rem; border-bottom: 1px solid #e2e8f0; }
+            #dashboardPage > div:first-child > .p-4 { padding: .75rem 1rem; }
+            #dashboardPage .t-calendar-day { aspect-ratio: auto; min-height: 2.15rem; font-size: .875rem; }
+            #dashboardPage > div:nth-child(2) { overflow: visible; flex: 0 0 auto; }
+            #dashboardPage > div:nth-child(2) > .flex-1 { overflow: visible; padding: 1.25rem 1.25rem 2rem; }
+            #dashboardPage h2#tDateTitle { font-size: 2rem; }
+            #teacherComposerCard > div:first-child { flex-wrap: wrap; gap: .75rem; }
+            #teacherComposerCard > div:first-child > div:last-child { width: 100%; justify-content: space-between; gap: .75rem; }
+            #teacherComposerCard #tSelectedDateLabel { white-space: normal; text-align: right; }
+            #groupChatScrollArea, #privateChatScrollArea { padding: 1rem 1.25rem; }
+            #groupChatInputArea, #privateChatInputArea { padding: .75rem 1rem max(.75rem, env(safe-area-inset-bottom)); }
+            #privateChatSidebar { width: 100%; border-right: 0; }
+            #privateChatMainWindow { width: 100%; }
+        }
+
+        /* 使用者放大文字時，優先換行與保留觸控範圍，不讓內容被裁掉。 */
+        @media (max-width: 1023px) {
+            #teacherDashboard button, #teacherDashboard input, #teacherDashboard textarea { max-width: 100%; }
+            #teacherDashboard button { overflow-wrap: anywhere; }
+            #groupChatInput, #privateChatInput { font-size: max(16px, 1rem); }
+        }
+
         @media (max-width: 767px) {
             #teacherDashboard > header {
                 order: 2;
@@ -890,6 +921,7 @@
                 tabPrivate.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-blue-600 relative transition-all whitespace-nowrap";
                 const badge = document.getElementById('privateUnreadBadge');
                 if(badge) badge.classList.add('hidden');
+                window.syncPrivateChatLayout && window.syncPrivateChatLayout();
                 setTimeout(window.scrollToPrivateChatBottom, 50);
             } else if (tab === 'photo') {
                 photoPage.classList.remove('hidden');
@@ -1440,24 +1472,40 @@
             
             const sidebar = document.getElementById('privateChatSidebar');
             const mainWin = document.getElementById('privateChatMainWindow');
-            if (window.innerWidth < 768) {
-                sidebar.classList.add('hidden');
-                mainWin.classList.remove('hidden');
-                mainWin.classList.add('flex');
-            }
+            window.syncPrivateChatLayout();
             window.refreshUI();
             setTimeout(window.scrollToPrivateChatBottom, 50);
         };
 
         window.backToChatList = () => {
             window.activeChatStudentId = null;
-            const sidebar = document.getElementById('privateChatSidebar');
-            const mainWin = document.getElementById('privateChatMainWindow');
-            sidebar.classList.remove('hidden');
-            mainWin.classList.add('hidden');
-            mainWin.classList.remove('flex');
+            window.syncPrivateChatLayout();
             window.refreshUI();
         };
+
+        window.syncPrivateChatLayout = () => {
+            const sidebar = document.getElementById('privateChatSidebar');
+            const mainWin = document.getElementById('privateChatMainWindow');
+            if (!sidebar || !mainWin) return;
+            if (window.innerWidth >= 1024) {
+                sidebar.classList.remove('hidden');
+                mainWin.classList.remove('hidden');
+                mainWin.classList.add('flex');
+                return;
+            }
+            if (window.activeChatStudentId) {
+                sidebar.classList.add('hidden');
+                mainWin.classList.remove('hidden');
+                mainWin.classList.add('flex');
+            } else {
+                sidebar.classList.remove('hidden');
+                mainWin.classList.add('hidden');
+                mainWin.classList.remove('flex');
+            }
+        };
+        window.addEventListener('resize', () => {
+            if (window.activeTab === 'private') window.syncPrivateChatLayout();
+        });
 
         window.scrollToGroupChatBottom = () => {
             const container = document.getElementById('groupChatScrollArea');
@@ -2064,10 +2112,10 @@
         </main>
 
         <!-- 第 3 頁：老師端私訊整合面板 -->
-        <main id="privateChatPage" class="hidden flex-1 w-full flex flex-col md:flex-row overflow-hidden min-h-0 relative bg-white">
+        <main id="privateChatPage" class="hidden flex-1 w-full flex flex-col lg:flex-row overflow-hidden min-h-0 relative bg-white">
             
             <!-- 左側：學生列表 -->
-            <div id="privateChatSidebar" class="w-full md:w-80 border-r border-slate-200 flex flex-col shrink-0 h-full bg-slate-50">
+            <div id="privateChatSidebar" class="w-full lg:w-80 border-r border-slate-200 flex flex-col shrink-0 h-full bg-slate-50">
                 <div class="p-4 border-b border-slate-200 bg-white shadow-sm z-10 flex justify-between items-center">
                     <h3 class="font-bold text-slate-700">家長私訊列表</h3>
                 </div>
@@ -2075,9 +2123,9 @@
             </div>
 
             <!-- 右側：與單一學生的私訊視窗 -->
-            <div id="privateChatMainWindow" class="hidden md:flex flex-1 flex-col h-full bg-white relative">
+            <div id="privateChatMainWindow" class="hidden lg:flex flex-1 flex-col h-full bg-white relative">
                 <div class="px-5 py-3 border-b border-slate-100 flex items-center shrink-0 z-10 bg-slate-50/50 gap-3">
-                    <button onclick="window.backToChatList()" class="md:hidden p-1.5 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                    <button onclick="window.backToChatList()" class="lg:hidden p-1.5 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
                     <h3 id="activeChatHeader" class="font-bold text-slate-700 text-lg flex-1 min-w-0 truncate">請從左側選擇家長</h3>
                     <button id="teacherVoiceCallButton" onclick="window.startVoiceCall()" type="button" class="hidden w-11 h-11 shrink-0 rounded-2xl bg-emerald-600 text-white shadow-sm active:scale-95" aria-label="發起語音通話" title="發起語音通話"><i data-lucide="phone-call" class="w-5 h-5 mx-auto"></i></button>
                 </div>

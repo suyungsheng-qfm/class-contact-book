@@ -41,6 +41,30 @@
         .chat-bubble-me-private { background-color: #007aff; color: white; }
 
         /* 家長端以手機閱讀為優先：內容在上、分頁導覽固定在底部。 */
+        /* 平板仍維持單欄閱讀：月曆精簡，公告與聊天保留更大的可讀空間。 */
+        @media (min-width: 768px) and (max-width: 1023px) {
+            #mainPage > nav { padding: .65rem 1rem; }
+            #mainPage > nav > div { gap: .65rem; }
+            #mainPage > nav > div > div:first-child { max-width: 36rem; flex: 1 1 auto; }
+            #mainPage > nav button[id^="tab"] { flex: 1 1 0; min-width: 0; min-height: 44px; padding: .5rem .4rem; font-size: .9rem; white-space: normal; line-height: 1.15; }
+            #mainPage > nav > div > div:last-child > button { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+            #bookPage > div:first-child { max-height: 22rem; }
+            #bookPage > div:first-child > .p-3 { padding: .65rem 1rem; }
+            #bookPage .calendar-day { aspect-ratio: auto; min-height: 2.2rem; height: 2.2rem; font-size: .875rem; }
+            #bookPage .calendar-header { margin-bottom: .55rem; font-size: .75rem; }
+            #bookPage #contentContainer { padding: 1.5rem; }
+            #bookPage #footerAction { padding: 1rem 1.5rem; }
+            #groupChatScrollArea, #privateChatScrollArea { padding: 1rem 1.25rem; }
+            #groupChatInputArea, #privateChatInputArea { padding: .75rem 1rem max(.75rem, env(safe-area-inset-bottom)); }
+        }
+
+        /* 放大文字後讓按鈕與標題換行，避免遮住主要內容或送出列。 */
+        @media (max-width: 1023px) {
+            #mainPage button, #mainPage input, #mainPage textarea { max-width: 100%; }
+            #mainPage button { overflow-wrap: anywhere; }
+            #groupChatInput, #privateChatInput { font-size: max(16px, 1rem); }
+        }
+
         @media (max-width: 767px) {
             body { min-height: 100dvh; }
             #mainPage > nav {
