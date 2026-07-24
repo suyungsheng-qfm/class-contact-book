@@ -53,6 +53,18 @@
         .teacher-week-day.is-selected { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 8px 18px rgba(37,99,235,.22); }
         .teacher-week-day.is-today:not(.is-selected) { border-color: #93c5fd; color: #2563eb; background: #eff6ff; }
         .teacher-week-day.has-note::after { content: ''; width: .25rem; height: .25rem; border-radius: 999px; background: currentColor; opacity: .75; }
+        .photo-seat-option {
+            min-height: 2.85rem;
+            border: 1px solid #e2e8f0;
+            border-radius: .85rem;
+            background: #fff;
+            color: #475569;
+            font-size: .82rem;
+            font-weight: 800;
+            transition: transform .16s ease, background .16s ease, border-color .16s ease;
+        }
+        .photo-seat-option:active { transform: scale(.94); }
+        .photo-seat-option.is-selected { background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 6px 14px rgba(37, 99, 235, .22); }
         /* 與家長端一致的行動版操作節奏：內容優先、分頁置底、觸控目標加大。 */
         @media (max-width: 767px) {
             #teacherDashboard > header {
@@ -106,6 +118,9 @@
             #teacherSignatureCard { order: -1; }
             #teacherComposerCard > div, #teacherSignatureCard > div { min-height: 0; }
             #teacherComposerCard textarea { min-height: 12rem; }
+            #photoPage > section { padding: .75rem .75rem 6.5rem; }
+            #photoPage .photo-upload-card { border-radius: 1.5rem; }
+            #photoPage .photo-seat-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .45rem; }
         }
     </style>
 </head>
@@ -406,28 +421,40 @@
             photoPage.className = 'hidden flex-1 w-full flex-col min-h-0 overflow-y-auto bg-[#f2f2f7]';
             photoPage.innerHTML = `
                 <section class="w-full max-w-2xl mx-auto p-4 sm:p-6">
-                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div class="px-5 py-4 border-b border-slate-100">
-                            <h3 class="font-bold text-slate-800 text-lg">&#30456;&#31807;</h3>
-                            <p class="text-sm text-slate-500 mt-1">&#25945;&#24107;&#23560;&#29992;&#65306;&#20381;&#26085;&#26399;&#33287;&#24231;&#34399;&#20998;&#39006;&#20786;&#23384;</p>
+                    <div class="photo-upload-card bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-5 pt-5 pb-4 bg-gradient-to-br from-blue-600 to-indigo-600 text-white">
+                            <div class="flex items-center gap-3">
+                                <span class="w-11 h-11 rounded-2xl bg-white/15 flex items-center justify-center text-2xl">&#128248;</span>
+                                <div><h3 class="font-black text-xl">&#30456;&#31807;</h3><p class="text-sm text-blue-100 mt-0.5">&#36984;&#22909;&#29031;&#29255;&#12289;&#26085;&#26399;&#21644;&#24231;&#34399;&#21363;&#21487;&#19978;&#20659;</p></div>
+                            </div>
                         </div>
-                        <div class="p-5 space-y-4">
+                        <div class="p-4 sm:p-5 space-y-4">
                             <input id="teacherPhotoInput" type="file" accept="image/*" class="hidden">
-                            <button id="teacherPhotoPick" type="button" class="w-full min-h-36 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center gap-2 text-slate-600 active:bg-slate-100">
-                                <span class="text-3xl">&#128247;</span><span class="font-semibold">&#36984;&#25799;&#29031;&#29255;</span><span class="text-xs text-slate-400">JPG / PNG / GIF</span>
-                            </button>
-                            <div id="teacherPhotoPreviewWrap" class="hidden rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                                <img id="teacherPhotoPreview" alt="Selected photo preview" class="w-full max-h-72 object-contain">
-                                <div class="px-3 py-2 flex items-center justify-between gap-3 bg-white"><span id="teacherPhotoFileName" class="text-sm text-slate-600 truncate"></span><button id="teacherPhotoRemove" type="button" class="text-sm font-semibold text-red-600">&#31227;&#38500;</button></div>
-                            </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <label class="block text-sm font-semibold text-slate-700">&#25351;&#23450;&#26085;&#26399;<input id="teacherPhotoDate" type="date" class="mt-1 w-full min-h-11 rounded-lg border border-slate-300 px-3 text-slate-800"></label>
-                                <label class="block text-sm font-semibold text-slate-700">&#24231;&#34399;<select id="teacherPhotoSeat" class="mt-1 w-full min-h-11 rounded-lg border border-slate-300 px-3 text-slate-800"><option value="">&#35531;&#36984;&#25799;</option></select></label>
-                            </div>
-                            <p id="teacherPhotoStatus" class="hidden rounded-lg px-3 py-2 text-sm"></p>
-                            <div class="flex gap-3">
-                                <button id="teacherPhotoSubmit" type="button" class="flex-1 min-h-12 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50">&#30906;&#35469;&#19978;&#20659;</button>
-                                <button id="teacherPhotoRetry" type="button" class="hidden min-h-12 px-4 rounded-xl border border-blue-200 text-blue-700 font-bold">&#37325;&#35430;</button>
+                            <section class="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 sm:p-4">
+                                <div class="flex items-center gap-2 mb-3"><span class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">1</span><h4 class="font-black text-slate-800">&#36984;&#25799;&#29031;&#29255;</h4></div>
+                                <button id="teacherPhotoPick" type="button" class="w-full min-h-36 rounded-2xl border-2 border-dashed border-blue-200 bg-white flex flex-col items-center justify-center gap-2 text-slate-600 active:bg-blue-50 active:scale-[.99] transition-all">
+                                    <span class="w-12 h-12 rounded-2xl bg-blue-50 text-2xl flex items-center justify-center">&#128247;</span><span class="font-black text-slate-700">&#24478;&#25163;&#27231;&#36984;&#25799;&#29031;&#29255;</span><span class="text-xs text-slate-400">JPG / PNG / GIF</span>
+                                </button>
+                                <div id="teacherPhotoPreviewWrap" class="hidden rounded-2xl overflow-hidden border border-slate-200 bg-white">
+                                    <img id="teacherPhotoPreview" alt="&#24050;&#36984;&#29031;&#29255;&#38928;&#35261;" class="w-full max-h-72 object-contain bg-slate-50">
+                                    <div class="px-3 py-3 flex items-center justify-between gap-3"><span id="teacherPhotoFileName" class="text-sm font-semibold text-slate-600 truncate"></span><button id="teacherPhotoRemove" type="button" class="shrink-0 min-h-10 px-3 rounded-xl text-sm font-bold text-red-600 bg-red-50 active:bg-red-100">&#37325;&#36984;</button></div>
+                                </div>
+                            </section>
+                            <section class="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 sm:p-4">
+                                <div class="flex items-center gap-2 mb-3"><span class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">2</span><h4 class="font-black text-slate-800">&#20998;&#39006;&#36039;&#35338;</h4></div>
+                                <div class="rounded-2xl bg-white border border-slate-200 px-3 py-2 flex items-center gap-3">
+                                    <span class="text-xl">&#128197;</span>
+                                    <label class="flex-1 min-w-0"><span class="block text-[11px] font-black tracking-wider text-slate-400">&#25293;&#25685;&#26085;&#26399;</span><input id="teacherPhotoDate" type="date" class="w-full bg-transparent text-[16px] font-bold text-slate-800 outline-none"></label>
+                                    <button id="teacherPhotoToday" type="button" class="shrink-0 min-h-10 px-3 rounded-xl bg-blue-50 text-sm font-black text-blue-700 active:bg-blue-100">&#20170;&#22825;</button>
+                                </div>
+                                <div class="mt-4 flex items-center justify-between gap-3"><div><p class="text-sm font-black text-slate-800">&#36984;&#25799;&#24231;&#34399;</p><p id="teacherPhotoSeatHint" class="text-xs text-slate-400 mt-0.5">&#35531;&#40670;&#36984;&#19968;&#20301;&#23416;&#29983;</p></div><span id="teacherPhotoSeatValue" class="hidden sm:inline-flex rounded-xl bg-blue-50 px-3 py-2 text-sm font-black text-blue-700"></span></div>
+                                <select id="teacherPhotoSeat" class="hidden"><option value="">&#35531;&#36984;&#25799;</option></select>
+                                <div id="teacherPhotoSeatGrid" class="photo-seat-grid grid grid-cols-5 sm:grid-cols-6 gap-2 mt-3"></div>
+                            </section>
+                            <p id="teacherPhotoStatus" class="hidden rounded-2xl px-4 py-3 text-sm font-semibold"></p>
+                            <div class="sticky bottom-0 -mx-4 sm:-mx-5 px-4 sm:px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-white/95 border-t border-slate-100 flex gap-3">
+                                <button id="teacherPhotoSubmit" type="button" class="flex-1 min-h-12 rounded-2xl bg-blue-600 text-white font-black shadow-lg shadow-blue-200 active:scale-[.98] disabled:opacity-50">&#30906;&#35469;&#19978;&#20659;</button>
+                                <button id="teacherPhotoRetry" type="button" class="hidden min-h-12 px-4 rounded-2xl border border-blue-200 text-blue-700 font-black">&#37325;&#35430;</button>
                             </div>
                         </div>
                     </div>
@@ -438,9 +465,11 @@
 
         window.populateTeacherPhotoSeats = () => {
             const select = document.getElementById('teacherPhotoSeat');
-            if (!select) return;
+            const grid = document.getElementById('teacherPhotoSeatGrid');
+            if (!select || !grid) return;
             const previousValue = select.value;
             select.innerHTML = '<option value="">&#35531;&#36984;&#25799;</option>';
+            grid.innerHTML = '';
             const students = (window.allStudents && window.allStudents.length) ? window.allStudents : Array.from({ length: 30 }, (_, index) => ({ seatNo: String(index + 1) }));
             students.forEach((student, index) => {
                 const seat = String(student.seatNo || index + 1).padStart(2, '0');
@@ -448,8 +477,32 @@
                 option.value = seat;
                 option.textContent = student.name ? `${seat} ${student.name}` : seat;
                 select.appendChild(option);
+                const seatButton = document.createElement('button');
+                seatButton.type = 'button';
+                seatButton.className = 'photo-seat-option';
+                seatButton.dataset.seat = seat;
+                seatButton.textContent = seat;
+                seatButton.setAttribute('aria-label', option.textContent);
+                seatButton.addEventListener('click', () => window.selectTeacherPhotoSeat(seat));
+                grid.appendChild(seatButton);
             });
-            select.value = previousValue;
+            window.selectTeacherPhotoSeat(previousValue);
+        };
+
+        window.selectTeacherPhotoSeat = (seat) => {
+            const select = document.getElementById('teacherPhotoSeat');
+            const value = document.getElementById('teacherPhotoSeatValue');
+            const hint = document.getElementById('teacherPhotoSeatHint');
+            if (!select) return;
+            select.value = seat || '';
+            const option = select.options[select.selectedIndex];
+            const label = option && option.value ? option.textContent : '';
+            document.querySelectorAll('#teacherPhotoSeatGrid .photo-seat-option').forEach(button => button.classList.toggle('is-selected', button.dataset.seat === select.value));
+            if (value) {
+                value.textContent = label;
+                value.classList.toggle('hidden', !label);
+            }
+            if (hint) hint.textContent = label ? `已選擇：${label}` : '請點選一位學生';
         };
 
         window.initTeacherPhotoUpload = () => {
@@ -466,6 +519,7 @@
             const submit = document.getElementById('teacherPhotoSubmit');
             const retry = document.getElementById('teacherPhotoRetry');
             const status = document.getElementById('teacherPhotoStatus');
+            const today = document.getElementById('teacherPhotoToday');
             date.value = new Date().toISOString().slice(0, 10);
             window.populateTeacherPhotoSeats();
 
@@ -485,7 +539,7 @@
                 retry.classList.add('hidden');
             };
             const selectPhoto = (file) => {
-                if (!file || !file.type.startsWith('image/')) return setStatus('Please select an image file.', 'error');
+                if (!file || !file.type.startsWith('image/')) return setStatus('請選擇圖片檔案。', 'error');
                 if (preview.src.startsWith('blob:')) URL.revokeObjectURL(preview.src);
                 window.teacherPhotoFile = file;
                 preview.src = URL.createObjectURL(file);
@@ -497,15 +551,15 @@
             };
             window.submitTeacherPhoto = async () => {
                 const file = window.teacherPhotoFile;
-                if (!file) return setStatus('Please select a photo first.', 'error');
-                if (!date.value || !seat.value) return setStatus('Please select a date and seat number.', 'error');
+                if (!file) return setStatus('請先選擇一張照片。', 'error');
+                if (!date.value || !seat.value) return setStatus('請選擇日期與座號。', 'error');
                 submit.disabled = true;
                 retry.classList.add('hidden');
-                setStatus('Uploading...', 'progress');
+                setStatus('照片上傳中，請稍候…', 'progress');
                 try {
                     const base64Data = await new Promise((resolve, reject) => {
                         const reader = new FileReader();
-                        reader.onerror = () => reject(new Error('Unable to read the selected file.'));
+                        reader.onerror = () => reject(new Error('無法讀取選擇的照片。'));
                         reader.onload = () => resolve(String(reader.result).split(',')[1]);
                         reader.readAsDataURL(file);
                     });
@@ -522,10 +576,10 @@
                         })
                     });
                     const result = JSON.parse(await response.text());
-                    if (result.status !== 'success') throw new Error(result.message || 'Upload failed.');
-                    setStatus(`Uploaded: ${seat.value}.${extension}`, 'success');
+                    if (result.status !== 'success') throw new Error(result.message || '上傳失敗。');
+                    setStatus(`上傳完成：${seat.value}.${extension}`, 'success');
                 } catch (error) {
-                    setStatus(error.message || 'Upload failed. Please retry.', 'error');
+                    setStatus(error.message || '上傳失敗，請再試一次。', 'error');
                     retry.classList.remove('hidden');
                 } finally {
                     submit.disabled = false;
@@ -534,6 +588,7 @@
             pick.addEventListener('click', () => input.click());
             input.addEventListener('change', event => selectPhoto(event.target.files[0]));
             remove.addEventListener('click', clearPhoto);
+            today.addEventListener('click', () => { date.value = new Date().toISOString().slice(0, 10); });
             submit.addEventListener('click', window.submitTeacherPhoto);
             retry.addEventListener('click', window.submitTeacherPhoto);
         };
@@ -564,6 +619,7 @@
                         localStorage.setItem('gas_teacher_pwd', pwd);
                     }
                     window.allStudents = result.students || [];
+                    window.populateTeacherPhotoSeats && window.populateTeacherPhotoSeats();
                     document.getElementById('loginPage').classList.add('hidden');
                     document.getElementById('teacherDashboard').classList.remove('hidden');
                     document.getElementById('tUserName').innerText = result.user.name;
