@@ -1,7 +1,7 @@
 {
-  "name": "班級聯絡簿",
-  "short_name": "班級聯絡簿",
-  "description": "家長與教師使用的班級聯絡簿",
+  "name": "班級聯絡簿(807)",
+  "short_name": "班級聯絡簿(807)",
+  "description": "807 班級聯絡簿",
   "lang": "zh-TW",
   "start_url": "./index.html",
   "scope": "./",
