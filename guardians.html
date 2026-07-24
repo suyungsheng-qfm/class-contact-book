@@ -381,7 +381,7 @@
         }
 
         // 一對一語音通話：協商資料經由已登入的 Apps Script 工作階段傳遞，音訊不會寫入資料庫。
-        window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: null, teacherCandidateIndex: 0, iceServers: null };
+        window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: null, teacherCandidateIndex: 0, iceServers: null, remoteDescriptionSet: false, pendingTeacherCandidates: [] };
 
         window.parentVoiceCallApi = async (action, payload = {}) => {
             const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action, sessionToken: window.sessionToken, ...payload }) });
@@ -409,7 +409,7 @@
             if (call.localStream) call.localStream.getTracks().forEach(track => track.stop());
             const audio = document.getElementById('parentRemoteAudio');
             if (audio) audio.srcObject = null;
-            window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: call.pollTimer, teacherCandidateIndex: 0, iceServers: null };
+            window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: call.pollTimer, teacherCandidateIndex: 0, iceServers: null, remoteDescriptionSet: false, pendingTeacherCandidates: [] };
             const modal = document.getElementById('parentVoiceCallModal');
             if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
             window.updateParentVoiceCallPolling && window.updateParentVoiceCallPolling();
@@ -442,6 +442,8 @@
                 const peer = new RTCPeerConnection({ iceServers: call.iceServers });
                 window.parentVoiceCall.peer = peer;
                 window.parentVoiceCall.localStream = stream;
+                call.remoteDescriptionSet = false;
+                call.pendingTeacherCandidates = [];
                 stream.getTracks().forEach(track => peer.addTrack(track, stream));
                 peer.ontrack = event => { const audio = document.getElementById('parentRemoteAudio'); if (audio) { audio.srcObject = event.streams[0]; audio.play().catch(() => {}); } };
                 peer.onconnectionstatechange = () => {
@@ -452,6 +454,11 @@
                     if (event.candidate) window.parentVoiceCallApi('voiceCallCandidate', { callId: call.callId, candidate: event.candidate.toJSON() }).catch(console.error);
                 };
                 await peer.setRemoteDescription(incoming.offer);
+                call.remoteDescriptionSet = true;
+                const initialTeacherCandidates = call.pendingTeacherCandidates.splice(0);
+                for (const candidate of initialTeacherCandidates) {
+                    await peer.addIceCandidate(new RTCIceCandidate(candidate));
+                }
                 const answer = await peer.createAnswer();
                 await peer.setLocalDescription(answer);
                 await window.parentVoiceCallApi('voiceCallUpdate', { callId: call.callId, status: 'accepted', answer: { type: answer.type, sdp: answer.sdp } });
@@ -473,13 +480,20 @@
                     call.callId = remote.callId;
                     call.incoming = remote;
                     call.teacherCandidateIndex = 0;
+                    call.remoteDescriptionSet = false;
+                    call.pendingTeacherCandidates = [];
                     window.updateParentVoiceCallUi('老師來電', '老師邀請您進行一對一語音通話。', 'incoming');
                 }
                 if (remote.callId !== call.callId) return;
                 if (call.peer) {
                     const candidates = remote.teacherCandidates || [];
                     while (call.teacherCandidateIndex < candidates.length) {
-                        await call.peer.addIceCandidate(new RTCIceCandidate(candidates[call.teacherCandidateIndex++]));
+                        const candidate = candidates[call.teacherCandidateIndex++];
+                        if (!call.remoteDescriptionSet) {
+                            call.pendingTeacherCandidates.push(candidate);
+                            continue;
+                        }
+                        await call.peer.addIceCandidate(new RTCIceCandidate(candidate));
                     }
                 }
                 if (['ended', 'missed', 'declined'].includes(remote.status)) window.stopParentVoiceCall();
