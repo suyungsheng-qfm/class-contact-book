@@ -349,7 +349,7 @@
             const pathGroupChat = collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat');
             window.globalUnsubscribers.push(onSnapshot(pathGroupChat, snap => {
                 window.fbGroupChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                window.fbGroupChats.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                window.fbGroupChats.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
                 
                 if (window.isChatInitialized && window.activeTab !== 'group' && window.fbGroupChats.length > window.lastGroupChatCount) {
                     const badge = document.getElementById('groupUnreadBadge');
@@ -366,7 +366,7 @@
             const pathPrivateChat = collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats');
             window.globalUnsubscribers.push(onSnapshot(pathPrivateChat, snap => {
                 window.fbPrivateChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                window.fbPrivateChats.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                window.fbPrivateChats.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
                 
                 if (window.currentUser) {
                     const myChats = window.fbPrivateChats.filter(c => c.studentId === window.currentUser.studentId);
