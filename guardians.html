@@ -101,7 +101,7 @@
             #groupChatScrollArea, #privateChatScrollArea { padding: 0.875rem; }
             #groupChatPage > div:first-child, #privateChatPage > div:first-child { padding: 0.875rem 1rem; }
             #privateChatPage > div:first-child button { min-height: 44px; }
-            #groupChatPage > div:last-child, #privateChatPage > div:last-child { padding: 0.625rem 0.75rem max(0.625rem, env(safe-area-inset-bottom)); }
+            #groupChatInputArea, #privateChatInputArea { padding: 0.625rem 0.75rem max(0.625rem, env(safe-area-inset-bottom)); }
             .calendar-day { min-height: 2rem; font-size: 0.8125rem; }
             #loginPage input { min-height: 48px; }
             #loginPage button[type="button"] { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
@@ -642,6 +642,8 @@
             contactBookPage.classList.add('hidden');
             groupChatPage.classList.add('hidden');
             privateChatPage.classList.add('hidden');
+            groupChatPage.classList.remove('flex');
+            privateChatPage.classList.remove('flex');
 
             const inactiveClass = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all relative whitespace-nowrap";
             tabCalendar.className = inactiveClass;
@@ -657,11 +659,13 @@
                 tabBook.className = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#d97706] transition-all whitespace-nowrap";
             } else if (tab === 'group') {
                 groupChatPage.classList.remove('hidden');
+                groupChatPage.classList.add('flex');
                 tabGroup.className = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#00c300] transition-all relative whitespace-nowrap";
                 if(groupUnreadBadge) groupUnreadBadge.classList.add('hidden'); 
                 setTimeout(window.scrollToGroupChatBottom, 50);
             } else if (tab === 'private') {
                 privateChatPage.classList.remove('hidden');
+                privateChatPage.classList.add('flex');
                 tabPrivate.className = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#007aff] transition-all relative whitespace-nowrap";
                 if(privateUnreadBadge) privateUnreadBadge.classList.add('hidden'); 
                 setTimeout(window.scrollToPrivateChatBottom, 50);
@@ -1523,7 +1527,7 @@
                 <div id="groupChatMessageList" class="flex flex-col min-h-full justify-end"></div>
             </div>
             
-            <div class="p-3 bg-[#f2f2f7] shrink-0 border-t border-gray-300 z-20 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div id="groupChatInputArea" class="mt-auto p-3 bg-[#f2f2f7] shrink-0 border-t border-gray-300 z-20 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 <div class="flex gap-2 items-end bg-white rounded-[20px] p-1.5 border border-gray-200">
                     
                     <!-- 📸 圖片上傳按鈕 -->
@@ -1562,7 +1566,7 @@
             <div id="privateChatScrollArea" class="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col relative scroll-smooth bg-slate-50/50">
                 <div id="privateChatMessageList" class="flex flex-col min-h-full justify-end"></div>
             </div>
-            <div class="p-3 bg-white shrink-0 border-t border-slate-200 z-20 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div id="privateChatInputArea" class="mt-auto p-3 bg-white shrink-0 border-t border-slate-200 z-20 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 <div class="flex gap-2 items-end bg-slate-50 rounded-[20px] p-1.5 border border-slate-200 focus-within:border-blue-300 focus-within:ring-1 transition-all">
                     
                     <!-- 📸 圖片上傳按鈕 -->
