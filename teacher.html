@@ -410,7 +410,7 @@
         }
 
         // 一對一語音通話：協商資料經由已登入的 Apps Script 工作階段傳遞，音訊不會寫入資料庫。
-        window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0 };
+        window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, signalReady: false, pendingCandidates: [] };
 
         window.voiceCallApi = async (action, payload = {}) => {
             const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action, sessionToken: window.sessionToken, ...payload }) });
@@ -436,7 +436,7 @@
             if (call.localStream) call.localStream.getTracks().forEach(track => track.stop());
             const audio = document.getElementById('teacherRemoteAudio');
             if (audio) audio.srcObject = null;
-            window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0 };
+            window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, signalReady: false, pendingCandidates: [] };
             const modal = document.getElementById('teacherVoiceCallModal');
             if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
         };
@@ -492,7 +492,8 @@
                 const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                 const config = await window.voiceCallApi('voiceCallConfig');
                 const peer = new RTCPeerConnection({ iceServers: config.iceServers });
-                window.voiceCall = { peer, localStream: stream, callId, studentId, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0 };
+                window.voiceCall = { peer, localStream: stream, callId, studentId, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, signalReady: false, pendingCandidates: [] };
+                const activeCall = window.voiceCall;
                 stream.getTracks().forEach(track => peer.addTrack(track, stream));
                 peer.ontrack = event => { const audio = document.getElementById('teacherRemoteAudio'); if (audio) { audio.srcObject = event.streams[0]; audio.play().catch(() => {}); } };
                 peer.onconnectionstatechange = () => {
@@ -500,7 +501,13 @@
                     if (['failed', 'disconnected'].includes(peer.connectionState)) window.updateTeacherVoiceCallUi('通話連線中斷', '網路連線不穩，請結束後再試一次。');
                 };
                 peer.onicecandidate = event => {
-                    if (event.candidate) window.voiceCallApi('voiceCallCandidate', { studentId, callId, candidate: event.candidate.toJSON() }).catch(console.error);
+                    if (!event.candidate) return;
+                    const candidate = event.candidate.toJSON();
+                    if (!activeCall.signalReady) {
+                        activeCall.pendingCandidates.push(candidate);
+                        return;
+                    }
+                    window.voiceCallApi('voiceCallCandidate', { studentId, callId, candidate }).catch(console.error);
                 };
 
                 const offer = await peer.createOffer();
@@ -512,6 +519,11 @@
                     parentSeatNo: student ? student.seatNo : '',
                     offer: { type: offer.type, sdp: offer.sdp }
                 });
+                activeCall.signalReady = true;
+                const initialCandidates = activeCall.pendingCandidates.splice(0);
+                await Promise.allSettled(initialCandidates.map(candidate =>
+                    window.voiceCallApi('voiceCallCandidate', { studentId, callId, candidate })
+                ));
                 const turnNote = config.turnConfigured ? '已通知家長，等待接聽。' : '已通知家長；目前為測試連線，部分網路可能無法接通。';
                 window.updateTeacherVoiceCallUi(`正在呼叫 ${displayName}`, turnNote);
                 window.voiceCall.pollTimer = setInterval(window.pollTeacherVoiceCall, 1200);
