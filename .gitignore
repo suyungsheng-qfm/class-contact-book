@@ -1,0 +1,6 @@
+maintenance/
+node_modules/
+.clasp.json
+.clasprc.json
+package.json
+pnpm-lock.yaml

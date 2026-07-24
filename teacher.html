@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>教師管理中心 - 807班聯絡簿</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        html, body { width: 100%; min-height: 100%; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; }
+        
+        .t-calendar-day {
+            aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; border-radius: 0.5rem; transition: all 0.2s; font-size: 0.875rem; font-weight: 500; color: #475569; border: 1px solid transparent;
+            position: relative;
+        }
+        .t-calendar-day:hover { background-color: #f1f5f9; }
+        .t-calendar-day.active { background-color: #3b82f6; color: white; font-weight: 600; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2); }
+        .t-calendar-day.is-today { border-color: #3b82f6; color: #3b82f6; }
+        .t-calendar-day.active.is-today { border-color: transparent; color: white; }
+
+        .loading-spinner { border: 3px solid #f1f5f9; border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 教師聊天室樣式 */
+        .chat-bubble-me { background-color: #3b82f6; color: white; }
+        /* 與家長端一致的行動版操作節奏：內容優先、分頁置底、觸控目標加大。 */
+        @media (max-width: 767px) {
+            #teacherDashboard > header {
+                order: 2;
+                padding: 0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom));
+                border-top: 1px solid #e2e8f0;
+                border-bottom: 0;
+                box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+            }
+            #teacherDashboard > header > div:first-child { display: none; }
+            #teacherDashboard > header > div:nth-child(2) {
+                flex: 1 1 auto;
+                min-width: 0;
+                justify-content: stretch;
+            }
+            #teacherDashboard > header button[id^="tab"] {
+                flex: 1 1 0;
+                min-height: 44px;
+                padding: 0.45rem 0.25rem;
+                font-size: 0.75rem;
+                line-height: 1.1;
+            }
+            #teacherDashboard > header > div:last-child { gap: 0; }
+            #teacherDashboard > header > div:last-child > button {
+                width: 44px;
+                height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            #teacherDashboard > main { order: 1; }
+            #dashboardPage > div:first-child {
+                height: 18rem;
+                min-height: 0;
+            }
+            #dashboardPage > div:last-child > div:last-child { padding: 1rem; }
+            #dashboardPage h2#tDateTitle { font-size: 1.625rem; }
+            #dashboardPage .min-h-\[500px\] { min-height: 0; }
+            #groupChatScrollArea, #privateChatScrollArea { padding: 0.875rem; }
+            #groupChatPage > div:last-child, #privateChatInputArea {
+                padding: 0.625rem 0.75rem max(0.625rem, env(safe-area-inset-bottom));
+            }
+            #privateChatSidebar { border-right: 0; }
+            .t-calendar-day { min-height: 2rem; }
+        }
+    </style>
+</head>
+<body class="m-0 p-0 h-[100dvh] w-full overflow-hidden flex flex-col text-slate-800 bg-slate-50">
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        function getSemesterData(targetDate) {
+            const now = targetDate ? new Date(targetDate) : new Date();
+            const sem115_02_Start = new Date('2027/02/01 00:00:00');
+            const sem115_01_Start = new Date('2026/08/01 00:00:00');
+            
+            if (now >= sem115_02_Start) {
+                return { config: { apiKey: "AIzaSyD_IvR1rEMxDSw3Fv_3zkM1mGetMQv8gg8", authDomain: "classcontact-c148d.firebaseapp.com", projectId: "classcontact-c148d", storageBucket: "classcontact-c148d.firebasestorage.app", messagingSenderId: "559132828543", appId: "1:559132828543:web:a47598010956175eda304a", measurementId: "G-4VGZCG5YV5" }, dbPath: 'contact-book-115-02', semesterName: '115學年度第2學期' };
+            } else if (now >= sem115_01_Start) {
+                return { config: { apiKey: "AIzaSyD_IvR1rEMxDSw3Fv_3zkM1mGetMQv8gg8", authDomain: "classcontact-c148d.firebaseapp.com", projectId: "classcontact-c148d", storageBucket: "classcontact-c148d.firebasestorage.app", messagingSenderId: "559132828543", appId: "1:559132828543:web:04512a17c5036edbda304a", measurementId: "G-1XM9JPNYLX" }, dbPath: 'contact-book-115-01', semesterName: '115學年度第1學期' };
+            } else {
+                return { config: { apiKey: "AIzaSyD_IvR1rEMxDSw3Fv_3zkM1mGetMQv8gg8", authDomain: "classcontact-c148d.firebaseapp.com", projectId: "classcontact-c148d", storageBucket: "classcontact-c148d.firebasestorage.app", messagingSenderId: "559132828543", appId: "1:559132828543:web:1b4aa5ef3a3f762ada304a", measurementId: "G-QLLC2GTYV8" }, dbPath: 'contact-book-114-02', semesterName: '114學年度第2學期' };
+            }
+        }
+
+        const semesterData = getSemesterData();
+        window.semesterData = semesterData; 
+        
+        const isCanvas = typeof __firebase_config !== 'undefined';
+        const firebaseConfig = isCanvas ? JSON.parse(__firebase_config) : semesterData.config;
+        const fbAppId = isCanvas && typeof __app_id !== 'undefined' ? __app_id : semesterData.dbPath;
+        window.fbAppId = fbAppId; 
+
+        window.CHAT_APP_ID = (isCanvas && typeof __app_id !== 'undefined') ? __app_id : 'contact-chat'; 
+
+        window.unsubscribers = []; 
+        window.globalUnsubscribers = []; 
+
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzQBi-uoqSy73_VUD2xCpXqx2qPfARxvXxUFJwsd8wf_FcVkehubPpaDA0RQVgI11ky/exec";
+        window.sessionToken = sessionStorage.getItem('contact-book-session');
+
+        window.isAppsScriptHost = () => /(^|\.)script\.google\.com$|(^|\.)googleusercontent\.com$/.test(window.location.hostname);
+        window.navigateToAppPage = (page) => {
+            if (!window.isAppsScriptHost()) {
+                window.location.assign(page === 'index' ? './index.html' : `./${page}.html`);
+                return;
+            }
+            const url = `${GAS_API_URL}?page=${encodeURIComponent(page)}`;
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_top';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => window.location.replace(url), 500);
+        };
+
+        window.goToUnifiedLogin = () => {
+            sessionStorage.removeItem('contact-book-session');
+            window.navigateToAppPage('index');
+        };
+
+        window.restoreUnifiedSession = async () => {
+            if (!window.sessionToken) return window.goToUnifiedLogin();
+            try {
+                const response = await fetch(GAS_API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'validateSession', sessionToken: window.sessionToken })
+                });
+                const result = await response.json();
+                if (!result.success || result.role !== 'teacher' || !result.user) throw new Error('登入驗證失敗。');
+
+                await initAuth();
+                document.querySelectorAll('[onclick="location.reload()"]').forEach(button => {
+                    button.onclick = window.goToUnifiedLogin;
+                });
+                window.allStudents = result.students || [];
+                window.populateTeacherPhotoSeats && window.populateTeacherPhotoSeats();
+                document.getElementById('loginPage').classList.add('hidden');
+                document.getElementById('teacherDashboard').classList.remove('hidden');
+                document.getElementById('tUserName').innerText = result.user.name;
+                window.viewDate = new Date();
+                window.selectedDateStr = window.todayStr;
+                window.refreshUI();
+            } catch (error) {
+                window.goToUnifiedLogin();
+            }
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let fbUser = null;
+        window.allStudents = [];
+        window.activeTab = 'dashboard'; 
+        
+        window.lastGroupChatCount = 0;
+        window.lastPrivateChatCount = 0;
+        window.isChatInitialized = false;
+        
+        window.activeChatStudentId = null;
+        window.showOnlyUnsigned = false;
+
+        window.expandedGroupMonths = null; 
+        window.expandedPrivateMonths = null;
+
+        window.fbNotes = [];
+        window.fbEvents = []; 
+        window.fbHolidays = [];
+        window.fbRecords = [];
+        window.fbGroupChats = [];
+        window.fbPrivateChats = [];
+        
+        window.viewDate = new Date();
+        window.selectedDateStr = "";
+        window.todayStr = "";
+        window.shViewDate = new Date();
+        window.shStudentId = "";
+
+        window.checkSemesterSwitch = function(dateObj) {
+            const newSemData = getSemesterData(dateObj);
+            const newAppId = isCanvas && typeof __app_id !== 'undefined' ? __app_id : newSemData.dbPath;
+
+            if (window.semesterData.dbPath !== newSemData.dbPath) {
+                window.fbAppId = newAppId;
+                window.semesterData = newSemData;
+                window.fbNotes = [];
+                window.fbEvents = [];
+                window.fbHolidays = [];
+                window.fbRecords = [];
+                window.expandedGroupMonths = null;
+                window.expandedPrivateMonths = null;
+                window.refreshUI();
+                
+                const el = document.querySelector('.text-emerald-500');
+                if(el && el.innerHTML.includes('已連線')) {
+                    el.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>已連線 (${newSemData.semesterName})`;
+                }
+
+                if (fbUser) setupSemesterListeners();
+            }
+        };
+
+        window.normalizeDate = function(str) {
+            if (!str) return "";
+            const d = new Date(str);
+            if (isNaN(d.getTime())) {
+                const parts = str.split(/[\/\-]/);
+                if (parts.length < 3) return str;
+                return `${parts[0]}/${String(parts[1]).padStart(2, '0')}/${String(parts[2]).padStart(2, '0')}`;
+            }
+            return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+        };
+        window.toDocId = function(dateStr) { return dateStr.replaceAll('/', '-'); };
+        window.getPreciseTime = function() {
+            const now = new Date();
+            return `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}點${String(now.getMinutes()).padStart(2,'0')}分`;
+        };
+
+        window.todayStr = window.normalizeDate(new Date());
+
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) { console.error("Firebase Auth 錯誤:", e); }
+        };
+
+        onAuthStateChanged(auth, user => {
+            fbUser = user;
+            if (user) {
+                setupGlobalListeners();
+                setupSemesterListeners();
+            }
+        });
+
+        function setupSemesterListeners() {
+            window.unsubscribers.forEach(unsub => unsub());
+            window.unsubscribers = [];
+
+            const pathNotes = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'notes');
+            window.unsubscribers.push(onSnapshot(pathNotes, snap => {
+                window.fbNotes = snap.docs.map(d => ({ date: d.id.replaceAll('-','/'), content: d.data().content }));
+                window.refreshUI();
+            }, err => console.error(err)));
+
+            const pathEvents = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'calendar_events');
+            window.unsubscribers.push(onSnapshot(pathEvents, snap => {
+                window.fbEvents = snap.docs.map(d => ({ date: d.id.replaceAll('-','/'), event: d.data().event }));
+                window.refreshUI();
+            }, err => console.error(err)));
+
+            const pathHolidays = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'holidays');
+            window.unsubscribers.push(onSnapshot(pathHolidays, snap => {
+                window.fbHolidays = snap.docs.map(d => ({ date: d.id.replaceAll('-','/'), isHoliday: d.data().isHoliday }));
+                window.refreshUI();
+            }, err => console.error(err)));
+
+            const pathRecords = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records');
+            window.unsubscribers.push(onSnapshot(pathRecords, snap => {
+                window.fbRecords = snap.docs.map(d => ({
+                    id: d.id, date: d.data().date, studentId: d.data().studentId,
+                    signed: d.data().signed, isLeave: d.data().isLeave, signTime: d.data().signTime
+                }));
+                window.refreshUI();
+            }, err => console.error(err)));
+        }
+
+        function setupGlobalListeners() {
+            window.globalUnsubscribers.forEach(unsub => unsub());
+            window.globalUnsubscribers = [];
+
+            const pathGroupChat = collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat');
+            window.globalUnsubscribers.push(onSnapshot(pathGroupChat, snap => {
+                window.fbGroupChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                window.fbGroupChats.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                if (window.isChatInitialized && window.activeTab !== 'group' && window.fbGroupChats.length > window.lastGroupChatCount) {
+                    const badge = document.getElementById('groupUnreadBadge');
+                    if(badge) badge.classList.remove('hidden');
+                }
+                
+                window.lastGroupChatCount = window.fbGroupChats.length;
+                if (!window.isChatInitialized) window.isChatInitialized = true;
+
+                window.refreshUI();
+            }, e => console.error(e)));
+
+            const pathPrivateChat = collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats');
+            window.globalUnsubscribers.push(onSnapshot(pathPrivateChat, snap => {
+                window.fbPrivateChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                window.fbPrivateChats.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+                
+                if (window.isChatInitialized && window.fbPrivateChats.length > window.lastPrivateChatCount) {
+                    const latestMsg = window.fbPrivateChats[window.fbPrivateChats.length - 1];
+                    if (latestMsg && latestMsg.sender === 'parent' && window.activeChatStudentId !== latestMsg.studentId) {
+                        const badge = document.getElementById('privateUnreadBadge');
+                        if(badge) badge.classList.remove('hidden');
+                    }
+                }
+                window.lastPrivateChatCount = window.fbPrivateChats.length;
+                window.refreshUI();
+            }, e => console.error(e)));
+        }
+
+        // The active photo tab is rendered directly inside teacher.html.
+        // This replaces the earlier iframe-based implementation.
+        window.ensurePhotoTab = () => {
+            const privateTab = document.getElementById('tabPrivate');
+            if (!document.getElementById('tabPhoto') && privateTab && privateTab.parentElement) {
+                const photoTab = document.createElement('button');
+                photoTab.id = 'tabPhoto';
+                photoTab.type = 'button';
+                photoTab.innerHTML = '&#29031;&#29255;&#19978;&#20659;';
+                photoTab.className = 'px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap';
+                photoTab.onclick = () => window.switchTab('photo');
+                privateTab.parentElement.insertBefore(photoTab, privateTab);
+            }
+
+            if (document.getElementById('photoPage')) return;
+            const dashboard = document.getElementById('teacherDashboard');
+            if (!dashboard) return;
+            const photoPage = document.createElement('main');
+            photoPage.id = 'photoPage';
+            photoPage.className = 'hidden flex-1 w-full flex-col min-h-0 overflow-y-auto bg-[#f2f2f7]';
+            photoPage.innerHTML = `
+                <section class="w-full max-w-2xl mx-auto p-4 sm:p-6">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-5 py-4 border-b border-slate-100">
+                            <h3 class="font-bold text-slate-800 text-lg">&#29031;&#29255;&#19978;&#20659;</h3>
+                            <p class="text-sm text-slate-500 mt-1">&#25945;&#24107;&#23560;&#29992;&#65306;&#20381;&#26085;&#26399;&#33287;&#24231;&#34399;&#20998;&#39006;&#20786;&#23384;</p>
+                        </div>
+                        <div class="p-5 space-y-4">
+                            <input id="teacherPhotoInput" type="file" accept="image/*" class="hidden">
+                            <button id="teacherPhotoPick" type="button" class="w-full min-h-36 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center gap-2 text-slate-600 active:bg-slate-100">
+                                <span class="text-3xl">&#128247;</span><span class="font-semibold">&#36984;&#25799;&#29031;&#29255;</span><span class="text-xs text-slate-400">JPG / PNG / GIF</span>
+                            </button>
+                            <div id="teacherPhotoPreviewWrap" class="hidden rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                                <img id="teacherPhotoPreview" alt="Selected photo preview" class="w-full max-h-72 object-contain">
+                                <div class="px-3 py-2 flex items-center justify-between gap-3 bg-white"><span id="teacherPhotoFileName" class="text-sm text-slate-600 truncate"></span><button id="teacherPhotoRemove" type="button" class="text-sm font-semibold text-red-600">&#31227;&#38500;</button></div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label class="block text-sm font-semibold text-slate-700">&#25351;&#23450;&#26085;&#26399;<input id="teacherPhotoDate" type="date" class="mt-1 w-full min-h-11 rounded-lg border border-slate-300 px-3 text-slate-800"></label>
+                                <label class="block text-sm font-semibold text-slate-700">&#24231;&#34399;<select id="teacherPhotoSeat" class="mt-1 w-full min-h-11 rounded-lg border border-slate-300 px-3 text-slate-800"><option value="">&#35531;&#36984;&#25799;</option></select></label>
+                            </div>
+                            <p id="teacherPhotoStatus" class="hidden rounded-lg px-3 py-2 text-sm"></p>
+                            <div class="flex gap-3">
+                                <button id="teacherPhotoSubmit" type="button" class="flex-1 min-h-12 rounded-xl bg-blue-600 text-white font-bold disabled:opacity-50">&#30906;&#35469;&#19978;&#20659;</button>
+                                <button id="teacherPhotoRetry" type="button" class="hidden min-h-12 px-4 rounded-xl border border-blue-200 text-blue-700 font-bold">&#37325;&#35430;</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>`;
+            dashboard.appendChild(photoPage);
+            window.initTeacherPhotoUpload();
+        };
+
+        window.populateTeacherPhotoSeats = () => {
+            const select = document.getElementById('teacherPhotoSeat');
+            if (!select) return;
+            const previousValue = select.value;
+            select.innerHTML = '<option value="">&#35531;&#36984;&#25799;</option>';
+            const students = (window.allStudents && window.allStudents.length) ? window.allStudents : Array.from({ length: 30 }, (_, index) => ({ seatNo: String(index + 1) }));
+            students.forEach((student, index) => {
+                const seat = String(student.seatNo || index + 1).padStart(2, '0');
+                const option = document.createElement('option');
+                option.value = seat;
+                option.textContent = student.name ? `${seat} ${student.name}` : seat;
+                select.appendChild(option);
+            });
+            select.value = previousValue;
+        };
+
+        window.initTeacherPhotoUpload = () => {
+            const input = document.getElementById('teacherPhotoInput');
+            if (!input || input.dataset.ready === 'true') return;
+            input.dataset.ready = 'true';
+            const pick = document.getElementById('teacherPhotoPick');
+            const previewWrap = document.getElementById('teacherPhotoPreviewWrap');
+            const preview = document.getElementById('teacherPhotoPreview');
+            const fileName = document.getElementById('teacherPhotoFileName');
+            const remove = document.getElementById('teacherPhotoRemove');
+            const date = document.getElementById('teacherPhotoDate');
+            const seat = document.getElementById('teacherPhotoSeat');
+            const submit = document.getElementById('teacherPhotoSubmit');
+            const retry = document.getElementById('teacherPhotoRetry');
+            const status = document.getElementById('teacherPhotoStatus');
+            date.value = new Date().toISOString().slice(0, 10);
+            window.populateTeacherPhotoSeats();
+
+            const setStatus = (message, type) => {
+                status.textContent = message;
+                status.className = `rounded-lg px-3 py-2 text-sm ${type === 'error' ? 'bg-red-50 text-red-700' : type === 'success' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`;
+                status.classList.remove('hidden');
+            };
+            const clearPhoto = () => {
+                if (preview.src.startsWith('blob:')) URL.revokeObjectURL(preview.src);
+                window.teacherPhotoFile = null;
+                input.value = '';
+                preview.src = '';
+                previewWrap.classList.add('hidden');
+                pick.classList.remove('hidden');
+                status.classList.add('hidden');
+                retry.classList.add('hidden');
+            };
+            const selectPhoto = (file) => {
+                if (!file || !file.type.startsWith('image/')) return setStatus('Please select an image file.', 'error');
+                if (preview.src.startsWith('blob:')) URL.revokeObjectURL(preview.src);
+                window.teacherPhotoFile = file;
+                preview.src = URL.createObjectURL(file);
+                fileName.textContent = file.name;
+                previewWrap.classList.remove('hidden');
+                pick.classList.add('hidden');
+                status.classList.add('hidden');
+                retry.classList.add('hidden');
+            };
+            window.submitTeacherPhoto = async () => {
+                const file = window.teacherPhotoFile;
+                if (!file) return setStatus('Please select a photo first.', 'error');
+                if (!date.value || !seat.value) return setStatus('Please select a date and seat number.', 'error');
+                submit.disabled = true;
+                retry.classList.add('hidden');
+                setStatus('Uploading...', 'progress');
+                try {
+                    const base64Data = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onerror = () => reject(new Error('Unable to read the selected file.'));
+                        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+                        reader.readAsDataURL(file);
+                    });
+                    const extension = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
+                    const response = await fetch(GAS_API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'uploadClassPhoto',
+                            sessionToken: window.sessionToken,
+                            name: `${seat.value}.${extension}`,
+                            mimeType: file.type,
+                            data: base64Data,
+                            folderName: date.value.replace(/-/g, '_')
+                        })
+                    });
+                    const result = JSON.parse(await response.text());
+                    if (result.status !== 'success') throw new Error(result.message || 'Upload failed.');
+                    setStatus(`Uploaded: ${seat.value}.${extension}`, 'success');
+                } catch (error) {
+                    setStatus(error.message || 'Upload failed. Please retry.', 'error');
+                    retry.classList.remove('hidden');
+                } finally {
+                    submit.disabled = false;
+                }
+            };
+            pick.addEventListener('click', () => input.click());
+            input.addEventListener('change', event => selectPhoto(event.target.files[0]));
+            remove.addEventListener('click', clearPhoto);
+            submit.addEventListener('click', window.submitTeacherPhoto);
+            retry.addEventListener('click', window.submitTeacherPhoto);
+        };
+
+        window.onload = () => {
+            window.ensurePhotoTab();
+            window.restoreUnifiedSession();
+        };
+
+        window.handleTeacherLogin = async () => {
+            const acc = document.getElementById('teacherAcc').value.trim();
+            const pwd = document.getElementById('teacherPwd').value.trim();
+            const btn = document.getElementById('loginBtn');
+            const error = document.getElementById('loginError');
+            if (!acc || !pwd) { error.innerText = "請填寫帳號與密碼"; error.classList.remove('hidden'); return; }
+            btn.disabled = true; btn.innerHTML = '<span class="loading-spinner mx-auto"></span>';
+            try {
+                const resp = await fetch(GAS_API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'teacherLogin', account: acc, password: pwd })
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    if (document.getElementById('rememberMe').checked) {
+                        localStorage.setItem('gas_teacher_remember', 'true');
+                        localStorage.setItem('gas_teacher_acc', acc);
+                        localStorage.setItem('gas_teacher_pwd', pwd);
+                    }
+                    window.allStudents = result.students || [];
+                    document.getElementById('loginPage').classList.add('hidden');
+                    document.getElementById('teacherDashboard').classList.remove('hidden');
+                    document.getElementById('tUserName').innerText = result.user.name;
+                    window.selectedDateStr = window.todayStr;
+                    window.refreshUI();
+                } else { throw new Error(result.message); }
+            } catch (err) {
+                error.innerText = err.message || "登入失敗";
+                error.classList.remove('hidden');
+                btn.disabled = false; btn.innerText = '登入管理後台';
+            }
+        };
+
+        window.switchTab = (tab) => {
+            window.activeTab = tab;
+            const dashboardPage = document.getElementById('dashboardPage');
+            const groupChatPage = document.getElementById('groupChatPage');
+            const privateChatPage = document.getElementById('privateChatPage');
+            const photoPage = document.getElementById('photoPage');
+            
+            const tabDashboard = document.getElementById('tabDashboard');
+            const tabGroup = document.getElementById('tabGroup');
+            const tabPrivate = document.getElementById('tabPrivate');
+            const tabPhoto = document.getElementById('tabPhoto');
+
+            dashboardPage.classList.add('hidden');
+            groupChatPage.classList.add('hidden');
+            groupChatPage.classList.remove('flex');
+            privateChatPage.classList.add('hidden');
+            privateChatPage.classList.remove('flex');
+            photoPage.classList.add('hidden');
+            photoPage.classList.remove('flex');
+
+            const inactiveClass = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded text-slate-500 hover:text-slate-800 transition-all relative whitespace-nowrap";
+            tabDashboard.className = inactiveClass;
+            tabGroup.className = inactiveClass;
+            tabPrivate.className = inactiveClass;
+            tabPhoto.className = inactiveClass;
+
+            if (tab === 'dashboard') {
+                dashboardPage.classList.remove('hidden');
+                tabDashboard.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-blue-600 transition-all whitespace-nowrap";
+            } else if (tab === 'group') {
+                groupChatPage.classList.remove('hidden');
+                groupChatPage.classList.add('flex');
+                tabGroup.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-blue-600 relative transition-all whitespace-nowrap";
+                const badge = document.getElementById('groupUnreadBadge');
+                if(badge) badge.classList.add('hidden'); 
+                setTimeout(window.scrollToGroupChatBottom, 50);
+            } else if (tab === 'private') {
+                privateChatPage.classList.remove('hidden');
+                privateChatPage.classList.add('flex');
+                tabPrivate.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-blue-600 relative transition-all whitespace-nowrap";
+                const badge = document.getElementById('privateUnreadBadge');
+                if(badge) badge.classList.add('hidden');
+                setTimeout(window.scrollToPrivateChatBottom, 50);
+            } else if (tab === 'photo') {
+                photoPage.classList.remove('hidden');
+                photoPage.classList.add('flex');
+                tabPhoto.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-blue-600 transition-all whitespace-nowrap";
+            }
+            window.refreshUI();
+        };
+
+        window.toggleGroupMonth = (monthKey) => {
+            if (!window.expandedGroupMonths) window.expandedGroupMonths = {};
+            window.expandedGroupMonths[monthKey] = !window.expandedGroupMonths[monthKey];
+            window.refreshUI();
+        };
+
+        window.togglePrivateMonth = (monthKey) => {
+            if (!window.expandedPrivateMonths) window.expandedPrivateMonths = {};
+            window.expandedPrivateMonths[monthKey] = !window.expandedPrivateMonths[monthKey];
+            window.refreshUI();
+        };
+
+        window.refreshUI = function() {
+            if (!document.getElementById('teacherDashboard').classList.contains('hidden')) {
+                if (window.activeTab === 'dashboard') {
+                    renderCalendar();
+                    if (window.selectedDateStr) renderContent();
+                    if (!document.getElementById('studentHistoryModal').classList.contains('hidden')) {
+                        renderHistoryCalendar();
+                    }
+                } else if (window.activeTab === 'group') {
+                    renderGroupChat();
+                } else if (window.activeTab === 'private') {
+                    renderPrivateChatSidebar();
+                    renderPrivateChatWindow();
+                }
+                setTimeout(() => lucide.createIcons(), 0);
+            }
+        };
+
+        function renderCalendar() {
+            const grid = document.getElementById('tCalendarGrid');
+            const display = document.getElementById('tMonthDisplay');
+            if(!grid || !display) return;
+            
+            grid.innerHTML = "";
+            const year = window.viewDate.getFullYear();
+            const month = window.viewDate.getMonth();
+            display.innerText = `${year}年 ${month + 1}月`;
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dStr = window.normalizeDate(`${year}/${month + 1}/${d}`);
+                const isActive = dStr === window.selectedDateStr;
+                const hasNote = window.fbNotes.some(n => n.date === dStr && n.content.trim() !== "");
+                const hasEvent = window.fbEvents.some(e => e.date === dStr && e.event.trim() !== "");
+                const isHoliday = window.fbHolidays.some(h => h.date === dStr && h.isHoliday);
+                
+                const dayEl = document.createElement('div');
+                let baseClass = `t-calendar-day ${isActive ? 'active' : dStr === window.todayStr ? 'is-today' : ''}`;
+                if (isHoliday && !isActive) baseClass += ' text-rose-500 font-bold';
+                
+                dayEl.className = baseClass;
+                const numSpan = document.createElement('span');
+                numSpan.innerText = d;
+                dayEl.appendChild(numSpan);
+                
+                if (hasNote || hasEvent) {
+                    const dotsContainer = document.createElement('div');
+                    dotsContainer.className = "absolute bottom-1 flex gap-1";
+                    if (hasEvent) {
+                        const eventDot = document.createElement('div');
+                        eventDot.className = `w-1.5 h-1.5 rounded-full ${isActive ? 'bg-white' : 'bg-purple-500'}`;
+                        dotsContainer.appendChild(eventDot);
+                    }
+                    if (hasNote) {
+                        const noteDot = document.createElement('div');
+                        noteDot.className = `w-1.5 h-1.5 rounded-full ${isActive ? 'bg-white' : 'bg-blue-500'}`;
+                        dotsContainer.appendChild(noteDot);
+                    }
+                    dayEl.appendChild(dotsContainer);
+                }
+                
+                dayEl.onclick = () => { 
+                    window.selectedDateStr = dStr; 
+                    window.refreshUI(); 
+                };
+                grid.appendChild(dayEl);
+            }
+        }
+
+        function renderContent() {
+            const dateParts = window.selectedDateStr.split('/');
+            document.getElementById('tDateTitle').innerText = `${dateParts[0]}年${parseInt(dateParts[1])}月${parseInt(dateParts[2])}日`;
+            document.getElementById('tSelectedDateLabel').innerText = window.selectedDateStr;
+            
+            const noteObj = window.fbNotes.find(n => n.date === window.selectedDateStr);
+            document.getElementById('tNoteInput').value = noteObj ? noteObj.content : "";
+            
+            const eventObj = window.fbEvents.find(e => e.date === window.selectedDateStr);
+            document.getElementById('tEventInput').value = eventObj ? eventObj.event : "";
+            
+            const isHoliday = window.fbHolidays.some(h => h.date === window.selectedDateStr && h.isHoliday);
+            document.getElementById('tHolidayToggle').checked = isHoliday;
+
+            let signedCount = 0;
+            let leaveCount = 0;
+            let unsignedCount = 0;
+            
+            const listBody = document.getElementById('tStudentList');
+            const total = window.allStudents.length;
+
+            listBody.innerHTML = total === 0 
+                ? `<tr><td colspan="5" class="text-center py-10 text-slate-400 font-bold">目前無學生名單資料</td></tr>`
+                : window.allStudents.map(s => {
+                    const record = window.fbRecords.find(r => r.date === window.selectedDateStr && r.studentId === s.studentId) || {};
+                    
+                    const isLeave = record.isLeave || false;
+                    const isSigned = record.signed || false;
+                    
+                    if (isSigned) signedCount++;
+                    if (isLeave) leaveCount++;
+                    if (!isHoliday && !isSigned && !isLeave) unsignedCount++;
+                    if (window.showOnlyUnsigned && (isSigned || isLeave || isHoliday)) return '';
+                    
+                    const signHtml = isSigned
+                        ? `<span class="text-emerald-500 text-[10px] font-black bg-emerald-50 px-2 py-1 rounded border border-emerald-100 shadow-sm">已簽</span>`
+                        : `<span class="text-slate-400 text-[10px] font-black bg-slate-50 px-2 py-1 rounded border border-slate-100">未簽</span>`;
+
+                    const attendHtml = isLeave
+                        ? `<span class="text-amber-500 text-[10px] font-black bg-amber-50 px-2 py-1 rounded border border-amber-100 shadow-sm">請假</span>`
+                        : `<span class="text-blue-500 text-[10px] font-black bg-blue-50 px-2 py-1 rounded border border-blue-100 shadow-sm">出席</span>`;
+
+                    const actionHtml = isLeave
+                        ? `<button onclick="window.handleToggleLeave('${s.studentId}', false)" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-500 px-2 py-1 rounded transition-colors font-bold border border-slate-200">取消請假</button>`
+                        : `<button onclick="window.handleToggleLeave('${s.studentId}', true)" class="text-[10px] bg-white hover:bg-amber-50 text-amber-600 px-2 py-1 rounded transition-colors font-bold border border-amber-200 shadow-sm">設為請假</button>`;
+
+                    return `
+                    <tr class="group hover:bg-blue-50/50 transition-colors">
+                        <td class="px-2 py-3 text-center font-bold text-slate-400 group-hover:text-blue-400 transition-colors border-b border-slate-50">${String(s.seatNo).padStart(2, '0')}</td>
+                        <td class="px-2 py-3 font-bold text-slate-700 border-b border-slate-50">
+                            <div class="flex items-center gap-2 cursor-pointer hover:text-blue-600 transition-colors" onclick="window.openStudentHistory('${s.studentId}', '${s.name}')" title="點擊查看個人出缺席日曆">
+                                <span class="underline underline-offset-4 decoration-blue-200">${s.name}</span>
+                            </div>
+                        </td>
+                        <td class="px-2 py-3 text-center border-b border-slate-50">${signHtml}</td>
+                        <td class="px-2 py-3 text-center border-b border-slate-50">${attendHtml}</td>
+                        <td class="px-2 py-3 text-right border-b border-slate-50">
+                            <div class="flex items-center justify-end gap-1.5">
+                                <button onclick="window.openStudentPrivateChat('${s.studentId}', '${s.name}')" class="text-[10px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors font-bold shadow-sm">私訊</button>
+                                ${actionHtml}
+                            </div>
+                        </td>
+                    </tr>
+                    `;
+                }).join('');
+
+            if (window.showOnlyUnsigned && total > 0 && listBody.innerHTML.trim() === '') {
+                listBody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-emerald-600 font-bold">目前沒有待簽學生</td></tr>';
+            }
+
+            document.getElementById('tSignCount').innerText = `待簽 ${unsignedCount} / 已簽 ${signedCount} / 請假 ${leaveCount}`;
+            const filterButton = document.getElementById('tUnsignedFilter');
+            if (filterButton) {
+                filterButton.setAttribute('aria-pressed', String(window.showOnlyUnsigned));
+                filterButton.className = window.showOnlyUnsigned
+                    ? 'text-xs font-bold px-2.5 py-1.5 rounded-lg bg-rose-600 text-white shadow-sm'
+                    : 'text-xs font-bold px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-200';
+                filterButton.innerText = window.showOnlyUnsigned ? '顯示全部' : `未簽 ${unsignedCount}`;
+            }
+        }
+
+        // ==========================
+        // 🌟 班級群聊渲染 (支援圖片與月份折疊)
+        // ==========================
+        function renderGroupChat() {
+            const container = document.getElementById('groupChatMessageList');
+            if(!container) return;
+
+            if(window.fbGroupChats.length === 0) {
+                container.innerHTML = '<div class="text-center text-slate-400 mt-10 text-sm font-bold bg-slate-100 mx-auto px-4 py-2 rounded-full w-max">目前還沒有人發言，打個招呼吧！</div>';
+                return;
+            }
+
+            const msgsByMonth = {};
+            window.fbGroupChats.forEach(msg => {
+                const monthKey = msg.timestamp.substring(0, 7); 
+                if (!msgsByMonth[monthKey]) msgsByMonth[monthKey] = [];
+                msgsByMonth[monthKey].push(msg);
+            });
+            const sortedMonths = Object.keys(msgsByMonth).sort();
+
+            if (window.expandedGroupMonths === null) {
+                window.expandedGroupMonths = {};
+                if (sortedMonths.length > 0) {
+                    window.expandedGroupMonths[sortedMonths[sortedMonths.length - 1]] = true;
+                }
+            } else {
+                sortedMonths.forEach(m => {
+                    if (window.expandedGroupMonths[m] === undefined) {
+                        window.expandedGroupMonths[m] = true;
+                    }
+                });
+            }
+
+            let html = '';
+
+            sortedMonths.forEach(monthKey => {
+                const isExpanded = window.expandedGroupMonths[monthKey];
+                const monthMsgs = msgsByMonth[monthKey];
+                const monthTitle = `${monthKey.split('/')[0]}年${parseInt(monthKey.split('/')[1])}月`;
+
+                html += `
+                    <div class="flex justify-center my-4 sticky top-2 z-10">
+                        <button onclick="window.toggleGroupMonth('${monthKey}')" class="flex items-center gap-1.5 bg-white/90 backdrop-blur shadow-sm border border-slate-200 text-slate-600 text-[13px] font-bold px-4 py-1.5 rounded-full hover:bg-slate-50 transition-colors">
+                            ${monthTitle} (${monthMsgs.length}則)
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                    </div>
+                `;
+
+                if (isExpanded) {
+                    let lastDate = '';
+                    monthMsgs.forEach(msg => {
+                        const msgDate = msg.timestamp.split(' ')[0];
+                        const msgTime = msg.timestamp.split(' ')[1];
+                        const isMe = msg.sender === 'teacher';
+                        const isImage = msg.messageType === 'image';
+                        
+                        if(msgDate !== lastDate) {
+                            html += `<div class="text-center my-4"><span class="bg-slate-200 text-slate-500 text-xs font-medium px-3 py-1 rounded-full shadow-sm">${msgDate}</span></div>`;
+                            lastDate = msgDate;
+                        }
+
+                        // 圖片渲染
+                        const bubbleContent = isImage 
+                            ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-sm border border-slate-200" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
+                            : msg.text;
+
+                        if(isMe) {
+                            html += `
+                                <div class="flex justify-end mb-4 pl-12 fade-in">
+                                    <div class="flex items-end gap-1.5">
+                                        <span class="text-[10px] text-slate-400 mb-1 font-medium">${msgTime}</span>
+                                        <div class="${isImage ? 'bg-transparent p-0' : 'chat-bubble-me px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm'} max-w-full break-words text-[15px] leading-relaxed relative">
+                                            ${bubbleContent}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            const shortName = msg.name ? (msg.name.length >= 2 ? msg.name.slice(-2) : msg.name) : (msg.studentId || "未知");
+                            const displayName = `${shortName} (家長)`;
+                            const displaySeat = msg.seatNo ? String(msg.seatNo).padStart(2, '0') : (msg.studentId ? msg.studentId.slice(-3) : "?");
+
+                            html += `
+                                <div class="flex justify-start mb-4 pr-12 fade-in">
+                                    <div class="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-[13px] font-bold shrink-0 mr-2 shadow-sm mt-1 border border-slate-300">
+                                        ${displaySeat}
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-slate-500 ml-1 mb-1 font-medium">${displayName}</div>
+                                        <div class="flex items-end gap-1.5">
+                                            <div class="${isImage ? 'bg-transparent p-0 border-none shadow-none' : 'bg-white border border-slate-200 text-slate-800 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm'} max-w-full break-words text-[15px] leading-relaxed relative">
+                                                ${bubbleContent}
+                                            </div>
+                                            <span class="text-[10px] text-slate-400 mb-1 font-medium">${msgTime}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        // ==========================
+        // 🌟 渲染左側名單 (家長私訊)
+        // ==========================
+        function renderPrivateChatSidebar() {
+            const listContainer = document.getElementById('chatStudentList');
+            if (!listContainer) return;
+
+            let html = '';
+            
+            const studentChatInfo = window.allStudents.map(student => {
+                const studentChats = window.fbPrivateChats.filter(c => c.studentId === student.studentId);
+                const lastMsg = studentChats.length > 0 ? studentChats[studentChats.length - 1] : null;
+                return {
+                    ...student,
+                    lastMsgText: lastMsg ? (lastMsg.messageType === 'image' ? '🖼️ 傳送了照片' : (lastMsg.sender === 'teacher' ? '您: ' + lastMsg.text : lastMsg.text)) : '尚未有私訊紀錄',
+                    lastMsgTime: lastMsg ? lastMsg.timestamp.split(' ')[1] : '',
+                    lastMsgFullTime: lastMsg ? lastMsg.timestamp : '',
+                    hasChat: studentChats.length > 0
+                };
+            }).sort((a, b) => {
+                if (a.hasChat && b.hasChat) return b.lastMsgFullTime.localeCompare(a.lastMsgFullTime);
+                if (a.hasChat) return -1;
+                if (b.hasChat) return 1;
+                return a.seatNo - b.seatNo; 
+            });
+
+            studentChatInfo.forEach(s => {
+                const isActive = window.activeChatStudentId === s.studentId;
+                const shortName = s.name.length >= 2 ? s.name.slice(-2) : s.name;
+                html += `
+                    <div onclick="window.selectChatStudent('${s.studentId}', '${shortName}')" 
+                         class="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors border mb-1 ${isActive ? 'bg-blue-50 border-blue-200' : 'bg-white border-transparent hover:bg-slate-100'}">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0 shadow-sm ${isActive ? 'bg-blue-500' : 'bg-slate-400'}">
+                            ${String(s.seatNo).padStart(2, '0')}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-center mb-0.5">
+                                <span class="font-bold text-sm text-slate-800 truncate">${shortName} 家長</span>
+                                <span class="text-[10px] text-slate-400 shrink-0">${s.lastMsgTime}</span>
+                            </div>
+                            <div class="text-xs text-slate-500 truncate font-medium ${isActive ? 'text-blue-600' : ''}">${s.lastMsgText}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            listContainer.innerHTML = html;
+        }
+
+        // ==========================
+        // 🌟 渲染右側對話窗 (老師端私訊 - 支援圖片與月份折疊)
+        // ==========================
+        function renderPrivateChatWindow() {
+            const container = document.getElementById('privateChatMessageList');
+            const inputArea = document.getElementById('privateChatInputArea');
+            const headerText = document.getElementById('activeChatHeader');
+            
+            if(!container) return;
+
+            if(!window.activeChatStudentId) {
+                container.innerHTML = '<div class="text-center text-slate-400 mt-10 text-sm font-bold bg-slate-100 mx-auto px-4 py-2 rounded-full w-max">請從左側點選一位家長開始私訊</div>';
+                inputArea.classList.add('hidden');
+                headerText.innerHTML = '請選擇家長';
+                return;
+            }
+
+            inputArea.classList.remove('hidden');
+
+            const studentChats = window.fbPrivateChats.filter(c => c.studentId === window.activeChatStudentId);
+            
+            if(studentChats.length === 0) {
+                container.innerHTML = '<div class="text-center text-slate-400 mt-10 text-sm font-bold bg-slate-100 mx-auto px-4 py-2 rounded-full w-max">這是您與該家長的專屬私密空間</div>';
+                return;
+            }
+
+            const msgsByMonth = {};
+            studentChats.forEach(msg => {
+                const monthKey = msg.timestamp.substring(0, 7); 
+                if (!msgsByMonth[monthKey]) msgsByMonth[monthKey] = [];
+                msgsByMonth[monthKey].push(msg);
+            });
+            const sortedMonths = Object.keys(msgsByMonth).sort();
+
+            if (window.expandedPrivateMonths === null) {
+                window.expandedPrivateMonths = {};
+                if (sortedMonths.length > 0) {
+                    window.expandedPrivateMonths[sortedMonths[sortedMonths.length - 1]] = true;
+                }
+            } else {
+                sortedMonths.forEach(m => {
+                    if (window.expandedPrivateMonths[m] === undefined) {
+                        window.expandedPrivateMonths[m] = true;
+                    }
+                });
+            }
+
+            let html = '';
+
+            sortedMonths.forEach(monthKey => {
+                const isExpanded = window.expandedPrivateMonths[monthKey];
+                const monthMsgs = msgsByMonth[monthKey];
+                const monthTitle = `${monthKey.split('/')[0]}年${parseInt(monthKey.split('/')[1])}月`;
+
+                html += `
+                    <div class="flex justify-center my-4 sticky top-2 z-10">
+                        <button onclick="window.togglePrivateMonth('${monthKey}')" class="flex items-center gap-1.5 bg-white/90 backdrop-blur shadow-sm border border-slate-200 text-slate-600 text-[13px] font-bold px-4 py-1.5 rounded-full hover:bg-slate-50 transition-colors">
+                            ${monthTitle} (${monthMsgs.length}則)
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                    </div>
+                `;
+
+                if (isExpanded) {
+                    let lastDate = '';
+                    monthMsgs.forEach(msg => {
+                        const msgDate = msg.timestamp.split(' ')[0];
+                        const msgTime = msg.timestamp.split(' ')[1];
+                        const isMe = msg.sender === 'teacher';
+                        const isImage = msg.messageType === 'image';
+                        
+                        if(msgDate !== lastDate) {
+                            html += `<div class="text-center my-4"><span class="bg-slate-200 text-slate-500 text-xs font-medium px-3 py-1 rounded-full shadow-sm">${msgDate}</span></div>`;
+                            lastDate = msgDate;
+                        }
+
+                        const bubbleContent = isImage 
+                            ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-sm border border-slate-200" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
+                            : msg.text;
+
+                        if(isMe) {
+                            html += `
+                                <div class="flex justify-end mb-4 pl-12 fade-in">
+                                    <div class="flex items-end gap-1.5">
+                                        <span class="text-[10px] text-slate-400 mb-1 font-medium">${msgTime}</span>
+                                        <div class="${isImage ? 'bg-transparent p-0' : 'chat-bubble-me px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm'} max-w-full break-words text-[15px] leading-relaxed relative">
+                                            ${bubbleContent}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            const shortName = msg.name ? (msg.name.length >= 2 ? msg.name.slice(-2) : msg.name) : (msg.studentId || "未知");
+                            const displayName = `${shortName} (家長)`;
+                            const displaySeat = msg.seatNo ? String(msg.seatNo).padStart(2, '0') : (msg.studentId ? msg.studentId.slice(-3) : "?");
+
+                            html += `
+                                <div class="flex justify-start mb-4 pr-12 fade-in">
+                                    <div class="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-[13px] font-bold shrink-0 mr-2 shadow-sm mt-1 border border-slate-300">
+                                        ${displaySeat}
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-slate-500 ml-1 mb-1 font-medium">${displayName}</div>
+                                        <div class="flex items-end gap-1.5">
+                                            <div class="${isImage ? 'bg-transparent p-0 border-none shadow-none' : 'bg-white border border-slate-200 text-slate-800 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm'} max-w-full break-words text-[15px] leading-relaxed relative">
+                                                ${bubbleContent}
+                                            </div>
+                                            <span class="text-[10px] text-slate-400 mb-1 font-medium">${msgTime}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        // 🌟 點選特定家長
+        window.toggleUnsignedFilter = () => {
+            window.showOnlyUnsigned = !window.showOnlyUnsigned;
+            window.refreshUI();
+        };
+
+        window.openStudentPrivateChat = (studentId, studentName) => {
+            window.switchTab('private');
+            setTimeout(() => window.selectChatStudent(studentId, studentName), 0);
+        };
+
+        window.selectChatStudent = (studentId, shortName) => {
+            window.activeChatStudentId = studentId;
+            window.expandedPrivateMonths = null; 
+            document.getElementById('activeChatHeader').innerHTML = `與 ${shortName} 家長私訊中`;
+            
+            const sidebar = document.getElementById('privateChatSidebar');
+            const mainWin = document.getElementById('privateChatMainWindow');
+            if (window.innerWidth < 768) {
+                sidebar.classList.add('hidden');
+                mainWin.classList.remove('hidden');
+                mainWin.classList.add('flex');
+            }
+            window.refreshUI();
+            setTimeout(window.scrollToPrivateChatBottom, 50);
+        };
+
+        window.backToChatList = () => {
+            window.activeChatStudentId = null;
+            const sidebar = document.getElementById('privateChatSidebar');
+            const mainWin = document.getElementById('privateChatMainWindow');
+            sidebar.classList.remove('hidden');
+            mainWin.classList.add('hidden');
+            mainWin.classList.remove('flex');
+            window.refreshUI();
+        };
+
+        window.scrollToGroupChatBottom = () => {
+            const container = document.getElementById('groupChatScrollArea');
+            if(container) container.scrollTop = container.scrollHeight;
+        };
+
+        window.scrollToPrivateChatBottom = () => {
+            const container = document.getElementById('privateChatScrollArea');
+            if(container) container.scrollTop = container.scrollHeight;
+        };
+
+        // 🌟 放大圖片預覽
+        window.previewImage = (url) => {
+            Swal.fire({
+                imageUrl: url,
+                imageAlt: '圖片載入中',
+                showConfirmButton: false,
+                background: 'transparent',
+                backdrop: 'rgba(0,0,0,0.85)',
+                customClass: {
+                    image: 'max-h-[85vh] object-contain rounded-xl'
+                }
+            });
+        };
+
+        // 🌟 處理老師端選擇圖片並非同步上傳
+        window.setChatComposerLoading = (input, isLoading) => {
+            const button = input && input.parentElement ? input.parentElement.querySelector('button') : null;
+            if (!button) return;
+            input.disabled = isLoading;
+            button.disabled = isLoading;
+            button.setAttribute('aria-busy', String(isLoading));
+            button.classList.toggle('opacity-60', isLoading);
+            if (isLoading) {
+                button.dataset.originalHtml = button.innerHTML;
+                button.innerHTML = '<span class="loading-spinner border-white/30 border-t-white !w-5 !h-5"></span>';
+            } else if (button.dataset.originalHtml) {
+                button.innerHTML = button.dataset.originalHtml;
+                delete button.dataset.originalHtml;
+            }
+        };
+
+        window.offerChatRetry = (title, retry) => {
+            Swal.fire({
+                icon: 'error',
+                title: title,
+                text: '請檢查網路後重試；原本的內容已保留。',
+                showCancelButton: true,
+                confirmButtonText: '重試',
+                cancelButtonText: '稍後'
+            }).then(result => { if (result.isConfirmed) retry(); });
+        };
+
+        window.offerImageRetry = (file, type) => {
+            Swal.fire({
+                icon: 'error',
+                title: '圖片上傳失敗',
+                text: '請檢查網路後重試；已選取的圖片會保留。',
+                showCancelButton: true,
+                confirmButtonText: '重試',
+                cancelButtonText: '稍後'
+            }).then(result => {
+                if (result.isConfirmed) window.handleImageUpload({ files: [file], value: '' }, type, file);
+            });
+        };
+
+        window.handleImageUpload = async (inputElement, type, retryFile = null) => {
+            if(!checkFbAuth() || !fbUser) return;
+            const file = retryFile || inputElement.files[0];
+            if (!file) return;
+
+            if (file.size > 5 * 1024 * 1024) {
+                Swal.fire('無法傳送', '照片檔案過大，請勿超過 5MB。', 'error');
+                return;
+            }
+
+            Swal.fire({
+                title: '上傳圖片中...',
+                text: '正在將圖片儲存至 Google 雲端硬碟',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                const base64Data = reader.result.split(',')[1];
+                try {
+                    const resp = await fetch(GAS_API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'uploadImage',
+                            sessionToken: window.sessionToken,
+                            base64Data: base64Data,
+                            fileName: `teacher_${Date.now()}.${file.name.split('.').pop()}`,
+                            mimeType: file.type,
+                            chatType: type, // 告知後端是 group 還是 private
+                            studentId: window.activeChatStudentId // 提供當前私訊對象的學號
+                        })
+                    });
+                    const res = await resp.json();
+
+                    if (res.success && res.imageUrl) {
+                        Swal.close();
+                        if (type === 'group') {
+                            await addDoc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat'), {
+                                studentId: 'teacher',
+                                name: '蘇老師',
+                                seatNo: 'T',
+                                sender: 'teacher',
+                                text: res.imageUrl,
+                                messageType: 'image',
+                                timestamp: window.getPreciseTime()
+                            });
+                            setTimeout(window.scrollToGroupChatBottom, 100);
+                        } else {
+                            await addDoc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats'), {
+                                studentId: window.activeChatStudentId,
+                                sender: 'teacher',
+                                name: '蘇老師',
+                                seatNo: 'T',
+                                text: res.imageUrl,
+                                messageType: 'image',
+                                timestamp: window.getPreciseTime()
+                            });
+                            setTimeout(window.scrollToPrivateChatBottom, 100);
+                        }
+                    } else {
+                        throw new Error(res.message || '上傳失敗');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    window.offerImageRetry(file, type);
+                } finally {
+                    inputElement.value = '';
+                }
+            };
+        };
+
+        window.sendGroupChatMessage = async (retryText = null) => {
+            if(!checkFbAuth() || !fbUser) return;
+            const input = document.getElementById('groupChatInput');
+            const text = (retryText || input.value).trim();
+            if(!text) return;
+            
+            window.setChatComposerLoading(input, true);
+            try {
+                await addDoc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat'), {
+                    studentId: 'teacher',
+                    name: '蘇老師',
+                    seatNo: 'T', 
+                    sender: 'teacher',
+                    text: text,
+                    messageType: 'text',
+                    timestamp: window.getPreciseTime()
+                });
+                input.value = '';
+                input.style.height = 'auto'; 
+            } catch(e) {
+                console.error(e);
+                window.offerChatRetry('發送失敗', () => window.sendGroupChatMessage(text));
+            } finally {
+                window.setChatComposerLoading(input, false);
+                setTimeout(() => {
+                    input.focus();
+                    window.scrollToGroupChatBottom();
+                }, 50);
+            }
+        };
+
+        window.sendPrivateMessage = async (retryText = null) => {
+            if(!checkFbAuth() || !fbUser || !window.activeChatStudentId) return;
+            const input = document.getElementById('privateChatInput');
+            const text = (retryText || input.value).trim();
+            if(!text) return;
+            
+            window.setChatComposerLoading(input, true);
+            try {
+                await addDoc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats'), {
+                    studentId: window.activeChatStudentId,
+                    sender: 'teacher',
+                    name: '蘇老師',
+                    seatNo: 'T',
+                    text: text,
+                    messageType: 'text',
+                    timestamp: window.getPreciseTime()
+                });
+                input.value = '';
+                input.style.height = 'auto'; 
+            } catch(e) {
+                console.error(e);
+                window.offerChatRetry('發送失敗', () => window.sendPrivateMessage(text));
+            } finally {
+                window.setChatComposerLoading(input, false);
+                setTimeout(() => {
+                    input.focus();
+                    window.scrollToPrivateChatBottom();
+                }, 50);
+            }
+        };
+
+        window.changeMonth = (offset) => { 
+            window.viewDate.setMonth(window.viewDate.getMonth() + offset); 
+            window.checkSemesterSwitch(window.viewDate);
+            window.refreshUI(); 
+        };
+        
+        window.clearInput = () => { 
+            document.getElementById('tNoteInput').value = ""; 
+            document.getElementById('tEventInput').value = ""; 
+        };
+
+        const checkFbAuth = () => {
+            if(!fbUser) {
+                Swal.fire({ title: '資料庫連線異常', html: '系統無法寫入資料。<br/><br/>若您將系統發布在 Google Sites，請至 Firebase 控制台加入白名單。', icon: 'error' });
+                return false;
+            }
+            return true;
+        };
+
+        window.handleSaveNote = async () => {
+            if(!checkFbAuth()) return;
+            const btn = document.getElementById('saveBtn');
+            const noteContent = document.getElementById('tNoteInput').value.trim();
+            const eventContent = document.getElementById('tEventInput').value.trim();
+            
+            btn.disabled = true; btn.innerHTML = '<span class="loading-spinner w-4 h-4"></span> 儲存中...';
+            try {
+                const docId = window.toDocId(window.selectedDateStr);
+                const noteRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'notes', docId);
+                const eventRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'calendar_events', docId);
+                
+                await setDoc(noteRef, { content: noteContent }, { merge: true });
+                
+                if (eventContent) {
+                    await setDoc(eventRef, { event: eventContent }, { merge: true });
+                } else {
+                    await deleteDoc(eventRef);
+                }
+
+                Swal.fire({ icon: 'success', title: '內容已成功發布', timer: 1500, showConfirmButton: false });
+            } catch (err) {
+                Swal.fire('發布失敗', err.message, 'error');
+            } finally {
+                btn.disabled = false; btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> 儲存並發布';
+                lucide.createIcons();
+            }
+        };
+
+        window.handleToggleHoliday = async (isHoliday) => {
+            if(!checkFbAuth()) {
+                document.getElementById('tHolidayToggle').checked = !isHoliday;
+                return;
+            }
+            const docRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'holidays', window.toDocId(window.selectedDateStr));
+            try {
+                if(isHoliday) await setDoc(docRef, { isHoliday: true, date: window.selectedDateStr });
+                else await deleteDoc(docRef);
+                Swal.fire({ icon: 'success', title: '設定成功', text: isHoliday ? '已設為假日' : '已取消假日', timer: 1000, showConfirmButton: false });
+            } catch (err) {
+                Swal.fire('設定失敗', err.message, 'error');
+                document.getElementById('tHolidayToggle').checked = !isHoliday;
+            }
+        };
+
+        window.batchSetWeekends = async (isHoliday) => {
+            if(!checkFbAuth()) return;
+            const year = window.viewDate.getFullYear();
+            const month = window.viewDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const weekendDates = [];
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const date = new Date(year, month, d);
+                if (date.getDay() === 0 || date.getDay() === 6) {
+                    weekendDates.push(window.normalizeDate(`${year}/${month + 1}/${d}`));
+                }
+            }
+            if (weekendDates.length === 0) return;
+
+            const actionText = isHoliday ? '設為假日' : '取消假日';
+            const confirmResult = await Swal.fire({
+                title: `將本月週末${actionText}？`, text: `共包含 ${weekendDates.length} 天`, icon: 'question',
+                showCancelButton: true, confirmButtonColor: isHoliday ? '#f43f5e' : '#64748b',
+                confirmButtonText: '確定執行', cancelButtonText: '取消'
+            });
+
+            if (!confirmResult.isConfirmed) return;
+            document.getElementById('tLoading').classList.remove('hidden');
+            try {
+                const batch = writeBatch(db);
+                weekendDates.forEach(dStr => {
+                    const docRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'holidays', window.toDocId(dStr));
+                    if(isHoliday) batch.set(docRef, { isHoliday: true, date: dStr });
+                    else batch.delete(docRef);
+                });
+                await batch.commit();
+                Swal.fire({ icon: 'success', title: '批次設定完成', timer: 1500, showConfirmButton: false });
+            } catch (err) { Swal.fire('設定失敗', err.message, 'error'); } 
+            finally { document.getElementById('tLoading').classList.add('hidden'); }
+        };
+
+        window.handleToggleLeave = async (studentId, isLeave) => {
+            if(!checkFbAuth()) return;
+            const confirmResult = await Swal.fire({
+                title: `確認${isLeave ? '設為請假' : '取消請假'}？`, icon: 'question',
+                showCancelButton: true, confirmButtonColor: isLeave ? '#f59e0b' : '#64748b',
+                confirmButtonText: '確定', cancelButtonText: '關閉'
+            });
+            if (!confirmResult.isConfirmed) return;
+
+            document.getElementById('tLoading').classList.remove('hidden');
+            try {
+                const docId = `${window.toDocId(window.selectedDateStr)}_${studentId}`;
+                const docRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', docId);
+                await setDoc(docRef, {
+                    date: window.selectedDateStr,
+                    studentId: studentId,
+                    isLeave: isLeave
+                }, { merge: true });
+                Swal.fire({ icon: 'success', title: '設定成功', text: isLeave ? '已設為請假' : '已取消請假', timer: 1000, showConfirmButton: false });
+            } catch (err) { Swal.fire('設定失敗', err.message, 'error'); }
+            finally { document.getElementById('tLoading').classList.add('hidden'); }
+        };
+
+        window.openStudentHistory = (studentId, studentName) => {
+            window.shStudentId = studentId;
+            document.getElementById('shModalTitle').innerText = `${studentName} - 出缺席紀錄`;
+            document.getElementById('studentHistoryModal').classList.remove('hidden');
+            window.shViewDate = new Date(window.viewDate);
+            window.refreshUI();
+        };
+
+        window.closeStudentHistory = () => { document.getElementById('studentHistoryModal').classList.add('hidden'); };
+        window.changeHistoryMonth = (offset) => { window.shViewDate.setMonth(window.shViewDate.getMonth() + offset); window.refreshUI(); };
+
+        function renderHistoryCalendar() {
+            const grid = document.getElementById('shCalendarGrid');
+            const display = document.getElementById('shMonthDisplay');
+            grid.innerHTML = "";
+            const year = window.shViewDate.getFullYear();
+            const month = window.shViewDate.getMonth();
+            display.innerText = `${year}年 ${month + 1}月`;
+            
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            const studentRecords = window.fbRecords.filter(r => r.studentId === window.shStudentId);
+            const sSigned = new Set(studentRecords.filter(r => r.signed).map(r => r.date));
+            const sLeave = new Set(studentRecords.filter(r => r.isLeave).map(r => r.date));
+
+            for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dStr = window.normalizeDate(`${year}/${month + 1}/${d}`);
+                const isSigned = sSigned.has(dStr);
+                const isLeave = sLeave.has(dStr);
+                
+                const dayEl = document.createElement('div');
+                let className = "aspect-square flex items-center justify-center rounded-xl text-[13px] font-bold transition-all ";
+                
+                if (isLeave) {
+                    className += "border-2 border-amber-500 text-amber-600 bg-amber-50"; 
+                } else if (isSigned) {
+                    className += "bg-emerald-500 text-white shadow-sm"; 
+                } else {
+                    className += "text-slate-400 bg-slate-50"; 
+                }
+                
+                if (dStr === window.todayStr && !isLeave && !isSigned) {
+                    className += " border border-blue-300 text-blue-600";
+                }
+                
+                dayEl.className = className;
+                dayEl.innerText = d;
+                grid.appendChild(dayEl);
+            }
+        }
+    </script>
+
+    <!-- 登入頁面 -->
+    <div id="loginPage" class="flex-1 flex flex-col items-center justify-center p-4 overflow-y-auto min-h-0">
+        <div class="w-full max-w-sm fade-in my-auto">
+            <div class="text-center mb-10">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-xl mb-4">
+                    <i data-lucide="shield-check" class="w-10 h-10 text-white"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-800">教師管理系統</h1>
+                <p class="text-slate-500 text-sm mt-1">807｜班級資訊動態</p>
+            </div>
+            <div class="bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">帳號</label>
+                        <input type="text" id="teacherAcc" value="yssu" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-blue-500 transition-all" placeholder="請輸入管理帳號">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-1">密碼</label>
+                        <input type="password" id="teacherPwd" onkeypress="if(event.key === 'Enter'){ window.handleTeacherLogin(); }" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-blue-500 transition-all" placeholder="請輸入密碼">
+                    </div>
+                    <div class="flex items-center gap-2 py-2">
+                        <input type="checkbox" id="rememberMe" class="w-4 h-4 accent-blue-600">
+                        <label for="rememberMe" class="text-sm text-slate-600 cursor-pointer">記住登入資訊</label>
+                    </div>
+                    <button id="loginBtn" onclick="window.handleTeacherLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-lg transition-all active:scale-[0.98] shadow-md flex justify-center items-center gap-2">
+                        登入管理後台
+                    </button>
+                    <p id="loginError" class="text-red-500 text-center text-sm font-medium hidden"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 教師主控台 (含私訊分頁切換) -->
+    <div id="teacherDashboard" class="hidden flex-1 flex flex-col h-full w-full overflow-hidden">
+        <header class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center z-20 shrink-0 shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2 rounded-lg"><i data-lucide="layout-dashboard" class="w-5 h-5 text-white"></i></div>
+                <div class="hidden sm:block"><h1 class="text-lg font-bold text-slate-800 leading-tight">807班 聯絡簿管理中心</h1><p class="text-xs text-slate-500 font-medium">即時雲端同步版</p></div>
+            </div>
+            
+            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                <button onclick="window.switchTab('dashboard')" id="tabDashboard" class="px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-blue-600 transition-all whitespace-nowrap">聯絡簿管理</button>
+                <button onclick="window.switchTab('group')" id="tabGroup" class="px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded text-slate-500 hover:text-slate-800 relative transition-all whitespace-nowrap">
+                    班級群聊
+                    <span id="groupUnreadBadge" class="hidden absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full"></span>
+                </button>
+                <button onclick="window.switchTab('private')" id="tabPrivate" class="px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded text-slate-500 hover:text-slate-800 relative transition-all whitespace-nowrap">
+                    家長私訊
+                    <span id="privateUnreadBadge" class="hidden absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full"></span>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="hidden md:flex flex-col items-end mr-2">
+                    <span id="tUserName" class="text-sm font-bold text-slate-700">載入中...</span>
+                    <span class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        已連線 (動態學期載入中)
+                    </span>
+                    <script>
+                        setTimeout(() => {
+                           const el = document.querySelector('.text-emerald-500');
+                           if(el && window.semesterData) el.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>已連線 (${window.semesterData.semesterName})`;
+                        }, 2000);
+                    </script>
+                </div>
+                <button onclick="location.reload()" class="bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+            </div>
+        </header>
+
+        <!-- 第 1 頁：現有聯絡簿面板 (已移除舊版留言板功能，高度拉滿對齊) -->
+        <main id="dashboardPage" class="flex-1 w-full flex flex-col lg:flex-row overflow-hidden min-h-0 relative bg-slate-50">
+            <div class="w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-slate-200 bg-white shrink-0 flex flex-col h-[45vh] min-h-[280px] lg:min-h-0 lg:h-full overflow-hidden z-10 shadow-sm lg:shadow-none">
+                <div class="px-5 pt-5 pb-3 flex justify-between items-center shrink-0 bg-white border-b border-slate-100">
+                    <h2 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="calendar-days" class="w-5 h-5 text-blue-600"></i> <span id="tMonthDisplay"></span></h2>
+                    <div class="flex gap-2">
+                        <button onclick="window.changeMonth(-1)" class="p-1.5 bg-slate-50 hover:bg-slate-100 rounded text-slate-500 transition-colors"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                        <button onclick="window.changeMonth(1)" class="p-1.5 bg-slate-50 hover:bg-slate-100 rounded text-slate-500 transition-colors"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+
+                <div class="p-4 flex-1 overflow-y-auto custom-scrollbar">
+                    <div class="grid grid-cols-7 text-center text-[10px] font-black text-slate-400 mb-3 uppercase tracking-wider">
+                        <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                    </div>
+                    <div id="tCalendarGrid" class="grid grid-cols-7 gap-1"></div>
+
+                    <div class="mt-5 flex gap-2">
+                        <button onclick="window.batchSetWeekends(true)" class="flex-1 text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2.5 rounded-lg border border-rose-200 transition-colors shadow-sm">本月週末設為假日</button>
+                        <button onclick="window.batchSetWeekends(false)" class="flex-1 text-[11px] bg-slate-50 hover:bg-slate-100 text-slate-500 font-bold py-2.5 rounded-lg border border-slate-200 transition-colors shadow-sm">清除週末設定</button>
+                    </div>
+
+                    <div class="mt-6 px-4 py-4 bg-slate-50 rounded-xl border border-slate-100 space-y-3 text-[12px] lg:text-[13px]">
+                        <p class="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-2">圖例說明</p>
+                        <div class="flex items-center gap-3"><div class="w-2.5 h-2.5 bg-purple-500 rounded-full"></div> <span class="font-medium text-slate-600">當日有行事曆</span></div>
+                        <div class="flex items-center gap-3"><div class="w-2.5 h-2.5 bg-blue-500 rounded-full"></div> <span class="font-medium text-slate-600">當日有發布事項</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+                <div id="tLoading" class="absolute inset-0 z-20 bg-slate-50/80 backdrop-blur-sm hidden flex-col items-center justify-center">
+                    <div class="loading-spinner mb-4"></div><p class="text-slate-500 font-bold animate-pulse">處理中...</p>
+                </div>
+
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-10">
+                    <div class="max-w-6xl mx-auto">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
+                            <div>
+                                <nav class="flex text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest"><span>Dashboard</span> <span class="mx-2">/</span> <span class="text-blue-600">Daily Note</span></nav>
+                                <h2 id="tDateTitle" class="text-3xl lg:text-4xl font-black text-slate-900">載入中...</h2>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
+                            
+                            <!-- 左側：發布聯絡事項 (高度已拉滿) -->
+                            <div class="xl:col-span-6">
+                                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[500px]">
+                                    <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                        <div class="flex items-center gap-2"><i data-lucide="file-edit" class="w-5 h-5 text-blue-500"></i><h3 class="font-bold text-slate-700">發布聯絡事項</h3></div>
+                                        <div class="flex items-center gap-4">
+                                            <label class="flex items-center gap-2 cursor-pointer text-sm font-bold text-rose-500">
+                                                <input type="checkbox" id="tHolidayToggle" onchange="window.handleToggleHoliday(this.checked)" class="w-4 h-4 accent-rose-500 rounded">設為假日
+                                            </label>
+                                            <span id="tSelectedDateLabel" class="text-xs font-bold text-slate-400 hidden sm:inline">----/--/--</span>
+                                        </div>
+                                    </div>
+                                    <div class="p-5 flex-1 flex flex-col gap-4">
+                                        <div class="flex items-center bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
+                                            <i data-lucide="calendar-check" class="w-5 h-5 text-purple-500 mr-3 shrink-0"></i>
+                                            <input type="text" id="tEventInput" placeholder="設定本日行事曆 (例如：期中考、戶外教學)..." class="flex-1 bg-transparent border-none outline-none text-purple-900 font-bold placeholder-purple-300 text-sm">
+                                        </div>
+                                        
+                                        <textarea id="tNoteInput" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 transition-all resize-none text-base font-medium flex-1 min-h-[250px]" placeholder="請輸入聯絡事項..."></textarea>
+                                        <div class="flex gap-3 pt-1">
+                                            <button onclick="window.handleSaveNote()" id="saveBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm"><i data-lucide="send" class="w-4 h-4"></i> 儲存並發布</button>
+                                            <button onclick="window.clearInput()" class="px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors" title="清除"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 右側：簽到與請假追蹤 -->
+                            <div class="xl:col-span-6">
+                                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[500px]">
+                                    <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                        <div class="flex items-center gap-2"><i data-lucide="users" class="w-5 h-5 text-emerald-500"></i><h3 class="font-bold text-slate-700">簽到與請假追蹤</h3></div>
+                                        <div class="flex items-center gap-2">
+                                            <button id="tUnsignedFilter" onclick="window.toggleUnsignedFilter()" aria-pressed="false" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-200">未簽</button>
+                                            <div id="tSignCount" class="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">-- / --</div>
+                                        </div>
+                                    </div>
+                                    <div class="p-2 flex-1 overflow-y-auto custom-scrollbar">
+                                        <table class="w-full text-left border-separate border-spacing-0">
+                                            <thead class="sticky top-0 bg-white shadow-sm z-10 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                <tr>
+                                                    <th class="px-3 py-3 border-b border-slate-100 text-center">座號</th>
+                                                    <th class="px-3 py-3 border-b border-slate-100">姓名</th>
+                                                    <th class="px-3 py-3 border-b border-slate-100 text-center">狀態</th>
+                                                    <th class="px-3 py-3 border-b border-slate-100 text-right">操作</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="tStudentList" class="text-sm"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 第 2 頁：班級群聊室 -->
+        <main id="groupChatPage" class="hidden flex-1 w-full max-w-4xl mx-auto flex-col overflow-hidden min-h-0 relative shadow-sm lg:border-x border-slate-200 bg-white">
+            <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center shrink-0 z-10 bg-slate-50/50">
+                <h3 class="font-bold text-slate-700 flex items-center gap-2 text-[17px]">
+                    <i data-lucide="message-circle" class="w-5 h-5 text-blue-500"></i>
+                    班級家長交流群
+                </h3>
+            </div>
+
+            <div id="groupChatScrollArea" class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 flex flex-col relative scroll-smooth bg-slate-50/30">
+                <div id="groupChatMessageList" class="flex flex-col min-h-full justify-end"></div>
+            </div>
+
+            <div class="p-3 md:p-4 bg-white shrink-0 border-t border-slate-200 z-20 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <div class="flex gap-2 items-end bg-slate-50 rounded-2xl p-1.5 border border-slate-200 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                    
+                    <!-- 📸 圖片上傳按鈕 (老師端群聊) -->
+                    <label class="w-[42px] h-[42px] shrink-0 hover:bg-slate-200 rounded-full flex items-center justify-center transition-transform active:scale-90 mb-0.5 cursor-pointer text-slate-500">
+                        <input type="file" accept="image/*" class="hidden" onchange="window.handleImageUpload(this, 'group')">
+                        <i data-lucide="image" class="w-5 h-5"></i>
+                    </label>
+
+                    <textarea 
+                        id="groupChatInput" 
+                        rows="1" 
+                        oninput="this.style.height='auto'; this.style.height=(this.scrollHeight)+'px';" 
+                        onkeypress="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); window.sendGroupChatMessage();}" 
+                        placeholder="以「蘇老師」的身份回覆..." 
+                        class="flex-1 bg-transparent border-none resize-none pl-1 pr-1 py-2.5 text-[15px] outline-none max-h-[120px] min-h-[44px] overflow-y-auto leading-relaxed"
+                    ></textarea>
+                    <button 
+                        onclick="window.sendGroupChatMessage()" 
+                        class="w-[42px] h-[42px] shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center transition-transform active:scale-90 mb-0.5"
+                    >
+                        <i data-lucide="send" class="w-4 h-4 ml-0.5"></i>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- 第 3 頁：老師端私訊整合面板 -->
+        <main id="privateChatPage" class="hidden flex-1 w-full flex flex-col md:flex-row overflow-hidden min-h-0 relative bg-white">
+            
+            <!-- 左側：學生列表 -->
+            <div id="privateChatSidebar" class="w-full md:w-80 border-r border-slate-200 flex flex-col shrink-0 h-full bg-slate-50">
+                <div class="p-4 border-b border-slate-200 bg-white shadow-sm z-10 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-700">家長私訊列表</h3>
+                </div>
+                <div id="chatStudentList" class="flex-1 overflow-y-auto custom-scrollbar p-2"></div>
+            </div>
+
+            <!-- 右側：與單一學生的私訊視窗 -->
+            <div id="privateChatMainWindow" class="hidden md:flex flex-1 flex-col h-full bg-white relative">
+                <div class="px-5 py-3 border-b border-slate-100 flex items-center shrink-0 z-10 bg-slate-50/50 gap-3">
+                    <button onclick="window.backToChatList()" class="md:hidden p-1.5 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                    <h3 id="activeChatHeader" class="font-bold text-slate-700 text-lg">請從左側選擇家長</h3>
+                </div>
+
+                <div id="privateChatScrollArea" class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 flex flex-col relative scroll-smooth bg-slate-50/30">
+                    <div id="privateChatMessageList" class="flex flex-col min-h-full justify-end"></div>
+                </div>
+
+                <div id="privateChatInputArea" class="hidden p-3 md:p-4 bg-white shrink-0 border-t border-slate-200 z-20 pb-[max(1rem,env(safe-area-bottom-inset))]">
+                    <div class="flex gap-2 items-end bg-slate-50 rounded-2xl p-1.5 border border-slate-200 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                        
+                        <!-- 📸 圖片上傳按鈕 (老師端私訊) -->
+                        <label class="w-[42px] h-[42px] shrink-0 hover:bg-slate-200 rounded-full flex items-center justify-center transition-transform active:scale-90 mb-0.5 cursor-pointer text-slate-500">
+                            <input type="file" accept="image/*" class="hidden" onchange="window.handleImageUpload(this, 'private')">
+                            <i data-lucide="image" class="w-5 h-5"></i>
+                        </label>
+
+                        <textarea 
+                            id="privateChatInput" 
+                            rows="1" 
+                            oninput="this.style.height='auto'; this.style.height=(this.scrollHeight)+'px';" 
+                            onkeypress="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); window.sendPrivateMessage();}" 
+                            placeholder="輸入訊息私下回覆給家長..." 
+                            class="flex-1 bg-transparent border-none resize-none pl-1 pr-1 py-2.5 text-[15px] outline-none max-h-[120px] min-h-[44px] overflow-y-auto leading-relaxed"
+                        ></textarea>
+                        <button 
+                            onclick="window.sendPrivateMessage()" 
+                            class="w-[42px] h-[42px] shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center transition-transform active:scale-90 mb-0.5"
+                        >
+                            <i data-lucide="send" class="w-4 h-4 ml-0.5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="studentHistoryModal" class="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm hidden flex-col items-center justify-center p-4 fade-in">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col relative">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2"><i data-lucide="calendar-check" class="w-5 h-5 text-blue-600"></i><span id="shModalTitle">出缺席紀錄</span></h3>
+                <button onclick="window.closeStudentHistory()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-6 relative">
+                <div class="flex justify-between items-center mb-6">
+                    <h4 id="shMonthDisplay" class="font-black text-xl text-slate-700"></h4>
+                    <div class="flex gap-1 border border-slate-200 rounded-lg p-1">
+                        <button onclick="window.changeHistoryMonth(-1)" class="p-1 hover:bg-slate-100 rounded-md text-slate-500"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                        <button onclick="window.changeHistoryMonth(1)" class="p-1 hover:bg-slate-100 rounded-md text-slate-500"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-7 text-center text-[11px] font-black text-slate-400 mb-3 uppercase tracking-wider">
+                    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                </div>
+                <div id="shCalendarGrid" class="grid grid-cols-7 gap-1.5"></div>
+                <div class="mt-8 pt-4 border-t border-slate-100 flex justify-center gap-6 text-xs font-bold text-slate-600">
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500 shadow-sm"></span>已簽名</div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 border-2 border-amber-500 rounded-full"></span>請假</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
