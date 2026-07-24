@@ -1592,7 +1592,7 @@
                         }, 2000);
                     </script>
                 </div>
-                <button onclick="location.reload()" class="bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+                <button onclick="window.goToUnifiedLogin()" aria-label="登出" title="登出" class="bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors"><i data-lucide="log-out" class="w-5 h-5"></i></button>
             </div>
         </header>
 
@@ -1762,7 +1762,7 @@
                     <div id="privateChatMessageList" class="flex flex-col min-h-full justify-end"></div>
                 </div>
 
-                <div id="privateChatInputArea" class="hidden p-3 md:p-4 bg-white shrink-0 border-t border-slate-200 z-20 pb-[max(1rem,env(safe-area-bottom-inset))]">
+                <div id="privateChatInputArea" class="hidden p-3 md:p-4 bg-white shrink-0 border-t border-slate-200 z-20 pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div class="flex gap-2 items-end bg-slate-50 rounded-2xl p-1.5 border border-slate-200 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                         
                         <!-- 📸 圖片上傳按鈕 (老師端私訊) -->
