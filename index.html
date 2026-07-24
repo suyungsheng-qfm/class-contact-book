@@ -35,17 +35,16 @@
                 <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-100 px-3 py-1.5 text-[11px] font-bold text-emerald-700"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>安全登入</span>
             </div>
             <h1 class="text-[26px] font-bold tracking-tight">班級聯絡簿</h1>
-            <p class="text-sm text-[#8e8e93] mt-2 leading-relaxed">教師與家長共用同一入口，登入後會自動進入對應的使用頁面。</p>
 
             <form id="loginForm" class="mt-7 space-y-4">
                 <div>
-                    <label for="account" class="block text-sm font-semibold mb-2">帳號／學號</label>
-                    <input id="account" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required class="field-input w-full px-4 rounded-xl bg-[#f2f2f7] border border-transparent outline-none focus:border-[#d97706] focus:bg-white transition-colors" placeholder="輸入教師帳號或學生學號">
+                    <label for="account" class="block text-sm font-semibold mb-2">學號</label>
+                    <input id="account" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required class="field-input w-full px-4 rounded-xl bg-[#f2f2f7] border border-transparent outline-none focus:border-[#d97706] focus:bg-white transition-colors" placeholder="輸入學生學號">
                 </div>
                 <div>
-                    <label for="password" class="block text-sm font-semibold mb-2">密碼／驗證碼</label>
+                    <label for="password" class="block text-sm font-semibold mb-2">驗證碼</label>
                     <div class="relative">
-                        <input id="password" type="password" autocomplete="current-password" required class="field-input w-full px-4 pr-12 rounded-xl bg-[#f2f2f7] border border-transparent outline-none focus:border-[#d97706] focus:bg-white transition-colors" placeholder="輸入密碼或驗證碼">
+                        <input id="password" type="password" autocomplete="current-password" required class="field-input w-full px-4 pr-12 rounded-xl bg-[#f2f2f7] border border-transparent outline-none focus:border-[#d97706] focus:bg-white transition-colors" placeholder="輸入驗證碼">
                         <button id="passwordToggle" type="button" class="absolute right-1 top-1 w-11 h-11 rounded-lg text-[#8e8e93] active:scale-95" aria-label="顯示密碼" aria-pressed="false">
                             <svg id="passwordToggleIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7C3.3 7.6 7.1 5 12 5c4.9 0 8.7 2.6 9.94 6.65a1 1 0 0 1 0 .7C20.7 16.4 16.9 19 12 19c-4.9 0-8.7-2.6-9.94-6.65Z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
@@ -54,7 +53,6 @@
                 <p id="loginError" class="hidden text-sm font-medium text-[#ff3b30] bg-red-50 rounded-xl px-3 py-2"></p>
                 <button id="loginButton" type="submit" class="w-full min-h-[52px] rounded-xl bg-[#d97706] text-white font-bold shadow-lg shadow-amber-200 active:scale-[.98] disabled:opacity-70 disabled:active:scale-100 transition-transform flex items-center justify-center gap-2">登入</button>
             </form>
-            <p class="mt-5 text-center text-xs text-[#8e8e93]">系統會依帳號自動判別教師或家長身份</p>
         </section>
         <button id="installAppButton" type="button" class="hidden w-full mt-4 min-h-[48px] rounded-xl bg-white/85 border border-amber-200 text-[#b45309] font-bold shadow-sm active:scale-[.98] transition-transform flex items-center justify-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg>
