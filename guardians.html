@@ -381,13 +381,30 @@
         }
 
         // 一對一語音通話：協商資料經由已登入的 Apps Script 工作階段傳遞，音訊不會寫入資料庫。
-        window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: null, teacherCandidateIndex: 0, iceServers: null, remoteDescriptionSet: false, pendingTeacherCandidates: [] };
+        window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: null, teacherCandidateIndex: 0, iceServers: null, remoteDescriptionSet: false, pendingTeacherCandidates: [], candidateQueue: Promise.resolve(), connectionTimer: null };
 
         window.parentVoiceCallApi = async (action, payload = {}) => {
             const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action, sessionToken: window.sessionToken, ...payload }) });
             const result = await response.json();
             if (!result.success) throw new Error(result.message || '通話服務暫時無法使用。');
             return result;
+        };
+
+        // Serialize ICE signaling because the Apps Script cache is protected by a short lock.
+        window.queueParentVoiceCandidate = (call, candidate) => {
+            const send = async () => {
+                for (let attempt = 0; attempt < 3; attempt += 1) {
+                    try {
+                        await window.parentVoiceCallApi('voiceCallCandidate', { callId: call.callId, candidate });
+                        return;
+                    } catch (error) {
+                        if (attempt === 2) return console.error(error);
+                        await new Promise(resolve => setTimeout(resolve, 350 * (attempt + 1)));
+                    }
+                }
+            };
+            call.candidateQueue = (call.candidateQueue || Promise.resolve()).then(send, send);
+            return call.candidateQueue;
         };
 
         window.updateParentVoiceCallUi = (title, status, mode = 'incoming') => {
@@ -405,11 +422,12 @@
 
         window.stopParentVoiceCall = () => {
             const call = window.parentVoiceCall;
+            if (call.connectionTimer) clearTimeout(call.connectionTimer);
             if (call.peer) call.peer.close();
             if (call.localStream) call.localStream.getTracks().forEach(track => track.stop());
             const audio = document.getElementById('parentRemoteAudio');
             if (audio) audio.srcObject = null;
-            window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: call.pollTimer, teacherCandidateIndex: 0, iceServers: null, remoteDescriptionSet: false, pendingTeacherCandidates: [] };
+            window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: call.pollTimer, teacherCandidateIndex: 0, iceServers: null, remoteDescriptionSet: false, pendingTeacherCandidates: [], candidateQueue: Promise.resolve(), connectionTimer: null };
             const modal = document.getElementById('parentVoiceCallModal');
             if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
             window.updateParentVoiceCallPolling && window.updateParentVoiceCallPolling();
@@ -447,11 +465,14 @@
                 stream.getTracks().forEach(track => peer.addTrack(track, stream));
                 peer.ontrack = event => { const audio = document.getElementById('parentRemoteAudio'); if (audio) { audio.srcObject = event.streams[0]; audio.play().catch(() => {}); } };
                 peer.onconnectionstatechange = () => {
-                    if (peer.connectionState === 'connected') window.updateParentVoiceCallUi('與老師通話中', '語音通話已接通。', 'connected');
+                    if (peer.connectionState === 'connected') {
+                        if (call.connectionTimer) clearTimeout(call.connectionTimer);
+                        window.updateParentVoiceCallUi('與老師通話中', '語音通話已接通。', 'connected');
+                    }
                     if (['failed', 'disconnected'].includes(peer.connectionState)) window.updateParentVoiceCallUi('通話連線中斷', '網路連線不穩，請結束後再試一次。', 'connected');
                 };
                 peer.onicecandidate = event => {
-                    if (event.candidate) window.parentVoiceCallApi('voiceCallCandidate', { callId: call.callId, candidate: event.candidate.toJSON() }).catch(console.error);
+                    if (event.candidate) window.queueParentVoiceCandidate(call, event.candidate.toJSON());
                 };
                 await peer.setRemoteDescription(incoming.offer);
                 call.remoteDescriptionSet = true;
@@ -462,6 +483,10 @@
                 const answer = await peer.createAnswer();
                 await peer.setLocalDescription(answer);
                 await window.parentVoiceCallApi('voiceCallUpdate', { callId: call.callId, status: 'accepted', answer: { type: answer.type, sdp: answer.sdp } });
+                call.connectionTimer = setTimeout(() => {
+                    if (window.parentVoiceCall !== call || peer.connectionState === 'connected') return;
+                    window.updateParentVoiceCallUi('連線逾時', '雙方已接聽，但音訊連線未建立。請確認 TURN 設定與網路後重試。', 'connected');
+                }, 35000);
                 window.updateParentVoiceCallUi('正在與老師連線', '請稍候，正在建立語音連線…', 'connecting');
             } catch (error) {
                 console.error(error);
