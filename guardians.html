@@ -76,9 +76,13 @@
             }
             #mainPage > main { order: 1; }
             #bookPage > div:first-child {
-                max-height: none;
-                overflow: visible;
+                max-height: 45dvh;
+                overflow-y: auto;
             }
+            #bookPage > div:first-child > .p-3 { padding: 0.5rem 0.75rem; }
+            #bookPage .calendar-day { aspect-ratio: auto; min-height: 1.85rem; height: 1.85rem; font-size: 0.75rem; }
+            #bookPage .calendar-header { margin-bottom: 0.45rem; font-size: 0.6875rem; }
+            #bookPage > div:first-child > .p-3 > .mt-3 { display: none; }
             #bookPage #contentContainer {
                 padding: 1.25rem 1rem;
                 font-size: 1rem;
@@ -525,8 +529,6 @@
             const year = window.viewDate.getFullYear();
             const month = window.viewDate.getMonth();
             display.innerText = `${year}年 ${month + 1}月`;
-            const selectedDateLabel = document.getElementById('parentCalendarSelectedDate');
-            if (selectedDateLabel) selectedDateLabel.innerText = `已選日期 ${window.selectedDateStr}`;
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
@@ -1214,10 +1216,6 @@
                         <button onclick="window.changeMonth(-1)" title="上個月" aria-label="上個月" class="text-[#d97706] hover:bg-black/5 w-10 h-10 flex items-center justify-center rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
                         <button onclick="window.changeMonth(1)" title="下個月" aria-label="下個月" class="text-[#d97706] hover:bg-black/5 w-10 h-10 flex items-center justify-center rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
                     </div>
-                </div>
-
-                <div class="px-4 pt-3">
-                    <span id="parentCalendarSelectedDate" class="inline-flex items-center rounded-full bg-white border border-[#e5e5ea] px-3 py-1.5 text-xs font-bold text-[#6e6e73] shadow-sm">已選日期 ----/--/--</span>
                 </div>
 
                 <div class="p-3 lg:p-4">
