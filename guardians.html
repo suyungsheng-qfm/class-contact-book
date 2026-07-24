@@ -1053,7 +1053,7 @@
                         const bubbleContent = isImage 
                             ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-sm border border-slate-200" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
                             : (isCallRequest
-                                ? `<div class="font-black">&#128222; 申請語音通話</div><div class="mt-1 text-xs opacity-80">${Number(msg.callRequestExpiresAt || 0) > Date.now() ? '30 分鐘內有效' : '申請已逾時'}</div>`
+                                ? `<div class="font-black">&#128222; 申請語音通話</div><div class="mt-1 text-xs opacity-80">${Number(msg.callRequestExpiresAt || 0) > Date.now() ? '5 分鐘內有效' : '申請已逾時'}</div>`
                                 : msg.text);
 
                         if(isMe) {
@@ -1306,7 +1306,7 @@
             const confirmation = await Swal.fire({
                 icon: 'question',
                 title: '申請語音通話',
-                text: '系統會通知老師，由老師決定是否發起通話。',
+                text: '系統會通知老師；老師可在 5 分鐘內決定是否發起通話。',
                 showCancelButton: true,
                 confirmButtonText: '送出申請',
                 cancelButtonText: '返回',
@@ -1321,11 +1321,11 @@
                     sender: 'parent',
                     text: '📞 申請語音通話',
                     messageType: 'call_request',
-                    callRequestExpiresAt: Date.now() + (30 * 60 * 1000),
+                    callRequestExpiresAt: Date.now() + (5 * 60 * 1000),
                     timestamp: window.getPreciseTime()
                 });
                 window.updateParentVoiceCallPolling && window.updateParentVoiceCallPolling();
-                setTimeout(() => window.refreshUI(), (30 * 60 * 1000) + 1000);
+                setTimeout(() => window.refreshUI(), (5 * 60 * 1000) + 1000);
                 Swal.fire({ icon: 'success', title: '已通知老師', text: '請保持在私訊頁面，等待老師發起通話。', showConfirmButton: false, timer: 1800 });
             } catch (error) {
                 Swal.fire('系統錯誤', error.message || '無法送出申請，請再試一次。', 'error');
