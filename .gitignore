@@ -1,6 +1,9 @@
 maintenance/
 node_modules/
 .clasp.json
+.claspignore
 .clasprc.json
+appsscript.json
+統一後端.gs
 package.json
 pnpm-lock.yaml

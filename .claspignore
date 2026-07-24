@@ -1,9 +1,0 @@
-maintenance/**
-*.py
-*.txt
-*.example
-.clasp.json
-.claspignore
-node_modules/**
-package.json
-pnpm-lock.yaml
