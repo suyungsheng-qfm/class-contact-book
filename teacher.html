@@ -97,7 +97,7 @@
             }
             #privateChatSidebar { border-right: 0; }
             .t-calendar-day { min-height: 2rem; }
-            #dashboardPage { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+            #dashboardPage:not(.hidden) { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
             #dashboardPage > div:first-child { height: auto; min-height: 0; flex: 0 0 auto; border-bottom: 1px solid #e2e8f0; }
             #dashboardPage > div:first-child > .p-4 { display: none; }
             #teacherWeekStrip { display: block; }
@@ -188,7 +188,7 @@
                 document.getElementById('tUserName').innerText = result.user.name;
                 window.viewDate = new Date();
                 window.selectedDateStr = window.todayStr;
-                window.refreshUI();
+                window.switchTab('calendar');
             } catch (error) {
                 window.goToUnifiedLogin();
             }
@@ -591,14 +591,12 @@
             const tabPrivate = document.getElementById('tabPrivate');
             const tabPhoto = document.getElementById('tabPhoto');
 
-            calendarPage.classList.add('hidden');
-            contactBookPage.classList.add('hidden');
-            groupChatPage.classList.add('hidden');
-            groupChatPage.classList.remove('flex');
-            privateChatPage.classList.add('hidden');
-            privateChatPage.classList.remove('flex');
-            photoPage.classList.add('hidden');
-            photoPage.classList.remove('flex');
+            [calendarPage, contactBookPage, groupChatPage, privateChatPage, photoPage]
+                .filter(Boolean)
+                .forEach(page => {
+                    page.classList.add('hidden');
+                    page.classList.remove('flex');
+                });
 
             const inactiveClass = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded text-slate-500 hover:text-slate-800 transition-all relative whitespace-nowrap";
             tabCalendar.className = inactiveClass;
@@ -609,9 +607,11 @@
 
             if (tab === 'calendar') {
                 calendarPage.classList.remove('hidden');
+                calendarPage.classList.add('flex');
                 tabCalendar.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-blue-600 transition-all whitespace-nowrap";
             } else if (tab === 'book') {
                 contactBookPage.classList.remove('hidden');
+                contactBookPage.classList.add('flex');
                 tabBook.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-blue-600 transition-all whitespace-nowrap";
             } else if (tab === 'group') {
                 groupChatPage.classList.remove('hidden');
