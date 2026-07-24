@@ -100,6 +100,7 @@
             #parentBookAction #footerAction { padding: 0.75rem 0; border-top: 0; box-shadow: none; }
             #groupChatScrollArea, #privateChatScrollArea { padding: 0.875rem; }
             #groupChatPage > div:first-child, #privateChatPage > div:first-child { padding: 0.875rem 1rem; }
+            #privateChatPage > div:first-child button { min-height: 44px; }
             #groupChatPage > div:last-child, #privateChatPage > div:last-child { padding: 0.625rem 0.75rem max(0.625rem, env(safe-area-inset-bottom)); }
             .calendar-day { min-height: 2rem; font-size: 0.8125rem; }
             #loginPage input { min-height: 48px; }
@@ -181,6 +182,7 @@
                     button.onclick = window.goToUnifiedLogin;
                 });
                 window.currentUser = result.user;
+                window.setupParentVoiceCallListener && window.setupParentVoiceCallListener();
                 document.getElementById('loginPage').classList.add('hidden');
                 document.getElementById('mainPage').classList.remove('hidden');
                 window.viewDate = new Date();
@@ -378,6 +380,128 @@
             }, e => console.error(e)));
         }
 
+        // 一對一語音通話：協商資料經由已登入的 Apps Script 工作階段傳遞，音訊不會寫入資料庫。
+        window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: null, teacherCandidateIndex: 0, iceServers: null };
+
+        window.parentVoiceCallApi = async (action, payload = {}) => {
+            const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action, sessionToken: window.sessionToken, ...payload }) });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || '通話服務暫時無法使用。');
+            return result;
+        };
+
+        window.updateParentVoiceCallUi = (title, status, mode = 'incoming') => {
+            const modal = document.getElementById('parentVoiceCallModal');
+            const titleElement = document.getElementById('parentVoiceCallTitle');
+            const statusElement = document.getElementById('parentVoiceCallStatus');
+            const actions = document.getElementById('parentVoiceCallActions');
+            const hangup = document.getElementById('parentVoiceCallHangup');
+            if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+            if (titleElement) titleElement.textContent = title;
+            if (statusElement) statusElement.textContent = status;
+            if (actions) actions.classList.toggle('hidden', mode !== 'incoming');
+            if (hangup) hangup.classList.toggle('hidden', mode !== 'connected');
+        };
+
+        window.stopParentVoiceCall = () => {
+            const call = window.parentVoiceCall;
+            if (call.peer) call.peer.close();
+            if (call.localStream) call.localStream.getTracks().forEach(track => track.stop());
+            const audio = document.getElementById('parentRemoteAudio');
+            if (audio) audio.srcObject = null;
+            window.parentVoiceCall = { peer: null, localStream: null, callId: null, incoming: null, pollTimer: call.pollTimer, teacherCandidateIndex: 0, iceServers: null };
+            const modal = document.getElementById('parentVoiceCallModal');
+            if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+            window.updateParentVoiceCallPolling && window.updateParentVoiceCallPolling();
+        };
+
+        window.endParentVoiceCall = async (status = 'ended') => {
+            const call = window.parentVoiceCall;
+            try {
+                if (call.callId) await window.parentVoiceCallApi('voiceCallUpdate', { callId: call.callId, status });
+            } catch (error) { console.error(error); }
+            window.stopParentVoiceCall();
+        };
+
+        window.declineVoiceCall = async () => {
+            const call = window.parentVoiceCall;
+            if (!call.callId) return window.stopParentVoiceCall();
+            try { await window.parentVoiceCallApi('voiceCallUpdate', { callId: call.callId, status: 'declined' }); } catch (error) { console.error(error); }
+            window.stopParentVoiceCall();
+        };
+
+        window.acceptVoiceCall = async () => {
+            const call = window.parentVoiceCall;
+            const incoming = call.incoming;
+            if (!incoming || !call.callId || incoming.callId !== call.callId) return;
+            window.updateParentVoiceCallUi('正在接聽', '正在請求麥克風權限…', 'connecting');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+                const config = await window.parentVoiceCallApi('voiceCallConfig');
+                call.iceServers = config.iceServers;
+                const peer = new RTCPeerConnection({ iceServers: call.iceServers });
+                window.parentVoiceCall.peer = peer;
+                window.parentVoiceCall.localStream = stream;
+                stream.getTracks().forEach(track => peer.addTrack(track, stream));
+                peer.ontrack = event => { const audio = document.getElementById('parentRemoteAudio'); if (audio) { audio.srcObject = event.streams[0]; audio.play().catch(() => {}); } };
+                peer.onconnectionstatechange = () => {
+                    if (peer.connectionState === 'connected') window.updateParentVoiceCallUi('與老師通話中', '語音通話已接通。', 'connected');
+                    if (['failed', 'disconnected'].includes(peer.connectionState)) window.updateParentVoiceCallUi('通話連線中斷', '網路連線不穩，請結束後再試一次。', 'connected');
+                };
+                peer.onicecandidate = event => {
+                    if (event.candidate) window.parentVoiceCallApi('voiceCallCandidate', { callId: call.callId, candidate: event.candidate.toJSON() }).catch(console.error);
+                };
+                await peer.setRemoteDescription(incoming.offer);
+                const answer = await peer.createAnswer();
+                await peer.setLocalDescription(answer);
+                await window.parentVoiceCallApi('voiceCallUpdate', { callId: call.callId, status: 'accepted', answer: { type: answer.type, sdp: answer.sdp } });
+                window.updateParentVoiceCallUi('正在與老師連線', '請稍候，正在建立語音連線…', 'connecting');
+            } catch (error) {
+                console.error(error);
+                window.updateParentVoiceCallUi('無法接聽通話', error.name === 'NotAllowedError' ? '請允許使用麥克風後再試一次。' : '無法建立連線，請檢查網路後再試一次。', 'incoming');
+            }
+        };
+
+        window.pollParentVoiceCall = async () => {
+            if (!window.currentUser) return;
+            try {
+                const result = await window.parentVoiceCallApi('voiceCallPoll');
+                const remote = result.call;
+                const call = window.parentVoiceCall;
+                if (!remote) return;
+                if (remote.status === 'ringing' && remote.initiatedBy === 'teacher' && remote.expiresAt > Date.now() && remote.callId !== call.callId) {
+                    call.callId = remote.callId;
+                    call.incoming = remote;
+                    call.teacherCandidateIndex = 0;
+                    window.updateParentVoiceCallUi('老師來電', '老師邀請您進行一對一語音通話。', 'incoming');
+                }
+                if (remote.callId !== call.callId) return;
+                if (call.peer) {
+                    const candidates = remote.teacherCandidates || [];
+                    while (call.teacherCandidateIndex < candidates.length) {
+                        await call.peer.addIceCandidate(new RTCIceCandidate(candidates[call.teacherCandidateIndex++]));
+                    }
+                }
+                if (['ended', 'missed', 'declined'].includes(remote.status)) window.stopParentVoiceCall();
+            } catch (error) { console.error(error); }
+        };
+
+        window.updateParentVoiceCallPolling = () => {
+            const call = window.parentVoiceCall;
+            const shouldPoll = Boolean(window.currentUser && (window.activeTab === 'private' || call.callId));
+            if (shouldPoll && !call.pollTimer) {
+                call.pollTimer = setInterval(window.pollParentVoiceCall, 2500);
+                window.pollParentVoiceCall();
+            } else if (!shouldPoll && call.pollTimer) {
+                clearInterval(call.pollTimer);
+                call.pollTimer = null;
+            }
+        };
+
+        window.setupParentVoiceCallListener = () => {
+            window.updateParentVoiceCallPolling();
+        };
+
         window.ensureParentContactBookPage = () => {
             if (document.getElementById('parentContactBookPage')) return;
             const mainPage = document.getElementById('mainPage');
@@ -442,6 +566,7 @@
                         localStorage.setItem('id_num', idn);
                     }
                     window.currentUser = result.user;
+                    window.setupParentVoiceCallListener && window.setupParentVoiceCallListener();
                     document.getElementById('loginPage').classList.add('hidden');
                     document.getElementById('mainPage').classList.remove('hidden');
                     window.selectedDateStr = window.todayStr;
@@ -502,6 +627,7 @@
                 if(privateUnreadBadge) privateUnreadBadge.classList.add('hidden'); 
                 setTimeout(window.scrollToPrivateChatBottom, 50);
             }
+            window.updateParentVoiceCallPolling && window.updateParentVoiceCallPolling();
             window.refreshUI();
         };
 
@@ -1120,6 +1246,35 @@
             }
         };
 
+        window.requestVoiceCall = async () => {
+            if (!checkFbAuth() || !window.currentUser) return;
+            const confirmation = await Swal.fire({
+                icon: 'question',
+                title: '申請語音通話',
+                text: '系統會通知老師，由老師決定是否發起通話。',
+                showCancelButton: true,
+                confirmButtonText: '送出申請',
+                cancelButtonText: '返回',
+                confirmButtonColor: '#059669'
+            });
+            if (!confirmation.isConfirmed) return;
+            try {
+                await addDoc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats'), {
+                    studentId: window.currentUser.studentId,
+                    name: window.currentUser.name,
+                    seatNo: window.currentUser.seatNo,
+                    sender: 'parent',
+                    text: '📞 申請語音通話',
+                    messageType: 'call_request',
+                    timestamp: window.getPreciseTime()
+                });
+                window.updateParentVoiceCallPolling && window.updateParentVoiceCallPolling();
+                Swal.fire({ icon: 'success', title: '已通知老師', text: '請保持在私訊頁面，等待老師發起通話。', showConfirmButton: false, timer: 1800 });
+            } catch (error) {
+                Swal.fire('系統錯誤', error.message || '無法送出申請，請再試一次。', 'error');
+            }
+        };
+
         window.changeMonth = (offset) => {
             const [year, month, day] = window.selectedDateStr.split('/').map(Number);
             const targetMonth = new Date(year, month - 1 + offset, 1);
@@ -1340,11 +1495,12 @@
 
         <!-- [分頁 3]：私訊老師 (支援傳送圖片) -->
         <main id="privateChatPage" class="hidden flex-1 w-full max-w-2xl mx-auto private-bg flex-col overflow-hidden min-h-0 relative shadow-sm lg:border-x border-slate-200">
-            <div class="px-5 py-3 bg-white/90 backdrop-blur-md border-b border-slate-200 flex justify-between items-center shrink-0 z-10 shadow-sm">
+            <div class="px-5 py-3 bg-white/90 backdrop-blur-md border-b border-slate-200 flex justify-between items-center gap-3 shrink-0 z-10 shadow-sm">
                 <h3 class="font-bold text-slate-800 flex items-center gap-2 text-[17px]">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><path d="M13 8H7"></path><path d="M17 8h.01"></path></svg>
                     與老師的私密對話
                 </h3>
+                <button type="button" onclick="window.requestVoiceCall()" class="shrink-0 min-h-10 rounded-xl bg-emerald-50 px-3 text-sm font-black text-emerald-700 active:scale-[.98]">申請通話</button>
             </div>
             <div id="privateChatScrollArea" class="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col relative scroll-smooth bg-slate-50/50">
                 <div id="privateChatMessageList" class="flex flex-col min-h-full justify-end"></div>
@@ -1377,5 +1533,20 @@
         </main>
 
     </div>
+
+    <div id="parentVoiceCallModal" class="hidden fixed inset-0 z-[200] bg-slate-950/75 backdrop-blur-sm p-5 items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="parentVoiceCallTitle">
+        <section class="w-full max-w-sm rounded-[2rem] bg-white p-6 text-center shadow-2xl">
+            <div class="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.62a2 2 0 0 1-.45 2.11L8.01 9.72a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.84.29 1.72.5 2.62.62A2 2 0 0 1 22 16.92z"/></svg></div>
+            <p class="text-sm font-bold text-slate-400">一對一語音通話</p>
+            <h2 id="parentVoiceCallTitle" class="mt-1 text-2xl font-black text-slate-800">老師來電</h2>
+            <p id="parentVoiceCallStatus" class="mt-3 min-h-12 text-sm leading-relaxed text-slate-500">老師正在邀請您進行語音通話。</p>
+            <div id="parentVoiceCallActions" class="mt-5 grid grid-cols-2 gap-3">
+                <button type="button" onclick="window.declineVoiceCall()" class="min-h-14 rounded-2xl bg-slate-100 font-black text-slate-600 active:scale-[.98]">拒接</button>
+                <button type="button" onclick="window.acceptVoiceCall()" class="min-h-14 rounded-2xl bg-emerald-600 font-black text-white shadow-lg shadow-emerald-200 active:scale-[.98]">接聽</button>
+            </div>
+            <button id="parentVoiceCallHangup" type="button" onclick="window.endParentVoiceCall('ended')" class="hidden mt-5 min-h-14 w-full rounded-2xl bg-rose-600 font-black text-white shadow-lg shadow-rose-200 active:scale-[.98]">結束通話</button>
+        </section>
+    </div>
+    <audio id="parentRemoteAudio" autoplay playsinline></audio>
 </body>
 </html>

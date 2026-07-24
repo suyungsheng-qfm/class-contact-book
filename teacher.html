@@ -409,6 +409,113 @@
             }, e => console.error(e)));
         }
 
+        // 一對一語音通話：協商資料經由已登入的 Apps Script 工作階段傳遞，音訊不會寫入資料庫。
+        window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0 };
+
+        window.voiceCallApi = async (action, payload = {}) => {
+            const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action, sessionToken: window.sessionToken, ...payload }) });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || '通話服務暫時無法使用。');
+            return result;
+        };
+
+        window.updateTeacherVoiceCallUi = (title, status) => {
+            const modal = document.getElementById('teacherVoiceCallModal');
+            const titleElement = document.getElementById('teacherVoiceCallTitle');
+            const statusElement = document.getElementById('teacherVoiceCallStatus');
+            if (modal) modal.classList.remove('hidden');
+            if (modal) modal.classList.add('flex');
+            if (titleElement) titleElement.textContent = title;
+            if (statusElement) statusElement.textContent = status;
+        };
+
+        window.stopTeacherVoiceCall = () => {
+            const call = window.voiceCall;
+            if (call.pollTimer) clearInterval(call.pollTimer);
+            if (call.peer) call.peer.close();
+            if (call.localStream) call.localStream.getTracks().forEach(track => track.stop());
+            const audio = document.getElementById('teacherRemoteAudio');
+            if (audio) audio.srcObject = null;
+            window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0 };
+            const modal = document.getElementById('teacherVoiceCallModal');
+            if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+        };
+
+        window.endVoiceCall = async (status = 'ended') => {
+            const call = window.voiceCall;
+            try {
+                if (call.callId) await window.voiceCallApi('voiceCallUpdate', { studentId: call.studentId, callId: call.callId, status });
+            } catch (error) { console.error(error); }
+            window.stopTeacherVoiceCall();
+        };
+
+        window.pollTeacherVoiceCall = async () => {
+            const call = window.voiceCall;
+            if (!call.callId || !call.peer) return;
+            try {
+                const result = await window.voiceCallApi('voiceCallPoll', { studentId: call.studentId });
+                const remote = result.call;
+                if (!remote || remote.callId !== call.callId) return;
+                if (remote.status === 'accepted' && remote.answer && !call.remoteDescriptionSet) {
+                    await call.peer.setRemoteDescription(remote.answer);
+                    call.remoteDescriptionSet = true;
+                    window.updateTeacherVoiceCallUi('正在建立語音連線', '正在連線，請稍候。');
+                }
+                const candidates = remote.parentCandidates || [];
+                while (call.parentCandidateIndex < candidates.length) {
+                    await call.peer.addIceCandidate(new RTCIceCandidate(candidates[call.parentCandidateIndex++]));
+                }
+                if (remote.status === 'declined') {
+                    window.updateTeacherVoiceCallUi('家長未接聽', '對方已拒接本次通話。');
+                    setTimeout(window.stopTeacherVoiceCall, 1500);
+                } else if (['ended', 'missed'].includes(remote.status)) {
+                    window.stopTeacherVoiceCall();
+                }
+            } catch (error) { console.error(error); }
+        };
+
+        window.startVoiceCall = async () => {
+            if (!window.activeChatStudentId || !checkFbAuth()) return;
+            if (window.voiceCall.peer) return;
+            const studentId = window.activeChatStudentId;
+            const student = window.allStudents.find(item => item.studentId === studentId);
+            const displayName = student ? `${student.name} 家長` : '家長';
+            window.updateTeacherVoiceCallUi(`正在呼叫 ${displayName}`, '正在請求麥克風權限…');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+                const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                const config = await window.voiceCallApi('voiceCallConfig');
+                const peer = new RTCPeerConnection({ iceServers: config.iceServers });
+                window.voiceCall = { peer, localStream: stream, callId, studentId, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0 };
+                stream.getTracks().forEach(track => peer.addTrack(track, stream));
+                peer.ontrack = event => { const audio = document.getElementById('teacherRemoteAudio'); if (audio) { audio.srcObject = event.streams[0]; audio.play().catch(() => {}); } };
+                peer.onconnectionstatechange = () => {
+                    if (peer.connectionState === 'connected') window.updateTeacherVoiceCallUi(`與 ${displayName} 通話中`, '語音通話已接通。');
+                    if (['failed', 'disconnected'].includes(peer.connectionState)) window.updateTeacherVoiceCallUi('通話連線中斷', '網路連線不穩，請結束後再試一次。');
+                };
+                peer.onicecandidate = event => {
+                    if (event.candidate) window.voiceCallApi('voiceCallCandidate', { studentId, callId, candidate: event.candidate.toJSON() }).catch(console.error);
+                };
+
+                const offer = await peer.createOffer();
+                await peer.setLocalDescription(offer);
+                await window.voiceCallApi('voiceCallStart', {
+                    studentId,
+                    callId,
+                    parentName: student ? student.name : '',
+                    parentSeatNo: student ? student.seatNo : '',
+                    offer: { type: offer.type, sdp: offer.sdp }
+                });
+                const turnNote = config.turnConfigured ? '已通知家長，等待接聽。' : '已通知家長；目前為測試連線，部分網路可能無法接通。';
+                window.updateTeacherVoiceCallUi(`正在呼叫 ${displayName}`, turnNote);
+                window.voiceCall.pollTimer = setInterval(window.pollTeacherVoiceCall, 1200);
+                window.pollTeacherVoiceCall();
+            } catch (error) {
+                console.error(error);
+                window.updateTeacherVoiceCallUi('無法開始通話', error.name === 'NotAllowedError' ? '請允許使用麥克風後再試一次。' : '無法取得麥克風或建立連線，請檢查網路後再試一次。');
+            }
+        };
+
         // The active photo tab is rendered directly inside teacher.html.
         // This replaces the earlier iframe-based implementation.
         window.ensureContactBookPage = () => {
@@ -1133,6 +1240,7 @@
             const container = document.getElementById('privateChatMessageList');
             const inputArea = document.getElementById('privateChatInputArea');
             const headerText = document.getElementById('activeChatHeader');
+            const callButton = document.getElementById('teacherVoiceCallButton');
             
             if(!container) return;
 
@@ -1140,10 +1248,12 @@
                 container.innerHTML = '<div class="text-center text-slate-400 mt-10 text-sm font-bold bg-slate-100 mx-auto px-4 py-2 rounded-full w-max">請從左側點選一位家長開始私訊</div>';
                 inputArea.classList.add('hidden');
                 headerText.innerHTML = '請選擇家長';
+                if (callButton) callButton.classList.add('hidden');
                 return;
             }
 
             inputArea.classList.remove('hidden');
+            if (callButton) callButton.classList.remove('hidden');
 
             const studentChats = window.fbPrivateChats.filter(c => c.studentId === window.activeChatStudentId);
             
@@ -1898,7 +2008,8 @@
             <div id="privateChatMainWindow" class="hidden md:flex flex-1 flex-col h-full bg-white relative">
                 <div class="px-5 py-3 border-b border-slate-100 flex items-center shrink-0 z-10 bg-slate-50/50 gap-3">
                     <button onclick="window.backToChatList()" class="md:hidden p-1.5 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
-                    <h3 id="activeChatHeader" class="font-bold text-slate-700 text-lg">請從左側選擇家長</h3>
+                    <h3 id="activeChatHeader" class="font-bold text-slate-700 text-lg flex-1 min-w-0 truncate">請從左側選擇家長</h3>
+                    <button id="teacherVoiceCallButton" onclick="window.startVoiceCall()" type="button" class="hidden w-11 h-11 shrink-0 rounded-2xl bg-emerald-600 text-white shadow-sm active:scale-95" aria-label="發起語音通話" title="發起語音通話"><i data-lucide="phone-call" class="w-5 h-5 mx-auto"></i></button>
                 </div>
 
                 <div id="privateChatScrollArea" class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 flex flex-col relative scroll-smooth bg-slate-50/30">
@@ -1959,5 +2070,16 @@
             </div>
         </div>
     </div>
+
+    <div id="teacherVoiceCallModal" class="hidden fixed inset-0 z-[200] bg-slate-950/75 backdrop-blur-sm p-5 items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="teacherVoiceCallTitle">
+        <section class="w-full max-w-sm rounded-[2rem] bg-white p-6 text-center shadow-2xl">
+            <div class="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"><i data-lucide="phone-call" class="w-9 h-9"></i></div>
+            <p class="text-sm font-bold text-slate-400">一對一語音通話</p>
+            <h2 id="teacherVoiceCallTitle" class="mt-1 text-2xl font-black text-slate-800">正在準備通話</h2>
+            <p id="teacherVoiceCallStatus" class="mt-3 min-h-12 text-sm leading-relaxed text-slate-500">正在連線，請稍候。</p>
+            <button id="teacherVoiceCallHangup" type="button" onclick="window.endVoiceCall('ended')" class="mt-5 min-h-14 w-full rounded-2xl bg-rose-600 font-black text-white shadow-lg shadow-rose-200 active:scale-[.98]">結束通話</button>
+        </section>
+    </div>
+    <audio id="teacherRemoteAudio" autoplay playsinline></audio>
 </body>
 </html>
