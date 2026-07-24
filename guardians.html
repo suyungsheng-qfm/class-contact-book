@@ -76,8 +76,8 @@
             }
             #mainPage > main { order: 1; }
             #bookPage > div:first-child {
-                max-height: 16.5rem;
-                overflow-y: auto;
+                max-height: none;
+                overflow: visible;
             }
             #bookPage #contentContainer {
                 padding: 1.25rem 1rem;
@@ -525,6 +525,8 @@
             const year = window.viewDate.getFullYear();
             const month = window.viewDate.getMonth();
             display.innerText = `${year}年 ${month + 1}月`;
+            const selectedDateLabel = document.getElementById('parentCalendarSelectedDate');
+            if (selectedDateLabel) selectedDateLabel.innerText = `已選日期 ${window.selectedDateStr}`;
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
@@ -1093,14 +1095,13 @@
             }
         };
 
-        window.changeMonth = (offset) => { window.viewDate.setMonth(window.viewDate.getMonth() + offset); window.checkSemesterSwitch(window.viewDate); window.refreshUI(); };
-        // 與教師端一致：單次切換一週，並同步帶到該日期的公告與簽閱狀態。
-        window.shiftBookDate = (offset) => {
+        window.changeMonth = (offset) => {
             const [year, month, day] = window.selectedDateStr.split('/').map(Number);
-            const nextDate = new Date(year, month - 1, day);
-            nextDate.setDate(nextDate.getDate() + offset);
-            window.selectedDateStr = window.normalizeDate(nextDate);
-            window.viewDate = new Date(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate());
+            const targetMonth = new Date(year, month - 1 + offset, 1);
+            const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+            const targetDate = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), Math.min(day, lastDay));
+            window.viewDate = targetDate;
+            window.selectedDateStr = window.normalizeDate(targetDate);
             window.checkSemesterSwitch(window.viewDate);
             window.refreshUI();
         };
@@ -1209,12 +1210,14 @@
                 <div class="sticky top-0 bg-[#f2f2f7] z-20 px-4 py-3 flex justify-between items-center border-b border-[#e5e5ea]/50 shadow-[0_2px_4px_rgba(0,0,0,0.02)]">
                     <h3 id="currentMonthDisplay" class="font-bold text-[20px] lg:text-[22px] tracking-tight text-slate-800 bg-[#f2f2f7]"></h3>
                     <div class="flex items-center gap-1">
-                        <button onclick="window.shiftBookDate(-7)" title="前一週" aria-label="前一週" class="text-[#d97706] bg-amber-50 hover:bg-amber-100 min-w-8 min-h-8 px-1 rounded-lg text-sm font-black transition-colors">&#171;</button>
                         <button onclick="window.goToToday()" class="text-[#d97706] bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors">今日</button>
-                        <button onclick="window.shiftBookDate(7)" title="後一週" aria-label="後一週" class="text-[#d97706] bg-amber-50 hover:bg-amber-100 min-w-8 min-h-8 px-1 rounded-lg text-sm font-black transition-colors">&#187;</button>
-                        <button onclick="window.changeMonth(-1)" class="text-[#d97706] hover:bg-black/5 p-1.5 rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
-                        <button onclick="window.changeMonth(1)" class="text-[#d97706] hover:bg-black/5 p-1.5 rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+                        <button onclick="window.changeMonth(-1)" title="上個月" aria-label="上個月" class="text-[#d97706] hover:bg-black/5 w-10 h-10 flex items-center justify-center rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+                        <button onclick="window.changeMonth(1)" title="下個月" aria-label="下個月" class="text-[#d97706] hover:bg-black/5 w-10 h-10 flex items-center justify-center rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
                     </div>
+                </div>
+
+                <div class="px-4 pt-3">
+                    <span id="parentCalendarSelectedDate" class="inline-flex items-center rounded-full bg-white border border-[#e5e5ea] px-3 py-1.5 text-xs font-bold text-[#6e6e73] shadow-sm">已選日期 ----/--/--</span>
                 </div>
 
                 <div class="p-3 lg:p-4">
