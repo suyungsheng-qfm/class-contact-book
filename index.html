@@ -4,6 +4,13 @@
     <base target="_top">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#d97706">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="班級聯絡簿">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+    <link rel="icon" href="./app-icon.svg" type="image/svg+xml">
     <title>班級聯絡簿</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -49,8 +56,23 @@
             </form>
             <p class="mt-5 text-center text-xs text-[#8e8e93]">系統會依帳號自動判別教師或家長身份</p>
         </section>
+        <button id="installAppButton" type="button" class="hidden w-full mt-4 min-h-[48px] rounded-xl bg-white/85 border border-amber-200 text-[#b45309] font-bold shadow-sm active:scale-[.98] transition-transform flex items-center justify-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg>
+            加入手機桌面
+        </button>
         <p class="text-center text-xs text-[#8e8e93] mt-5">登入逾時後，系統會要求再次驗證身份。</p>
     </main>
+
+    <div id="iosInstallGuide" class="hidden fixed inset-0 z-50 p-5 bg-slate-900/35 backdrop-blur-sm items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="iosGuideTitle">
+        <section class="w-full max-w-sm bg-white rounded-[28px] p-6 shadow-2xl">
+            <div class="w-12 h-12 rounded-2xl bg-amber-50 text-[#d97706] flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M5 21h14"/></svg>
+            </div>
+            <h2 id="iosGuideTitle" class="text-xl font-black">加入 iPhone 主畫面</h2>
+            <p class="mt-2 text-sm leading-relaxed text-slate-500">iPhone 需要透過 Safari 加入桌面。請點選 Safari 下方的「分享」按鈕，再選擇「加入主畫面」。</p>
+            <button id="closeIosInstallGuide" type="button" class="w-full min-h-[48px] mt-6 rounded-xl bg-[#d97706] text-white font-bold active:scale-[.98] transition-transform">知道了</button>
+        </section>
+    </div>
 
     <script>
         const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzQBi-uoqSy73_VUD2xCpXqx2qPfARxvXxUFJwsd8wf_FcVkehubPpaDA0RQVgI11ky/exec';
@@ -78,6 +100,43 @@
         const error = document.getElementById('loginError');
         const passwordInput = document.getElementById('password');
         const passwordToggle = document.getElementById('passwordToggle');
+        const installButton = document.getElementById('installAppButton');
+        const iosInstallGuide = document.getElementById('iosInstallGuide');
+        let deferredInstallPrompt = null;
+        const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+        function showInstallButton() {
+            if (!isStandalone) installButton.classList.remove('hidden');
+        }
+
+        if (isIos && !isStandalone) showInstallButton();
+        window.addEventListener('beforeinstallprompt', event => {
+            event.preventDefault();
+            deferredInstallPrompt = event;
+            showInstallButton();
+        });
+        window.addEventListener('appinstalled', () => {
+            deferredInstallPrompt = null;
+            installButton.classList.add('hidden');
+        });
+        installButton.addEventListener('click', async () => {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                await deferredInstallPrompt.userChoice;
+                deferredInstallPrompt = null;
+                return;
+            }
+            iosInstallGuide.classList.remove('hidden');
+            iosInstallGuide.classList.add('flex');
+        });
+        document.getElementById('closeIosInstallGuide').addEventListener('click', () => {
+            iosInstallGuide.classList.add('hidden');
+            iosInstallGuide.classList.remove('flex');
+        });
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
+        }
 
         passwordToggle.addEventListener('click', () => {
             const showing = passwordInput.type === 'text';
