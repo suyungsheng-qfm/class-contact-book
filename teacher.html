@@ -849,6 +849,10 @@
                         </div>
                     </div>
                     <div class="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">${days}</div>
+                    <div class="grid grid-cols-2 gap-2 mt-3">
+                        <button type="button" onclick="window.batchSetWeekends(true)" class="min-h-11 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-black active:scale-[.98]">本月六、日設為假日</button>
+                        <button type="button" onclick="window.batchSetWeekends(false)" class="min-h-11 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs font-black active:scale-[.98]">取消本月週末假日</button>
+                    </div>
                 </div>`;
         }
 
