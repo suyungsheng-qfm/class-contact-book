@@ -207,7 +207,7 @@
         window.isChatInitialized = false;
         
         window.activeChatStudentId = null;
-        window.showOnlyUnsigned = false;
+        window.signatureFilter = 'all';
 
         window.expandedGroupMonths = null; 
         window.expandedPrivateMonths = null;
@@ -708,12 +708,14 @@
                     const record = window.fbRecords.find(r => r.date === window.selectedDateStr && r.studentId === s.studentId) || {};
                     
                     const isLeave = record.isLeave || false;
-                    const isSigned = record.signed || false;
+                    // 請假優先於簽閱，避免同一位學生同時被算進兩個狀態。
+                    const isSigned = (record.signed || false) && !isLeave;
+                    const status = isLeave ? 'leave' : (isSigned ? 'signed' : (isHoliday ? 'holiday' : 'unsigned'));
                     
                     if (isSigned) signedCount++;
                     if (isLeave) leaveCount++;
                     if (!isHoliday && !isSigned && !isLeave) unsignedCount++;
-                    if (window.showOnlyUnsigned && (isSigned || isLeave || isHoliday)) return '';
+                    if (window.signatureFilter !== 'all' && status !== window.signatureFilter) return '';
                     
                     const signHtml = isSigned
                         ? `<span class="text-emerald-500 text-[10px] font-black bg-emerald-50 px-2 py-1 rounded border border-emerald-100 shadow-sm">已簽</span>`
@@ -747,18 +749,31 @@
                     `;
                 }).join('');
 
-            if (window.showOnlyUnsigned && total > 0 && listBody.innerHTML.trim() === '') {
-                listBody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-emerald-600 font-bold">目前沒有待簽學生</td></tr>';
+            if (window.signatureFilter !== 'all' && total > 0 && listBody.innerHTML.trim() === '') {
+                const emptyLabel = { unsigned: '待簽', signed: '已簽', leave: '請假' }[window.signatureFilter] || '';
+                listBody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-slate-500 font-bold">目前沒有${emptyLabel}學生</td></tr>`;
             }
 
-            document.getElementById('tSignCount').innerText = `待簽 ${unsignedCount} / 已簽 ${signedCount} / 請假 ${leaveCount}`;
-            const filterButton = document.getElementById('tUnsignedFilter');
-            if (filterButton) {
-                filterButton.setAttribute('aria-pressed', String(window.showOnlyUnsigned));
-                filterButton.className = window.showOnlyUnsigned
-                    ? 'text-xs font-bold px-2.5 py-1.5 rounded-lg bg-rose-600 text-white shadow-sm'
-                    : 'text-xs font-bold px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-200';
-                filterButton.innerText = window.showOnlyUnsigned ? '顯示全部' : `未簽 ${unsignedCount}`;
+            const summary = document.getElementById('tSignSummary');
+            if (summary) {
+                const items = [
+                    { key: 'unsigned', label: '待簽', count: unsignedCount, hint: '需要處理', color: 'rose', icon: 'clock-3' },
+                    { key: 'signed', label: '已簽', count: signedCount, hint: '已完成簽閱', color: 'emerald', icon: 'badge-check' },
+                    { key: 'leave', label: '請假', count: leaveCount, hint: '當日請假', color: 'amber', icon: 'calendar-off' }
+                ];
+                summary.innerHTML = items.map(item => {
+                    const active = window.signatureFilter === item.key;
+                    const colors = {
+                        rose: active ? 'bg-rose-600 text-white border-rose-600 shadow-rose-200' : 'bg-rose-50 text-rose-700 border-rose-100',
+                        emerald: active ? 'bg-emerald-600 text-white border-emerald-600 shadow-emerald-200' : 'bg-emerald-50 text-emerald-700 border-emerald-100',
+                        amber: active ? 'bg-amber-500 text-white border-amber-500 shadow-amber-200' : 'bg-amber-50 text-amber-700 border-amber-100'
+                    }[item.color];
+                    return `<button type="button" onclick="window.setSignatureFilter('${item.key}')" aria-pressed="${active}" class="min-h-[72px] rounded-xl border px-3 py-2 text-left transition-all ${colors} ${active ? 'shadow-md -translate-y-0.5' : 'hover:-translate-y-0.5'}">
+                        <span class="block text-[11px] font-black opacity-80">${item.label}</span>
+                        <span class="mt-0.5 flex items-baseline gap-1"><strong class="text-2xl leading-none">${item.count}</strong><small class="text-[10px] font-bold opacity-80">人</small></span>
+                        <span class="block mt-1 text-[10px] font-bold opacity-75">${item.hint}</span>
+                    </button>`;
+                }).join('');
             }
         }
 
@@ -1084,8 +1099,9 @@
         }
 
         // 🌟 點選特定家長
-        window.toggleUnsignedFilter = () => {
-            window.showOnlyUnsigned = !window.showOnlyUnsigned;
+        window.setSignatureFilter = (filter) => {
+            // 再點一次相同分類即可回到全部名單，方便單手快速切換。
+            window.signatureFilter = window.signatureFilter === filter ? 'all' : filter;
             window.refreshUI();
         };
 
@@ -1654,11 +1670,9 @@
                                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[500px]">
                                     <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                                         <div class="flex items-center gap-2"><i data-lucide="users" class="w-5 h-5 text-emerald-500"></i><h3 class="font-bold text-slate-700">簽到與請假追蹤</h3></div>
-                                        <div class="flex items-center gap-2">
-                                            <button id="tUnsignedFilter" onclick="window.toggleUnsignedFilter()" aria-pressed="false" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-200">未簽</button>
-                                            <div id="tSignCount" class="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">-- / --</div>
-                                        </div>
+                                        <span class="text-[11px] text-slate-400 font-bold">點選分類篩選名單</span>
                                     </div>
+                                    <div id="tSignSummary" class="grid grid-cols-3 gap-2 p-3 border-b border-slate-100 bg-slate-50/40"></div>
                                     <div class="p-2 flex-1 overflow-y-auto custom-scrollbar">
                                         <table class="w-full text-left border-separate border-spacing-0">
                                             <thead class="sticky top-0 bg-white shadow-sm z-10 text-[10px] font-black text-slate-400 uppercase tracking-widest">
