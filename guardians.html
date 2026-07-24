@@ -380,9 +380,9 @@
                         <div>
                             <p class="text-xs font-black tracking-widest text-[#d97706] mb-1">CONTACT BOOK</p>
                             <h2 class="text-3xl font-black text-slate-800">&#32879;&#32097;&#31807;</h2>
-                            <p class="mt-1 text-sm text-slate-500">&#26597;&#30475;&#26412;&#26085;&#31805;&#38321;&#29376;&#24907;&#65292;&#20006;&#23436;&#25104;&#35201;&#31705;&#30340;&#32879;&#32097;&#20107;&#38917;&#12290;</p>
+                            <p class="mt-1 text-sm text-slate-500">&#26597;&#30475;&#36984;&#23450;&#26085;&#26399;&#30340;&#32879;&#32097;&#20107;&#38917;&#33287;&#31805;&#38321;&#29376;&#24907;&#12290;</p>
                         </div>
-                        <span id="parentBookDateLabel" class="inline-flex w-fit items-center rounded-xl bg-amber-50 border border-amber-100 px-3 py-2 text-xs font-black text-[#b45309]">&#32113;&#35336;&#26085;&#26399; ----/--/--</span>
+                        <span id="parentBookDateLabel" class="inline-flex w-fit items-center rounded-xl bg-amber-50 border border-amber-100 px-3 py-2 text-xs font-black text-[#b45309]">----/--/--</span>
                     </div>
                     <div id="parentBookStatus" class="mb-5"></div>
                     <div id="parentBookAction"></div>
@@ -599,7 +599,7 @@
 
             const parentBookDateLabel = document.getElementById('parentBookDateLabel');
             const parentBookStatus = document.getElementById('parentBookStatus');
-            if (parentBookDateLabel) parentBookDateLabel.innerText = `統計日期 ${window.selectedDateStr}`;
+            if (parentBookDateLabel) parentBookDateLabel.innerText = window.selectedDateStr;
             if (parentBookStatus) {
                 const statusMessage = isLeave
                     ? '學生當日請假，無須簽閱。'
