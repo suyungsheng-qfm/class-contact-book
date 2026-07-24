@@ -410,7 +410,7 @@
         }
 
         // 一對一語音通話：協商資料經由已登入的 Apps Script 工作階段傳遞，音訊不會寫入資料庫。
-        window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, signalReady: false, pendingCandidates: [], candidateQueue: Promise.resolve(), connectionTimer: null };
+        window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, pendingParentCandidates: [], signalReady: false, pendingCandidates: [], candidateQueue: Promise.resolve(), connectionTimer: null };
 
         window.voiceCallApi = async (action, payload = {}) => {
             const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action, sessionToken: window.sessionToken, ...payload }) });
@@ -454,7 +454,7 @@
             if (call.localStream) call.localStream.getTracks().forEach(track => track.stop());
             const audio = document.getElementById('teacherRemoteAudio');
             if (audio) audio.srcObject = null;
-            window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, signalReady: false, pendingCandidates: [], candidateQueue: Promise.resolve(), connectionTimer: null };
+            window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, pendingParentCandidates: [], signalReady: false, pendingCandidates: [], candidateQueue: Promise.resolve(), connectionTimer: null };
             const modal = document.getElementById('teacherVoiceCallModal');
             if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
         };
@@ -477,6 +477,10 @@
                 if (remote.status === 'accepted' && remote.answer && !call.remoteDescriptionSet) {
                     await call.peer.setRemoteDescription(remote.answer);
                     call.remoteDescriptionSet = true;
+                    const initialParentCandidates = call.pendingParentCandidates.splice(0);
+                    for (const candidate of initialParentCandidates) {
+                        await call.peer.addIceCandidate(new RTCIceCandidate(candidate));
+                    }
                     call.connectionTimer = setTimeout(() => {
                         if (window.voiceCall !== call || call.peer.connectionState === 'connected') return;
                         window.updateTeacherVoiceCallUi('連線逾時', '雙方已接聽，但音訊連線未建立。請確認 TURN 設定與網路後重試。');
@@ -485,7 +489,12 @@
                 }
                 const candidates = remote.parentCandidates || [];
                 while (call.parentCandidateIndex < candidates.length) {
-                    await call.peer.addIceCandidate(new RTCIceCandidate(candidates[call.parentCandidateIndex++]));
+                    const candidate = candidates[call.parentCandidateIndex++];
+                    if (!call.remoteDescriptionSet) {
+                        call.pendingParentCandidates.push(candidate);
+                        continue;
+                    }
+                    await call.peer.addIceCandidate(new RTCIceCandidate(candidate));
                 }
                 if (remote.status === 'declined') {
                     window.updateTeacherVoiceCallUi('家長未接聽', '對方已拒接本次通話。');
@@ -514,7 +523,7 @@
                 const callId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                 const config = await window.voiceCallApi('voiceCallConfig');
                 const peer = new RTCPeerConnection({ iceServers: config.iceServers });
-                window.voiceCall = { peer, localStream: stream, callId, studentId, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, signalReady: false, pendingCandidates: [], candidateQueue: Promise.resolve(), connectionTimer: null };
+                window.voiceCall = { peer, localStream: stream, callId, studentId, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, pendingParentCandidates: [], signalReady: false, pendingCandidates: [], candidateQueue: Promise.resolve(), connectionTimer: null };
                 const activeCall = window.voiceCall;
                 stream.getTracks().forEach(track => peer.addTrack(track, stream));
                 peer.ontrack = event => { const audio = document.getElementById('teacherRemoteAudio'); if (audio) { audio.srcObject = event.streams[0]; audio.play().catch(() => {}); } };
