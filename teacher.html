@@ -9,9 +9,11 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        html, body { width: 100%; min-height: 100%; }
+        :root { --app-height: 100dvh; }
+        html, body { width: 100%; min-height: var(--app-height); height: var(--app-height); }
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; height: var(--app-height) !important; min-height: var(--app-height) !important; }
+        #teacherDashboard { min-height: 0; height: var(--app-height); }
         
         .t-calendar-day {
             aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -92,6 +94,21 @@
 
         /* 使用者放大文字時，優先換行與保留觸控範圍，不讓內容被裁掉。 */
         @media (max-width: 1023px) {
+            #teacherDashboard > header {
+                order: 2;
+                flex-wrap: nowrap;
+                gap: 0;
+                padding: .5rem .75rem max(.5rem, env(safe-area-inset-bottom));
+                border-top: 1px solid #e2e8f0;
+                border-bottom: 0;
+                box-shadow: 0 -4px 16px rgba(15, 23, 42, .06);
+            }
+            #teacherDashboard > header > div:first-child { display: none; }
+            #teacherDashboard > header > div:nth-child(2) { order: initial; width: auto; flex: 1 1 auto; min-width: 0; justify-content: stretch; }
+            #teacherDashboard > header button[id^="tab"] { flex: 1 1 0; min-width: 0; min-height: 44px; padding: .45rem .3rem; white-space: normal; }
+            #teacherDashboard > header > div:last-child { gap: 0; }
+            #teacherDashboard > header > div:last-child > button { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
+            #teacherDashboard > main { order: 1; }
             #teacherDashboard button, #teacherDashboard input, #teacherDashboard textarea { max-width: 100%; }
             #teacherDashboard button { overflow-wrap: anywhere; }
             #groupChatInput, #privateChatInput { font-size: max(16px, 1rem); }
@@ -195,7 +212,22 @@
         }
     </style>
 </head>
-<body class="m-0 p-0 h-[100dvh] w-full overflow-hidden flex flex-col text-slate-800 bg-slate-50">
+<body class="m-0 p-0 w-full overflow-hidden flex flex-col text-slate-800 bg-slate-50">
+
+    <script>
+        (() => {
+            const syncAppHeight = () => {
+                const height = Math.round(window.visualViewport?.height || window.innerHeight);
+                document.documentElement.style.setProperty('--app-height', `${height}px`);
+            };
+            syncAppHeight();
+            window.addEventListener('resize', syncAppHeight);
+            window.addEventListener('pageshow', syncAppHeight);
+            window.addEventListener('orientationchange', () => setTimeout(syncAppHeight, 150));
+            window.visualViewport?.addEventListener('resize', syncAppHeight);
+            setTimeout(syncAppHeight, 250);
+        })();
+    </script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
