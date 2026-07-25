@@ -415,7 +415,11 @@
 
             const pathEvents = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'calendar_events');
             window.unsubscribers.push(onSnapshot(pathEvents, snap => {
-                window.fbEvents = snap.docs.map(d => ({ date: d.id.replaceAll('-','/'), event: d.data().event }));
+                window.fbEvents = snap.docs.map(d => ({
+                    date: d.id.replaceAll('-','/'),
+                    event: String(d.data().event || ''),
+                    schoolEvents: Array.isArray(d.data().schoolEvents) ? d.data().schoolEvents : []
+                }));
                 window.refreshUI();
             }, err => console.error(err)));
 
@@ -1013,7 +1017,7 @@
                 const dStr = window.normalizeDate(`${year}/${month + 1}/${d}`);
                 const isActive = dStr === window.selectedDateStr;
                 const hasNote = window.fbNotes.some(n => n.date === dStr && n.content.trim() !== "");
-                const hasEvent = window.fbEvents.some(e => e.date === dStr && e.event.trim() !== "");
+                const hasEvent = window.fbEvents.some(e => e.date === dStr && (e.event.trim() !== "" || e.schoolEvents.length > 0));
                 const isHoliday = window.fbHolidays.some(h => h.date === dStr && h.isHoliday);
                 
                 const dayEl = document.createElement('div');
@@ -1058,6 +1062,18 @@
             
             const eventObj = window.fbEvents.find(e => e.date === window.selectedDateStr);
             document.getElementById('tEventInput').value = eventObj ? eventObj.event : "";
+            const schoolEventList = document.getElementById('tSchoolEventList');
+            if (schoolEventList) {
+                const schoolEvents = eventObj ? eventObj.schoolEvents : [];
+                schoolEventList.replaceChildren();
+                schoolEventList.classList.toggle('hidden', schoolEvents.length === 0);
+                schoolEvents.forEach(item => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-start gap-2';
+                    row.textContent = `學校行事：${item.title}`;
+                    schoolEventList.appendChild(row);
+                });
+            }
             
             const isHoliday = window.fbHolidays.some(h => h.date === window.selectedDateStr && h.isHoliday);
             document.getElementById('tHolidayToggle').checked = isHoliday;
@@ -1154,7 +1170,7 @@
                 date.setDate(selectedDate.getDate() + index - 3);
                 const dateStr = window.normalizeDate(date);
                 const hasNote = window.fbNotes.some(note => note.date === dateStr && note.content && note.content.trim() !== '');
-                const hasEvent = window.fbEvents.some(event => event.date === dateStr && event.event && event.event.trim() !== '');
+                const hasEvent = window.fbEvents.some(event => event.date === dateStr && ((event.event && event.event.trim() !== '') || event.schoolEvents.length > 0));
                 const className = `teacher-week-day ${dateStr === window.selectedDateStr ? 'is-selected' : ''} ${dateStr === window.todayStr ? 'is-today' : ''} ${hasNote || hasEvent ? 'has-note' : ''}`;
                 const weekday = date.toLocaleDateString('zh-TW', { weekday: 'short' });
                 return `<button type="button" class="${className}" onclick="window.selectTeacherDate('${dateStr}')"><span class="text-[11px] opacity-80">${weekday}</span><strong class="text-lg leading-none">${date.getDate()}</strong></button>`;
@@ -1763,6 +1779,81 @@
             return true;
         };
 
+        window.schoolCalendarApi = async (year, month) => {
+            const response = await fetch(GAS_API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'schoolCalendarEvents', sessionToken: window.sessionToken, year, month })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || '無法讀取學校行事曆。');
+            return result.events || [];
+        };
+
+        window.openSchoolCalendarImport = async () => {
+            if (!checkFbAuth()) return;
+            const [year, month] = window.selectedDateStr.split('/').map(Number);
+            Swal.fire({ title: '讀取學校行事曆…', text: `${year} 年 ${month} 月`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const events = await window.schoolCalendarApi(year, month);
+                if (!events.length) {
+                    Swal.fire('本月沒有活動', '學校行事曆在這個月份沒有可匯入的活動。', 'info');
+                    return;
+                }
+                const importedIds = new Set(window.fbEvents.flatMap(event => event.schoolEvents.map(item => item.id)));
+                const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+                const rows = events.map((event, index) => {
+                    const alreadyImported = importedIds.has(event.id);
+                    return `<label class="flex items-start gap-3 rounded-xl border ${alreadyImported ? 'border-slate-100 bg-slate-50 opacity-70' : 'border-violet-100 bg-violet-50/60'} p-3 text-left">
+                        <input type="checkbox" class="school-calendar-choice mt-1 h-5 w-5 accent-violet-600" value="${index}" ${alreadyImported ? 'checked disabled' : ''}>
+                        <span class="min-w-0"><span class="block text-xs font-black text-violet-500">${escapeHtml(event.date)}</span><span class="block break-words font-bold text-slate-700">${escapeHtml(event.title)}</span>${alreadyImported ? '<span class="mt-1 inline-block text-[11px] font-bold text-slate-400">已加入班級行事曆</span>' : ''}</span>
+                    </label>`;
+                }).join('');
+                const choice = await Swal.fire({
+                    title: `學校行事曆 · ${year} 年 ${month} 月`,
+                    html: `<p class="mb-3 text-sm text-slate-500">勾選後才會加入班級行事曆，家長端也會同步顯示。</p><div class="max-h-[50vh] space-y-2 overflow-y-auto pr-1">${rows}</div>`,
+                    showCancelButton: true,
+                    confirmButtonText: '加入已勾選活動',
+                    cancelButtonText: '取消',
+                    confirmButtonColor: '#7c3aed',
+                    preConfirm: () => Array.from(document.querySelectorAll('.school-calendar-choice:checked:not(:disabled)')).map(input => Number(input.value))
+                });
+                if (!choice.isConfirmed) return;
+                const selectedEvents = choice.value.map(index => events[index]).filter(Boolean);
+                if (!selectedEvents.length) {
+                    Swal.fire('尚未選擇活動', '請至少勾選一個尚未加入的活動。', 'info');
+                    return;
+                }
+                await window.importSchoolCalendarEvents(selectedEvents);
+            } catch (error) {
+                Swal.fire('讀取失敗', error.message || '無法讀取學校行事曆，請稍後再試。', 'error');
+            }
+        };
+
+        window.importSchoolCalendarEvents = async (selectedEvents) => {
+            const eventsByDate = selectedEvents.reduce((groups, event) => {
+                (groups[event.date] ||= []).push(event);
+                return groups;
+            }, {});
+            Swal.fire({ title: '加入班級行事曆…', text: `正在儲存 ${selectedEvents.length} 個活動`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const batch = writeBatch(db);
+                Object.entries(eventsByDate).forEach(([date, additions]) => {
+                    const existing = window.fbEvents.find(event => event.date === date);
+                    const existingSchoolEvents = existing ? existing.schoolEvents : [];
+                    const seen = new Set(existingSchoolEvents.map(event => event.id));
+                    const merged = existingSchoolEvents.concat(additions.filter(event => !seen.has(event.id)));
+                    batch.set(doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'calendar_events', window.toDocId(date)), {
+                        schoolEvents: merged,
+                        schoolCalendarImportedAt: serverTimestamp()
+                    }, { merge: true });
+                });
+                await batch.commit();
+                Swal.fire({ icon: 'success', title: '已加入班級行事曆', text: `${selectedEvents.length} 個活動已同步給家長。`, timer: 1600, showConfirmButton: false });
+            } catch (error) {
+                Swal.fire('加入失敗', error.message || '無法儲存選取的活動，請再試一次。', 'error');
+            }
+        };
+
         window.handleSaveNote = async () => {
             if(!checkFbAuth()) return;
             const btn = document.getElementById('saveBtn');
@@ -1777,11 +1868,8 @@
                 
                 await setDoc(noteRef, { content: noteContent }, { merge: true });
                 
-                if (eventContent) {
-                    await setDoc(eventRef, { event: eventContent }, { merge: true });
-                } else {
-                    await deleteDoc(eventRef);
-                }
+                // Do not delete the document when the teacher event is cleared: it may contain imported school events.
+                await setDoc(eventRef, { event: eventContent }, { merge: true });
 
                 Swal.fire({ icon: 'success', title: '內容已成功發布', timer: 1500, showConfirmButton: false });
             } catch (err) {
@@ -2056,6 +2144,7 @@
                                             <label class="flex items-center gap-2 cursor-pointer text-sm font-bold text-rose-500">
                                                 <input type="checkbox" id="tHolidayToggle" onchange="window.handleToggleHoliday(this.checked)" class="w-4 h-4 accent-rose-500 rounded">設為假日
                                             </label>
+                                            <button type="button" onclick="window.openSchoolCalendarImport()" class="min-h-10 rounded-lg bg-violet-50 px-3 text-[11px] font-black text-violet-700 border border-violet-100 active:scale-[.98]">學校行事曆</button>
                                             <span id="tSelectedDateLabel" class="inline-flex items-center rounded-lg bg-blue-50 border border-blue-100 px-2.5 py-1.5 text-[11px] font-black text-blue-700 whitespace-nowrap">發布日期 ----/--/--</span>
                                         </div>
                                     </div>
@@ -2065,6 +2154,7 @@
                                             <input type="text" id="tEventInput" placeholder="設定本日行事曆 (例如：期中考、戶外教學)..." class="flex-1 bg-transparent border-none outline-none text-purple-900 font-bold placeholder-purple-300 text-sm">
                                         </div>
                                         
+                                        <div id="tSchoolEventList" class="hidden space-y-1 rounded-xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-sm font-bold text-violet-800"></div>
                                         <textarea id="tNoteInput" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 transition-all resize-none text-base font-medium flex-1 min-h-[250px]" placeholder="請輸入聯絡事項..."></textarea>
                                         <div class="flex gap-3 pt-1">
                                             <button onclick="window.handleSaveNote()" id="saveBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm"><i data-lucide="send" class="w-4 h-4"></i> 儲存並發布</button>
