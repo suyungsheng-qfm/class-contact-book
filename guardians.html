@@ -235,6 +235,7 @@
                     button.onclick = window.goToUnifiedLogin;
                 });
                 window.currentUser = result.user;
+                window.setupChatReadStateListener();
                 window.setupParentVoiceCallListener && window.setupParentVoiceCallListener();
                 document.getElementById('loginPage').classList.add('hidden');
                 document.getElementById('mainPage').classList.remove('hidden');
@@ -269,6 +270,8 @@
         window.fbRecords = [];
         window.fbGroupChats = []; 
         window.fbPrivateChats = []; 
+        window.chatReadState = null;
+        window.chatReadStateUnsubscribe = null;
         
         window.viewDate = new Date();
         window.selectedDateStr = "";
@@ -285,22 +288,58 @@
             tabBook.classList.toggle('has-attention', needsSignature);
         };
 
-        window.updateChatUnreadIndicators = function() {
+        window.markChatRead = function(tab, timestamp) {
+            if (!window.currentUser || !timestamp) return;
+            const field = tab === 'group' ? 'groupReadAt' : 'privateReadAt';
+            const nextTimestamp = String(timestamp);
+            const currentValue = String(window.chatReadState?.[field] || '');
+            if (currentValue >= nextTimestamp) return;
+            window.chatReadState = { ...(window.chatReadState || {}), [field]: nextTimestamp };
+            localStorage.setItem(`contact-book-read-${tab}-${window.currentUser.studentId}`, nextTimestamp);
+            const readRef = doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'chat_read_states', String(window.currentUser.studentId));
+            setDoc(readRef, { studentId: String(window.currentUser.studentId), [field]: nextTimestamp }, { merge: true })
+                .catch(error => console.error('Unable to save chat read status.', error));
+        };
+
+        window.setupChatReadStateListener = function() {
             if (!window.currentUser) return;
+            window.chatReadStateUnsubscribe?.();
+            window.chatReadState = null;
+            const studentId = String(window.currentUser.studentId);
+            const readRef = doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'chat_read_states', studentId);
+            window.chatReadStateUnsubscribe = onSnapshot(readRef, snapshot => {
+                const savedState = snapshot.exists() ? snapshot.data() : {};
+                if (!snapshot.exists()) {
+                    savedState.groupReadAt = localStorage.getItem(`contact-book-read-group-${studentId}`) || '';
+                    savedState.privateReadAt = localStorage.getItem(`contact-book-read-private-${studentId}`) || '';
+                    if (savedState.groupReadAt || savedState.privateReadAt) {
+                        setDoc(readRef, { studentId, groupReadAt: savedState.groupReadAt, privateReadAt: savedState.privateReadAt }, { merge: true })
+                            .catch(error => console.error('Unable to migrate chat read status.', error));
+                    }
+                }
+                window.chatReadState = savedState;
+                window.refreshUI();
+            }, error => {
+                console.error('Unable to load chat read status.', error);
+                window.chatReadState = {};
+                window.refreshUI();
+            });
+        };
+
+        window.updateChatUnreadIndicators = function() {
+            if (!window.currentUser || window.chatReadState === null) return;
             const chatTypes = [
-                { tab: 'group', badge: 'groupUnreadBadge', messages: window.fbGroupChats.filter(message => message.studentId !== window.currentUser.studentId) },
-                { tab: 'private', badge: 'privateUnreadBadge', messages: window.fbPrivateChats.filter(message => message.studentId === window.currentUser.studentId && message.sender === 'teacher') }
+                { tab: 'group', badge: 'groupUnreadBadge', field: 'groupReadAt', messages: window.fbGroupChats.filter(message => message.studentId !== window.currentUser.studentId) },
+                { tab: 'private', badge: 'privateUnreadBadge', field: 'privateReadAt', messages: window.fbPrivateChats.filter(message => message.studentId === window.currentUser.studentId && message.sender === 'teacher') }
             ];
 
-            chatTypes.forEach(({ tab, badge, messages }) => {
+            chatTypes.forEach(({ tab, badge, field, messages }) => {
                 const badgeElement = document.getElementById(badge);
                 const latestMessage = messages[messages.length - 1];
                 if (!badgeElement || !latestMessage || !latestMessage.timestamp) return;
-
-                const storageKey = `contact-book-read-${tab}-${window.currentUser.studentId}`;
-                const lastReadAt = localStorage.getItem(storageKey);
+                const lastReadAt = String(window.chatReadState[field] || '');
                 if (window.activeTab === tab || !lastReadAt) {
-                    localStorage.setItem(storageKey, latestMessage.timestamp);
+                    window.markChatRead(tab, latestMessage.timestamp);
                     badgeElement.classList.add('hidden');
                     return;
                 }
@@ -408,11 +447,6 @@
                 window.fbGroupChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 window.fbGroupChats.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
                 
-                if (window.isChatInitialized && window.activeTab !== 'group' && window.fbGroupChats.length > window.lastGroupChatCount) {
-                    const badge = document.getElementById('groupUnreadBadge');
-                    if(badge) badge.classList.remove('hidden');
-                }
-                
                 window.lastGroupChatCount = window.fbGroupChats.length;
                 if (!window.isChatInitialized && window.currentUser) {
                     window.isChatInitialized = true;
@@ -427,10 +461,6 @@
                 
                 if (window.currentUser) {
                     const myChats = window.fbPrivateChats.filter(c => c.studentId === window.currentUser.studentId);
-                    if (window.isChatInitialized && window.activeTab !== 'private' && myChats.length > window.lastPrivateChatCount) {
-                        const badge = document.getElementById('privateUnreadBadge');
-                        if(badge) badge.classList.remove('hidden');
-                    }
                     window.lastPrivateChatCount = myChats.length;
                 }
                 window.refreshUI();
@@ -662,6 +692,7 @@
                         localStorage.setItem('id_num', idn);
                     }
                     window.currentUser = result.user;
+                    window.setupChatReadStateListener();
                     window.setupParentVoiceCallListener && window.setupParentVoiceCallListener();
                     document.getElementById('loginPage').classList.add('hidden');
                     document.getElementById('mainPage').classList.remove('hidden');
