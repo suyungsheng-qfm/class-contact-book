@@ -161,7 +161,7 @@
             .t-calendar-day { min-height: 2rem; }
             #dashboardPage:not(.hidden) { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
             #dashboardPage > div:first-child { height: auto; min-height: 0; flex: 0 0 auto; border-bottom: 1px solid #e2e8f0; }
-            #dashboardPage > div:first-child > .p-4 { display: none; }
+            #dashboardPage > div:first-child > .p-4 { display: block; padding: .5rem .75rem .75rem; }
             #teacherWeekStrip { display: block; }
             #dashboardPage > div:nth-child(2) { overflow: visible; flex: 0 0 auto; }
             #dashboardPage > div:nth-child(2) > .flex-1 { overflow: visible; padding: 1rem 1rem 6.5rem; }
@@ -235,6 +235,29 @@
             #teacherComposerCard > div:first-child > div:last-child > label,
             #teacherComposerCard > div:first-child > div:last-child > button { width: 100%; justify-content: center; }
             #teacherComposerCard #tSelectedDateLabel { grid-column: 1 / -1; min-height: 2.35rem; }
+            .teacher-day-agenda { display: block; }
+            #teacherComposerCard { display: none; }
+            #teacherComposerCard.is-open {
+                display: block;
+                position: fixed;
+                z-index: 120;
+                inset: auto 0 0;
+                max-height: min(88dvh, 46rem);
+                overflow-y: auto;
+                border-radius: 1.5rem 1.5rem 0 0;
+                box-shadow: 0 -18px 45px rgba(15, 23, 42, .24);
+            }
+            #teacherComposerCard.is-open > div { min-height: 0; border-radius: inherit; }
+            #teacherComposerCard.is-open textarea { min-height: 10rem; flex: 0 0 12rem; }
+            #teacherComposerCard.is-open > div > div:first-child > button[aria-label="關閉編輯"] { display: inline-flex; }
+            #teacherComposerScrim.is-open { display: block; }
+        }
+
+        .teacher-day-agenda { display: none; }
+        #teacherComposerScrim { display: none; }
+        @media (max-width: 1023px) {
+            .teacher-day-agenda { display: block; }
+            #teacherComposerScrim.is-open { display: block; }
         }
     </style>
 </head>
@@ -1104,6 +1127,7 @@
             
             const isHoliday = window.fbHolidays.some(h => h.date === window.selectedDateStr && h.isHoliday);
             document.getElementById('tHolidayToggle').checked = isHoliday;
+            window.renderTeacherDayAgenda();
 
             let signedCount = 0;
             let leaveCount = 0;
@@ -1205,6 +1229,47 @@
             }
         };
 
+        window.openTeacherComposer = function() {
+            const composer = document.getElementById('teacherComposerCard');
+            const scrim = document.getElementById('teacherComposerScrim');
+            if (!composer || !scrim) return;
+            composer.classList.add('is-open');
+            scrim.classList.add('is-open');
+            setTimeout(() => document.getElementById('tEventInput')?.focus(), 180);
+        };
+
+        window.closeTeacherComposer = function() {
+            document.getElementById('teacherComposerCard')?.classList.remove('is-open');
+            document.getElementById('teacherComposerScrim')?.classList.remove('is-open');
+        };
+
+        window.renderTeacherDayAgenda = function() {
+            const host = document.getElementById('teacherDayAgenda');
+            if (!host || !window.selectedDateStr) return;
+            const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+            const noteObj = window.fbNotes.find(note => note.date === window.selectedDateStr);
+            const eventObj = window.fbEvents.find(event => event.date === window.selectedDateStr);
+            const ownEvent = String(eventObj?.event || '').trim();
+            const note = String(noteObj?.content || '').trim();
+            const schoolEvents = Array.isArray(eventObj?.schoolEvents) ? eventObj.schoolEvents : [];
+            const hasOwnContent = Boolean(ownEvent || note);
+            const isHoliday = window.fbHolidays.some(holiday => holiday.date === window.selectedDateStr && holiday.isHoliday);
+            const rows = [];
+            if (ownEvent) rows.push(`<div class="flex items-start gap-3 rounded-2xl bg-purple-50 px-4 py-3 text-purple-950"><span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-purple-500"></span><span class="min-w-0 break-words font-black">${escapeHtml(ownEvent)}</span></div>`);
+            schoolEvents.forEach(item => rows.push(`<div class="flex items-start gap-3 rounded-2xl bg-violet-50 px-4 py-3 text-violet-950"><span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-violet-500"></span><span class="min-w-0 break-words font-bold"><small class="mr-1 text-violet-500">學校行事</small>${escapeHtml(item.title)}</span></div>`));
+            if (note) rows.push(`<div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-700 whitespace-pre-wrap">${escapeHtml(note)}</div>`);
+            if (isHoliday) rows.push('<div class="flex items-center gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600"><i data-lucide="umbrella" class="h-4 w-4"></i> 此日設為假日</div>');
+            host.innerHTML = `
+                <section class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div class="mb-4 flex items-center justify-between gap-3">
+                        <div><p class="text-xs font-black tracking-wider text-slate-400">${escapeHtml(window.selectedDateStr)}</p><h3 class="mt-1 text-xl font-black text-slate-900">${hasOwnContent ? '當日事項' : '尚無班級事項'}</h3></div>
+                        <button type="button" onclick="window.openTeacherComposer()" class="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl bg-blue-600 px-3 text-sm font-black text-white shadow-md shadow-blue-200 active:scale-[.98]"><i data-lucide="${hasOwnContent ? 'pencil' : 'plus'}" class="h-4 w-4"></i>${hasOwnContent ? '修改' : '新增'}</button>
+                    </div>
+                    <div class="space-y-2">${rows.length ? rows.join('') : '<div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-semibold text-slate-400">點選「新增」建立此日的公告或聯絡事項</div>'}</div>
+                </section>`;
+            lucide.createIcons();
+        };
+
         function renderWeekStrip() {
             const host = document.getElementById('teacherWeekStrip');
             if (!host || !window.selectedDateStr) return;
@@ -1243,6 +1308,7 @@
         }
 
         window.selectTeacherDate = function(dateStr) {
+            window.closeTeacherComposer();
             window.selectedDateStr = dateStr;
             const [year, month, day] = dateStr.split('/').map(Number);
             window.viewDate = new Date(year, month - 1, day);
@@ -1923,6 +1989,7 @@
                 
                 // Do not delete the document when the teacher event is cleared: it may contain imported school events.
                 await setDoc(eventRef, { event: eventContent }, { merge: true });
+                window.closeTeacherComposer();
 
                 Swal.fire({ icon: 'success', title: '內容已成功發布', timer: 1500, showConfirmButton: false });
             } catch (err) {
@@ -2190,6 +2257,7 @@
                         </div>
 
                         <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
+                            <div id="teacherDayAgenda" class="teacher-day-agenda xl:col-span-12"></div>
                             
                             <!-- 左側：發布聯絡事項 (高度已拉滿) -->
                             <div id="teacherComposerCard" class="xl:col-span-12">
@@ -2203,6 +2271,7 @@
                                             <button type="button" onclick="window.openSchoolCalendarImport()" class="min-h-10 rounded-lg bg-violet-50 px-3 text-[11px] font-black text-violet-700 border border-violet-100 active:scale-[.98]">學校行事曆</button>
                                             <span id="tSelectedDateLabel" class="inline-flex items-center rounded-lg bg-blue-50 border border-blue-100 px-2.5 py-1.5 text-[11px] font-black text-blue-700 whitespace-nowrap">發布日期 ----/--/--</span>
                                         </div>
+                                        <button type="button" onclick="window.closeTeacherComposer()" aria-label="關閉編輯" class="ml-1 hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 active:bg-slate-200"><i data-lucide="x" class="h-5 w-5"></i></button>
                                     </div>
                                     <div class="p-5 flex-1 flex flex-col gap-4">
                                         <div class="flex items-center bg-purple-50 border border-purple-100 rounded-xl px-4 py-3">
@@ -2340,6 +2409,8 @@
             </div>
         </main>
     </div>
+
+    <button id="teacherComposerScrim" type="button" onclick="window.closeTeacherComposer()" aria-label="關閉事項編輯" class="fixed inset-0 z-[110] bg-slate-950/35 backdrop-blur-[1px]"></button>
 
     <div id="studentHistoryModal" class="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm hidden flex-col items-center justify-center p-4 fade-in">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col relative">
