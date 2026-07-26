@@ -794,11 +794,11 @@
                             </div>
                         </div>
                         <div class="p-4 sm:p-5 space-y-4">
-                            <input id="teacherPhotoInput" type="file" accept="image/*" class="hidden">
+                            <input id="teacherPhotoInput" type="file" accept="image/*,.heic,.heif,image/heic,image/heif" class="hidden">
                             <section class="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 sm:p-4">
                                 <div class="flex items-center gap-2 mb-3"><span class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">1</span><h4 class="font-black text-slate-800">&#36984;&#25799;&#29031;&#29255;</h4></div>
                                 <button id="teacherPhotoPick" type="button" class="w-full min-h-36 rounded-2xl border-2 border-dashed border-blue-200 bg-white flex flex-col items-center justify-center gap-2 text-slate-600 active:bg-blue-50 active:scale-[.99] transition-all">
-                                    <span class="w-12 h-12 rounded-2xl bg-blue-50 text-2xl flex items-center justify-center">&#128247;</span><span class="font-black text-slate-700">&#24478;&#25163;&#27231;&#36984;&#25799;&#29031;&#29255;</span><span class="text-xs text-slate-400">JPG / PNG / GIF</span>
+                                    <span class="w-12 h-12 rounded-2xl bg-blue-50 text-2xl flex items-center justify-center">&#128247;</span><span class="font-black text-slate-700">&#24478;&#25163;&#27231;&#36984;&#25799;&#29031;&#29255;</span><span class="text-xs text-slate-400">&#25903;&#25588;&#25163;&#27231;&#30456;&#31735;&#29031;&#29255;</span>
                                 </button>
                                 <div id="teacherPhotoPreviewWrap" class="hidden rounded-2xl overflow-hidden border border-slate-200 bg-white">
                                     <img id="teacherPhotoPreview" alt="&#24050;&#36984;&#29031;&#29255;&#38928;&#35261;" class="w-full max-h-72 object-contain bg-slate-50">
@@ -911,8 +911,22 @@
                 date.value = new Date().toISOString().slice(0, 10);
                 window.selectTeacherPhotoSeat('');
             };
+            const getTeacherPhotoMimeType = (file) => {
+                if (file.type) return file.type;
+                const extension = String(file.name || '').split('.').pop().toLowerCase();
+                return {
+                    heic: 'image/heic',
+                    heif: 'image/heif',
+                    jpg: 'image/jpeg',
+                    jpeg: 'image/jpeg',
+                    png: 'image/png',
+                    gif: 'image/gif',
+                    webp: 'image/webp'
+                }[extension] || 'application/octet-stream';
+            };
             const selectPhoto = (file) => {
-                if (!file || !file.type.startsWith('image/')) return setStatus('請選擇圖片檔案。', 'error');
+                const isKnownImage = file && (getTeacherPhotoMimeType(file).startsWith('image/'));
+                if (!isKnownImage) return setStatus('請選擇圖片檔案。', 'error');
                 if (preview.src.startsWith('blob:')) URL.revokeObjectURL(preview.src);
                 window.teacherPhotoFile = file;
                 preview.src = URL.createObjectURL(file);
@@ -943,7 +957,7 @@
                             action: 'uploadClassPhoto',
                             sessionToken: window.sessionToken,
                             name: `${seat.value}.${extension}`,
-                            mimeType: file.type,
+                            mimeType: getTeacherPhotoMimeType(file),
                             data: base64Data,
                             folderName: date.value.replace(/-/g, '_')
                         })
