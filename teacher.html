@@ -363,6 +363,7 @@
                     button.onclick = window.goToUnifiedLogin;
                 });
                 window.allStudents = result.students || [];
+                window.setupTeacherChatReadStateListener();
                 window.populateTeacherPhotoSeats && window.populateTeacherPhotoSeats();
                 document.getElementById('loginPage').classList.add('hidden');
                 document.getElementById('teacherDashboard').classList.remove('hidden');
@@ -399,6 +400,8 @@
         window.fbRecords = [];
         window.fbGroupChats = [];
         window.fbPrivateChats = [];
+        window.teacherChatReadState = null;
+        window.teacherChatReadUnsubscribe = null;
         
         window.viewDate = new Date();
         window.selectedDateStr = "";
@@ -447,6 +450,52 @@
         };
 
         window.todayStr = window.normalizeDate(new Date());
+
+        window.markTeacherChatRead = function(tab, timestamp) {
+            if (!timestamp) return;
+            const field = tab === 'group' ? 'teacherGroupReadAt' : 'teacherPrivateReadAt';
+            const nextTimestamp = String(timestamp);
+            const currentValue = String(window.teacherChatReadState?.[field] || '');
+            if (currentValue >= nextTimestamp) return;
+            window.teacherChatReadState = { ...(window.teacherChatReadState || {}), [field]: nextTimestamp };
+            const readRef = doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'chat_read_states', 'teacher');
+            setDoc(readRef, { [field]: nextTimestamp }, { merge: true })
+                .catch(error => console.error('Unable to save teacher chat read status.', error));
+        };
+
+        window.setupTeacherChatReadStateListener = function() {
+            window.teacherChatReadUnsubscribe?.();
+            window.teacherChatReadState = null;
+            const readRef = doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'chat_read_states', 'teacher');
+            window.teacherChatReadUnsubscribe = onSnapshot(readRef, snapshot => {
+                window.teacherChatReadState = snapshot.exists() ? snapshot.data() : {};
+                window.refreshUI();
+            }, error => {
+                console.error('Unable to load teacher chat read status.', error);
+                window.teacherChatReadState = {};
+                window.refreshUI();
+            });
+        };
+
+        window.updateTeacherChatUnreadIndicators = function() {
+            if (window.teacherChatReadState === null) return;
+            const chatTypes = [
+                { tab: 'group', badge: 'groupUnreadBadge', field: 'teacherGroupReadAt', messages: window.fbGroupChats.filter(message => message.studentId !== 'teacher') },
+                { tab: 'private', badge: 'privateUnreadBadge', field: 'teacherPrivateReadAt', messages: window.fbPrivateChats.filter(message => message.sender === 'parent') }
+            ];
+            chatTypes.forEach(({ tab, badge, field, messages }) => {
+                const badgeElement = document.getElementById(badge);
+                const latestMessage = messages[messages.length - 1];
+                if (!badgeElement || !latestMessage?.timestamp) return;
+                const lastReadAt = String(window.teacherChatReadState[field] || '');
+                if (window.activeTab === tab || !lastReadAt) {
+                    window.markTeacherChatRead(tab, latestMessage.timestamp);
+                    badgeElement.classList.add('hidden');
+                    return;
+                }
+                badgeElement.classList.toggle('hidden', String(latestMessage.timestamp) <= lastReadAt);
+            });
+        };
 
         const initAuth = async () => {
             try {
@@ -512,11 +561,6 @@
                 window.fbGroupChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 window.fbGroupChats.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
                 
-                if (window.isChatInitialized && window.activeTab !== 'group' && window.fbGroupChats.length > window.lastGroupChatCount) {
-                    const badge = document.getElementById('groupUnreadBadge');
-                    if(badge) badge.classList.remove('hidden');
-                }
-                
                 window.lastGroupChatCount = window.fbGroupChats.length;
                 if (!window.isChatInitialized) window.isChatInitialized = true;
 
@@ -528,13 +572,6 @@
                 window.fbPrivateChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 window.fbPrivateChats.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
                 
-                if (window.isChatInitialized && window.fbPrivateChats.length > window.lastPrivateChatCount) {
-                    const latestMsg = window.fbPrivateChats[window.fbPrivateChats.length - 1];
-                    if (latestMsg && latestMsg.sender === 'parent' && window.activeChatStudentId !== latestMsg.studentId) {
-                        const badge = document.getElementById('privateUnreadBadge');
-                        if(badge) badge.classList.remove('hidden');
-                    }
-                }
                 window.lastPrivateChatCount = window.fbPrivateChats.length;
                 window.refreshUI();
             }, e => console.error(e)));
@@ -958,6 +995,7 @@
                         localStorage.setItem('gas_teacher_pwd', pwd);
                     }
                     window.allStudents = result.students || [];
+                    window.setupTeacherChatReadStateListener();
                     window.populateTeacherPhotoSeats && window.populateTeacherPhotoSeats();
                     document.getElementById('loginPage').classList.add('hidden');
                     document.getElementById('teacherDashboard').classList.remove('hidden');
@@ -1044,6 +1082,7 @@
         };
 
         window.refreshUI = function() {
+            window.updateTeacherChatUnreadIndicators();
             if (!document.getElementById('teacherDashboard').classList.contains('hidden')) {
                 if (window.activeTab === 'calendar' || window.activeTab === 'book') {
                     if (window.activeTab === 'calendar') {
