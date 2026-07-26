@@ -212,6 +212,30 @@
             #photoPage .photo-upload-card { border-radius: 1.5rem; }
             #photoPage .photo-seat-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .45rem; }
         }
+
+        /* 發布列的操作分組：假日與學校行事曆維持同列，日期獨立顯示。 */
+        #teacherComposerCard > div:first-child > div:last-child {
+            display: grid;
+            grid-template-columns: auto auto minmax(0, 1fr);
+            align-items: center;
+            gap: .5rem;
+        }
+        #teacherComposerCard > div:first-child > div:last-child > label {
+            min-height: 2.5rem;
+            padding: 0 .65rem;
+            border: 1px solid #fecdd3;
+            border-radius: .65rem;
+            background: #fff1f2;
+            white-space: nowrap;
+        }
+        #teacherComposerCard > div:first-child > div:last-child > button { min-height: 2.5rem; white-space: nowrap; }
+        #teacherComposerCard #tSelectedDateLabel { min-width: 0; justify-content: center; white-space: normal; line-height: 1.25; text-align: center; }
+        @media (max-width: 1023px) {
+            #teacherComposerCard > div:first-child > div:last-child { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); width: 100%; }
+            #teacherComposerCard > div:first-child > div:last-child > label,
+            #teacherComposerCard > div:first-child > div:last-child > button { width: 100%; justify-content: center; }
+            #teacherComposerCard #tSelectedDateLabel { grid-column: 1 / -1; min-height: 2.35rem; }
+        }
     </style>
 </head>
 <body class="m-0 p-0 w-full overflow-hidden flex flex-col text-slate-800 bg-slate-50">
@@ -1827,7 +1851,15 @@
                 }
                 await window.importSchoolCalendarEvents(selectedEvents);
             } catch (error) {
-                Swal.fire('讀取失敗', error.message || '無法讀取學校行事曆，請稍後再試。', 'error');
+                const message = String(error.message || '');
+                const needsAuthorization = /permission|authorization|UrlFetchApp|授權/i.test(message);
+                Swal.fire(
+                    needsAuthorization ? '需要授權讀取學校行事曆' : '讀取失敗',
+                    needsAuthorization
+                        ? '請以部署 Apps Script 的 Google 帳號開啟專案，在編輯器執行一次 authorizeSchoolCalendarAccess，完成「檢視權限／允許」後再試。'
+                        : (message || '無法讀取學校行事曆，請稍後再試。'),
+                    needsAuthorization ? 'info' : 'error'
+                );
             }
         };
 
