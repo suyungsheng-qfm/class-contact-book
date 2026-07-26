@@ -44,7 +44,7 @@
                 <div>
                     <label for="password" class="block text-sm font-semibold mb-2">驗證碼</label>
                     <div class="relative">
-                        <input id="password" type="password" autocomplete="current-password" required class="field-input w-full px-4 pr-12 rounded-xl bg-[#f2f2f7] border border-transparent outline-none focus:border-[#d97706] focus:bg-white transition-colors" placeholder="輸入驗證碼">
+                        <input id="password" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" required class="field-input w-full px-4 pr-12 rounded-xl bg-[#f2f2f7] border border-transparent outline-none focus:border-[#d97706] focus:bg-white transition-colors" placeholder="輸入驗證碼">
                         <button id="passwordToggle" type="button" class="absolute right-1 top-1 w-11 h-11 rounded-lg text-[#8e8e93] active:scale-95" aria-label="顯示密碼" aria-pressed="false">
                             <svg id="passwordToggleIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7C3.3 7.6 7.1 5 12 5c4.9 0 8.7 2.6 9.94 6.65a1 1 0 0 1 0 .7C20.7 16.4 16.9 19 12 19c-4.9 0-8.7-2.6-9.94-6.65Z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>

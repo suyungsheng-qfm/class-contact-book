@@ -647,7 +647,7 @@
             const btn = document.getElementById('loginBtn');
             const error = document.getElementById('loginError');
 
-            if (!sid || !idn) { error.innerText = "請填寫學號與密碼"; error.classList.remove('hidden'); return; }
+            if (!sid || !idn) { error.innerText = "請填寫學號與驗證碼"; error.classList.remove('hidden'); return; }
             btn.disabled = true; btn.innerHTML = '<span class="loading-spinner mx-auto"></span>';
 
             try {
@@ -1503,8 +1503,8 @@
                     <input type="tel" inputmode="numeric" pattern="[0-9]*" id="studentId" class="flex-1 bg-transparent outline-none text-[15px] placeholder-[#c7c7cc]" placeholder="例如: 1410700">
                 </div>
                 <div class="px-4 py-3 flex items-center relative">
-                    <label class="w-24 text-[15px] text-black shrink-0">密碼</label>
-                    <input type="password" id="idNumber" class="flex-1 bg-transparent outline-none text-[15px] placeholder-[#c7c7cc] pr-10" placeholder="身分證字號">
+                    <label class="w-24 text-[15px] text-black shrink-0">驗證碼</label>
+                    <input type="password" id="idNumber" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" class="flex-1 bg-transparent outline-none text-[15px] placeholder-[#c7c7cc] pr-10" placeholder="輸入驗證碼">
                     <button type="button" onclick="window.togglePasswordVisibility()" class="absolute right-4 text-[#8e8e93] hover:text-[#d97706] focus:outline-none">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
                     </button>
