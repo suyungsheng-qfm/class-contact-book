@@ -1088,6 +1088,7 @@
             
             const eventObj = window.fbEvents.find(e => e.date === window.selectedDateStr);
             document.getElementById('tEventInput').value = eventObj ? eventObj.event : "";
+            window.updateTeacherComposerMode();
             const schoolEventList = document.getElementById('tSchoolEventList');
             if (schoolEventList) {
                 const schoolEvents = eventObj ? eventObj.schoolEvents : [];
@@ -1185,6 +1186,24 @@
                 }).join('');
             }
         }
+
+        window.updateTeacherComposerMode = function() {
+            const noteObj = window.fbNotes.find(note => note.date === window.selectedDateStr);
+            const eventObj = window.fbEvents.find(event => event.date === window.selectedDateStr);
+            const hasExistingContent = Boolean(
+                (noteObj && String(noteObj.content || '').trim()) ||
+                (eventObj && String(eventObj.event || '').trim())
+            );
+            const title = document.getElementById('tComposerTitle');
+            const saveButton = document.getElementById('saveBtn');
+            if (title) title.textContent = hasExistingContent ? '修改聯絡事項' : '發布聯絡事項';
+            if (saveButton && !saveButton.disabled) {
+                saveButton.innerHTML = hasExistingContent
+                    ? '<i data-lucide="pencil" class="w-4 h-4"></i> 儲存修改'
+                    : '<i data-lucide="send" class="w-4 h-4"></i> 儲存並發布';
+                lucide.createIcons();
+            }
+        };
 
         function renderWeekStrip() {
             const host = document.getElementById('teacherWeekStrip');
@@ -1909,8 +1928,8 @@
             } catch (err) {
                 Swal.fire('發布失敗', err.message, 'error');
             } finally {
-                btn.disabled = false; btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> 儲存並發布';
-                lucide.createIcons();
+                btn.disabled = false;
+                window.updateTeacherComposerMode();
             }
         };
 
@@ -2176,7 +2195,7 @@
                             <div id="teacherComposerCard" class="xl:col-span-12">
                                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[500px]">
                                     <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                        <div class="flex items-center gap-2"><i data-lucide="file-edit" class="w-5 h-5 text-blue-500"></i><h3 class="font-bold text-slate-700">發布聯絡事項</h3></div>
+                                        <div class="flex items-center gap-2"><i data-lucide="file-edit" class="w-5 h-5 text-blue-500"></i><h3 id="tComposerTitle" class="font-bold text-slate-700">發布聯絡事項</h3></div>
                                         <div class="flex items-center gap-4">
                                             <label class="flex items-center gap-2 cursor-pointer text-sm font-bold text-rose-500">
                                                 <input type="checkbox" id="tHolidayToggle" onchange="window.handleToggleHoliday(this.checked)" class="w-4 h-4 accent-rose-500 rounded">設為假日
