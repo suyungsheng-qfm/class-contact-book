@@ -295,7 +295,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         function getSemesterData(targetDate) {
             const now = targetDate ? new Date(targetDate) : new Date();
@@ -1452,6 +1452,10 @@
                         const isMe = msg.sender === 'teacher';
                         const isImage = msg.messageType === 'image';
                         const isCallRequest = msg.messageType === 'call_request';
+                        const isWithdrawn = Boolean(msg.withdrawn) || msg.messageType === 'withdrawn';
+                        const withdrawButton = isMe && !isWithdrawn
+                            ? `<button type="button" onclick="window.withdrawChatMessage('group_chat', '${msg.id}')" class="mb-1 text-[10px] font-bold text-slate-400 underline underline-offset-2">收回</button>`
+                            : '';
                         
                         if(msgDate !== lastDate) {
                             html += `<div class="text-center my-4"><span class="bg-slate-200 text-slate-500 text-xs font-medium px-3 py-1 rounded-full shadow-sm">${msgDate}</span></div>`;
@@ -1473,6 +1477,7 @@
                                         <div class="${isImage ? 'bg-transparent p-0' : 'chat-bubble-me px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm'} max-w-full break-words text-[15px] leading-relaxed relative">
                                             ${bubbleContent}
                                         </div>
+                                        ${withdrawButton}
                                     </div>
                                 </div>
                             `;
@@ -1630,6 +1635,10 @@
                         const msgTime = msg.timestamp.split(' ')[1];
                         const isMe = msg.sender === 'teacher';
                         const isImage = msg.messageType === 'image';
+                        const isWithdrawn = Boolean(msg.withdrawn) || msg.messageType === 'withdrawn';
+                        const withdrawButton = isMe && !isWithdrawn
+                            ? `<button type="button" onclick="window.withdrawChatMessage('private_chats', '${msg.id}')" class="mb-1 text-[10px] font-bold text-slate-400 underline underline-offset-2">收回</button>`
+                            : '';
                         
                         if(msgDate !== lastDate) {
                             html += `<div class="text-center my-4"><span class="bg-slate-200 text-slate-500 text-xs font-medium px-3 py-1 rounded-full shadow-sm">${msgDate}</span></div>`;
@@ -1648,6 +1657,7 @@
                                         <div class="${isImage ? 'bg-transparent p-0' : 'chat-bubble-me px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm'} max-w-full break-words text-[15px] leading-relaxed relative">
                                             ${bubbleContent}
                                         </div>
+                                        ${withdrawButton}
                                     </div>
                                 </div>
                             `;
@@ -1759,6 +1769,25 @@
         };
 
         // 🌟 處理老師端選擇圖片並非同步上傳
+        window.withdrawChatMessage = async (chatCollection, messageId) => {
+            if (!checkFbAuth() || !['group_chat', 'private_chats'].includes(chatCollection)) return;
+            const messages = chatCollection === 'group_chat' ? window.fbGroupChats : window.fbPrivateChats;
+            const message = messages.find(item => item.id === messageId);
+            if (!message || message.sender !== 'teacher' || message.withdrawn) return;
+            const confirmation = await Swal.fire({ icon: 'warning', title: '收回訊息？', text: '對方將看到「訊息已收回」。', showCancelButton: true, confirmButtonText: '收回', cancelButtonText: '取消', confirmButtonColor: '#dc2626' });
+            if (!confirmation.isConfirmed) return;
+            try {
+                await updateDoc(doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', chatCollection, messageId), {
+                    withdrawn: true,
+                    messageType: 'withdrawn',
+                    text: '訊息已收回',
+                    withdrawnAt: window.getPreciseTime()
+                });
+            } catch (error) {
+                Swal.fire('收回失敗', error.message || '請稍後再試。', 'error');
+            }
+        };
+
         window.setChatComposerLoading = (input, isLoading) => {
             const button = input && input.parentElement ? input.parentElement.querySelector('button') : null;
             if (!button) return;
