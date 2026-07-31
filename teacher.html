@@ -348,6 +348,13 @@
             window.navigateToAppPage('index');
         };
 
+        window.showSessionError = (error) => {
+            const loading = document.getElementById('sessionLoading');
+            if (!loading) return window.goToUnifiedLogin();
+            loading.innerHTML = '<div class="mx-auto mb-4 h-12 w-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-2xl">!</div><h1 class="text-xl font-bold text-slate-800">無法完成安全登入</h1><p id="teacherSessionError" class="mt-2 text-sm leading-relaxed text-red-600 break-words"></p><button type="button" onclick="window.goToUnifiedLogin()" class="mt-6 min-h-12 w-full rounded-xl bg-blue-600 text-white font-bold">返回登入頁</button>';
+            document.getElementById('teacherSessionError').textContent = error?.message || '登入驗證失敗。';
+        };
+
         window.restoreUnifiedSession = async () => {
             if (!window.sessionToken) return window.goToUnifiedLogin();
             try {
@@ -373,7 +380,7 @@
                 window.switchTab('calendar');
             } catch (error) {
                 sessionStorage.setItem('contact-book-login-error', error.message || '登入驗證失敗。');
-                window.goToUnifiedLogin();
+                window.showSessionError(error);
             }
         };
 
