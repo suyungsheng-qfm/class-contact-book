@@ -46,7 +46,7 @@
 | --- | --- |
 | GitHub Pages | 發布 `index.html`、`guardians.html`、`teacher.html` 與 PWA 資源。推送 `main` 後自動更新。 |
 | Firebase Firestore | 儲存各學期的聯絡簿、行事曆、簽閱／請假、班群、私訊、相簿資料與未讀狀態，並提供即時同步。 |
-| Google Apps Script | 統一登入、教師／家長權限判斷、圖片上傳、學校行事曆讀取，以及語音通話訊號交換。 |
+| Google Apps Script | 統一登入、教師／家長權限判斷、核發短效 Firebase 自訂憑證、圖片上傳、學校行事曆讀取，以及語音通話訊號交換。 |
 | Google 試算表 | 保存家長帳號、驗證碼與學生名單。 |
 | Google Drive | 保存班級相簿與聊天圖片。 |
 | Metered.ca TURN／STUN 服務 | 目前的語音通話連線服務，協助教師與單一家長建立 WebRTC 音訊連線；僅用於緊急情境。 |
@@ -92,19 +92,21 @@ Apps Script 的「指令碼屬性」至少需要設定：
 
 這項更新會停止匿名 Firebase 存取。完成前端發布前，請依下列順序操作，以避免家長頁面無法載入。
 
-1. 在 Google Cloud Console 的「API 和服務」啟用 **IAM Service Account Credentials API**。
-2. 選擇 Firebase 專案的服務帳號，記下其電子郵件（常見為 `firebase-adminsdk-…@classcontact-c148d.iam.gserviceaccount.com`）；不需建立或下載私密金鑰。
-3. 在該服務帳號的 IAM 權限中，授予實際部署 Apps Script 的 Google 帳號 **Service Account Token Creator** 角色。
-4. 在 Apps Script 開啟本機的 `統一後端.gs`，以檔案內容完整取代現有後端程式；再開啟 `appsscript.json` 並套用其中的 `oauthScopes`。
-5. 在 Apps Script 的「專案設定 → 指令碼屬性」新增 `FIREBASE_SERVICE_ACCOUNT_EMAIL`，填入第 2 步的服務帳號電子郵件。
-6. 重新部署 Apps Script 網頁應用程式：選擇「管理部署 → 編輯」，建立新版本；設定為「以我身分執行」及「任何人」可存取。部署網址必須維持目前的 API 位址，並依提示重新授權 IAM 權限。
-7. 確認教師與一位家長可正常登入舊版網站後，再發布包含本次前端修改的 GitHub Pages 版本。
-8. 在 Firebase Console 的「Firestore Database → Rules」貼上 `firestore.rules` 全部內容並發布。這一步後，匿名使用者會立刻失去資料庫存取權。
-9. 在 Firebase Console 的「Authentication → Sign-in method」停用 Anonymous。請在第 8 步完成並以教師、家長各測試一次後再停用。
+1. 在 Apps Script 的「專案設定 → Google Cloud Platform (GCP) 專案」改綁到 Firebase 專案的**專案編號**（不是 `classcontact-c148d` 這個專案 ID）。讓 Apps Script 與 Firebase 使用同一個 Google Cloud 專案，避免 API 啟用在不同專案而造成 403。
+2. 若系統要求設定 OAuth 同意畫面，選「外部」並維持「測試中」，將實際部署者帳號（目前為 `qfmstudy01@gmail.com`）加入「測試使用者」。不需送交 Google 驗證，也不需加入教師或家長帳號。
+3. 在這個 Google Cloud 專案的「API 和服務」啟用 **IAM Service Account Credentials API**。
+4. 選擇 Firebase 專案的服務帳號，記下其電子郵件（常見為 `firebase-adminsdk-…@classcontact-c148d.iam.gserviceaccount.com`）；不需建立或下載私密金鑰。
+5. 在該服務帳號的 IAM 權限中，授予實際部署 Apps Script 的 Google 帳號 **Service Account Token Creator** 角色。
+6. 在 Apps Script 開啟本機的 `統一後端.gs`，以檔案內容完整取代現有後端程式；再開啟 `appsscript.json` 並套用其中的 `oauthScopes`，其中必須包含 `https://www.googleapis.com/auth/cloud-platform`。
+7. 在 Apps Script 的「專案設定 → 指令碼屬性」新增 `FIREBASE_SERVICE_ACCOUNT_EMAIL`，填入第 4 步的服務帳號電子郵件。
+8. 在 Apps Script 編輯器手動依序執行 `requestCloudPlatformAuthorization` 與 `testFirebaseIamSigning`。後者顯示 `IAM signing succeeded.` 才代表 OAuth、IAM API 與服務帳戶權限都已完成。
+9. 重新部署 Apps Script 網頁應用程式：選擇「管理部署 → 編輯」，建立新版本；設定為「以我身分執行」及「任何人」可存取。部署網址維持既有 API 位址即可。
+10. 確認教師與一位家長可正常登入 GitHub Pages 後，在 Firebase Console 的「Firestore Database → Rules」貼上 `firestore.rules` 全部內容並發布。這一步後，匿名使用者會立刻失去資料庫存取權。
+11. 以教師、家長各測試一次後，在 Firebase Console 的「Authentication → Sign-in method」停用 Anonymous。
 
 若曾為本項目下載服務帳號 JSON 私密金鑰，請在 Google Cloud Console 將該金鑰撤銷，並自本機安全刪除；這個架構不會使用它。
 
-完成後的驗證重點：未登入直接開啟 `guardians.html` 或 `teacher.html` 應回到統一登入頁；家長僅能看到自己的簽閱／請假與私訊；教師仍可看到全班統計與全部私訊。
+完成後的驗證重點：未登入直接開啟 `guardians.html` 或 `teacher.html` 應回到統一登入頁；家長僅能看到自己的簽閱／請假與私訊；教師仍可看到全班統計與全部私訊。登入後的 Firebase 憑證由 Apps Script 核發、有效期約一小時，瀏覽器關閉後也不會保留登入狀態。
 
 ## 使用提醒
 
