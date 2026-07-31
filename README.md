@@ -12,6 +12,7 @@
 | GitHub Pages 設定 | [Pages 設定](https://github.com/suyungsheng-qfm/class-contact-book/settings/pages) |
 | Firebase 專案管理 | [Firebase Console](https://console.firebase.google.com/project/classcontact-c148d/overview) |
 | Apps Script 管理 | [Google Apps Script](https://script.google.com/home) |
+| 語音通話 TURN／STUN 服務 | [Metered.ca](https://www.metered.ca/) |
 | 學校公開行事曆 | [Google Calendar](https://calendar.google.com/calendar/embed?src=qisho218odg6vcgd3up3dpp6qg%40group.calendar.google.com&ctz=Asia%2FTaipei) |
 
 > GitHub Pages 為唯一前端來源；Apps Script 只處理後端服務，不再放置或發布 HTML 前端。
@@ -48,7 +49,7 @@
 | Google Apps Script | 統一登入、教師／家長權限判斷、圖片上傳、學校行事曆讀取，以及語音通話訊號交換。 |
 | Google 試算表 | 保存家長帳號、驗證碼與學生名單。 |
 | Google Drive | 保存班級相簿與聊天圖片。 |
-| TURN／STUN 服務 | 協助教師與單一家長建立 WebRTC 語音通話；僅用於緊急情境。 |
+| Metered.ca TURN／STUN 服務 | 目前的語音通話連線服務，協助教師與單一家長建立 WebRTC 音訊連線；僅用於緊急情境。 |
 
 目前前端依日期自動選擇 `114-02`、`115-01` 或 `115-02` 對應的 Firebase 學期資料。聊天資料跨學期共用，以保留對話紀錄。
 
@@ -79,9 +80,9 @@ Apps Script 的「指令碼屬性」至少需要設定：
 
 - `TEACHER_ACCOUNT`
 - `TEACHER_PASSWORD`
-- `VOICE_TURN_URLS`
-- `VOICE_TURN_USERNAME`
-- `VOICE_TURN_CREDENTIAL`
+- `VOICE_TURN_URLS`（Metered.ca 提供的 TURN 位址）
+- `VOICE_TURN_USERNAME`（Metered.ca 使用者名稱）
+- `VOICE_TURN_CREDENTIAL`（Metered.ca 密鑰）
 
 請只在 Apps Script 指令碼屬性設定實際帳密與 TURN 憑證，勿將它們寫入 HTML、README 或 GitHub。
 
