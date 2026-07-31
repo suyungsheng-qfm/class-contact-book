@@ -166,8 +166,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, addDoc, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         function getSemesterData(targetDate) {
             const now = targetDate ? new Date(targetDate) : new Date();
@@ -230,11 +230,11 @@
                 const result = await response.json();
                 if (!result.success || result.role !== 'parent' || !result.user) throw new Error('登入驗證失敗。');
 
-                await initAuth();
+                window.currentUser = result.user;
+                await initAuth(result.firebaseToken);
                 document.querySelectorAll('[onclick="location.reload()"]').forEach(button => {
                     button.onclick = window.goToUnifiedLogin;
                 });
-                window.currentUser = result.user;
                 window.setupChatReadStateListener();
                 window.setupParentVoiceCallListener && window.setupParentVoiceCallListener();
                 document.getElementById('loginPage').classList.add('hidden');
@@ -387,22 +387,17 @@
 
         window.todayStr = window.normalizeDate(new Date());
 
-        const initAuth = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (e) { console.error(e); }
+        const initAuth = async (firebaseToken) => {
+            if (!firebaseToken) throw new Error('Firebase 登入憑證無效，請重新登入。');
+            await setPersistence(auth, browserSessionPersistence);
+            const credential = await signInWithCustomToken(auth, firebaseToken);
+            fbUser = credential.user;
+            setupGlobalListeners();
+            setupSemesterListeners();
         };
 
         onAuthStateChanged(auth, user => {
             fbUser = user;
-            if (user) {
-                setupGlobalListeners();
-                setupSemesterListeners();
-            }
         });
 
         function setupSemesterListeners() {
@@ -431,7 +426,10 @@
                 window.refreshUI();
             }, e => console.error(e)));
 
-            const pathRecords = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records');
+            const pathRecords = query(
+                collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records'),
+                where('studentId', '==', String(window.currentUser.studentId))
+            );
             window.unsubscribers.push(onSnapshot(pathRecords, snap => {
                 window.fbRecords = snap.docs.map(d => ({ date: d.data().date, studentId: d.data().studentId, signed: d.data().signed, isLeave: d.data().isLeave }));
                 window.refreshUI();
@@ -454,7 +452,10 @@
                 window.refreshUI();
             }, e => console.error(e)));
 
-            const pathPrivateChat = collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats');
+            const pathPrivateChat = query(
+                collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats'),
+                where('studentId', '==', String(window.currentUser.studentId))
+            );
             window.globalUnsubscribers.push(onSnapshot(pathPrivateChat, snap => {
                 window.fbPrivateChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 window.fbPrivateChats.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));

@@ -63,6 +63,7 @@
 | `manifest.webmanifest`、`service-worker.js` | 安裝為手機桌面捷徑與基本離線快取。 |
 | `app-icon-*`、`apple-touch-icon.png`、`807.png` | 網站與桌面捷徑圖示資源。 |
 | `統一後端.gs`（本機／Apps Script） | Apps Script 後端程式；不作為 GitHub Pages 前端部署內容。 |
+| `firestore.rules` | Firebase Firestore 的存取規則；發布前請貼入 Firebase Console。 |
 
 ## 發布與維護
 
@@ -83,8 +84,27 @@ Apps Script 的「指令碼屬性」至少需要設定：
 - `VOICE_TURN_URLS`（Metered.ca 提供的 TURN 位址）
 - `VOICE_TURN_USERNAME`（Metered.ca 使用者名稱）
 - `VOICE_TURN_CREDENTIAL`（Metered.ca 密鑰）
+- `FIREBASE_SERVICE_ACCOUNT_EMAIL`（Firebase／Google Cloud 服務帳號的電子郵件）
 
 請只在 Apps Script 指令碼屬性設定實際帳密與 TURN 憑證，勿將它們寫入 HTML、README 或 GitHub。
+
+## Firebase 權限更新（需手動操作）
+
+這項更新會停止匿名 Firebase 存取。完成前端發布前，請依下列順序操作，以避免家長頁面無法載入。
+
+1. 在 Google Cloud Console 的「API 和服務」啟用 **IAM Service Account Credentials API**。
+2. 選擇 Firebase 專案的服務帳號，記下其電子郵件（常見為 `firebase-adminsdk-…@classcontact-c148d.iam.gserviceaccount.com`）；不需建立或下載私密金鑰。
+3. 在該服務帳號的 IAM 權限中，授予實際部署 Apps Script 的 Google 帳號 **Service Account Token Creator** 角色。
+4. 在 Apps Script 開啟本機的 `統一後端.gs`，以檔案內容完整取代現有後端程式；再開啟 `appsscript.json` 並套用其中的 `oauthScopes`。
+5. 在 Apps Script 的「專案設定 → 指令碼屬性」新增 `FIREBASE_SERVICE_ACCOUNT_EMAIL`，填入第 2 步的服務帳號電子郵件。
+6. 重新部署 Apps Script 網頁應用程式：選擇「管理部署 → 編輯」，建立新版本；設定為「以我身分執行」及「任何人」可存取。部署網址必須維持目前的 API 位址，並依提示重新授權 IAM 權限。
+7. 確認教師與一位家長可正常登入舊版網站後，再發布包含本次前端修改的 GitHub Pages 版本。
+8. 在 Firebase Console 的「Firestore Database → Rules」貼上 `firestore.rules` 全部內容並發布。這一步後，匿名使用者會立刻失去資料庫存取權。
+9. 在 Firebase Console 的「Authentication → Sign-in method」停用 Anonymous。請在第 8 步完成並以教師、家長各測試一次後再停用。
+
+若曾為本項目下載服務帳號 JSON 私密金鑰，請在 Google Cloud Console 將該金鑰撤銷，並自本機安全刪除；這個架構不會使用它。
+
+完成後的驗證重點：未登入直接開啟 `guardians.html` 或 `teacher.html` 應回到統一登入頁；家長僅能看到自己的簽閱／請假與私訊；教師仍可看到全班統計與全部私訊。
 
 ## 使用提醒
 

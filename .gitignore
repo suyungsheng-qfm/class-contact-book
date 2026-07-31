@@ -7,3 +7,5 @@ appsscript.json
 統一後端.gs
 package.json
 pnpm-lock.yaml
+*-firebase-adminsdk-*.json
+service-account*.json

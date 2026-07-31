@@ -294,7 +294,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         function getSemesterData(targetDate) {
@@ -358,11 +358,11 @@
                 const result = await response.json();
                 if (!result.success || result.role !== 'teacher' || !result.user) throw new Error('登入驗證失敗。');
 
-                await initAuth();
+                window.allStudents = result.students || [];
+                await initAuth(result.firebaseToken);
                 document.querySelectorAll('[onclick="location.reload()"]').forEach(button => {
                     button.onclick = window.goToUnifiedLogin;
                 });
-                window.allStudents = result.students || [];
                 window.setupTeacherChatReadStateListener();
                 window.populateTeacherPhotoSeats && window.populateTeacherPhotoSeats();
                 document.getElementById('loginPage').classList.add('hidden');
@@ -497,22 +497,17 @@
             });
         };
 
-        const initAuth = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (e) { console.error("Firebase Auth 錯誤:", e); }
+        const initAuth = async (firebaseToken) => {
+            if (!firebaseToken) throw new Error('Firebase 登入憑證無效，請重新登入。');
+            await setPersistence(auth, browserSessionPersistence);
+            const credential = await signInWithCustomToken(auth, firebaseToken);
+            fbUser = credential.user;
+            setupGlobalListeners();
+            setupSemesterListeners();
         };
 
         onAuthStateChanged(auth, user => {
             fbUser = user;
-            if (user) {
-                setupGlobalListeners();
-                setupSemesterListeners();
-            }
         });
 
         function setupSemesterListeners() {
