@@ -228,7 +228,7 @@
                     body: JSON.stringify({ action: 'validateSession', sessionToken: window.sessionToken })
                 });
                 const result = await response.json();
-                if (!result.success || result.role !== 'parent' || !result.user) throw new Error('登入驗證失敗。');
+                if (!result.success || result.role !== 'parent' || !result.user) throw new Error(result.message || '登入驗證失敗。');
 
                 window.currentUser = result.user;
                 await initAuth(result.firebaseToken);
@@ -245,6 +245,7 @@
                 window.lastPrivateChatCount = window.fbPrivateChats.filter(c => c.studentId === window.currentUser.studentId).length;
                 window.refreshUI();
             } catch (error) {
+                sessionStorage.setItem('contact-book-login-error', error.message || '登入驗證失敗。');
                 window.goToUnifiedLogin();
             }
         };

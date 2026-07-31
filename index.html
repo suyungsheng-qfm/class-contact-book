@@ -100,9 +100,16 @@
         const passwordToggle = document.getElementById('passwordToggle');
         const installButton = document.getElementById('installAppButton');
         const iosInstallGuide = document.getElementById('iosInstallGuide');
+        const pendingLoginError = sessionStorage.getItem('contact-book-login-error');
         let deferredInstallPrompt = null;
         const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+        if (pendingLoginError) {
+            sessionStorage.removeItem('contact-book-login-error');
+            error.textContent = pendingLoginError;
+            error.classList.remove('hidden');
+        }
 
         function showInstallButton() {
             if (!isStandalone) installButton.classList.remove('hidden');

@@ -356,7 +356,7 @@
                     body: JSON.stringify({ action: 'validateSession', sessionToken: window.sessionToken })
                 });
                 const result = await response.json();
-                if (!result.success || result.role !== 'teacher' || !result.user) throw new Error('登入驗證失敗。');
+                if (!result.success || result.role !== 'teacher' || !result.user) throw new Error(result.message || '登入驗證失敗。');
 
                 window.allStudents = result.students || [];
                 await initAuth(result.firebaseToken);
@@ -372,6 +372,7 @@
                 window.selectedDateStr = window.todayStr;
                 window.switchTab('calendar');
             } catch (error) {
+                sessionStorage.setItem('contact-book-login-error', error.message || '登入驗證失敗。');
                 window.goToUnifiedLogin();
             }
         };
