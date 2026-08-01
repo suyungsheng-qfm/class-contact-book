@@ -1,4 +1,4 @@
-const CACHE_NAME = 'class-contact-book-v3';
+const CACHE_NAME = 'class-contact-book-v4';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,7 +8,8 @@ const APP_SHELL = [
   './app-icon.svg',
   './app-icon-192.png',
   './app-icon-512.png',
-  './apple-touch-icon.png'
+  './apple-touch-icon.png',
+  './yssu.png'
 ];
 
 self.addEventListener('install', event => {
