@@ -16,6 +16,13 @@
         .loading-spinner { border: 3px solid #e5e5ea; border-top: 3px solid #d97706; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 10px; }
+        #groupChatScrollArea, #privateChatScrollArea {
+            min-height: 0;
+            overscroll-behavior-y: contain;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+        }
+        #groupChatMessageList, #privateChatMessageList { flex-shrink: 0; }
         
         .calendar-day { aspect-ratio: 1/1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; border-radius: 50%; transition: all 0.2s; font-weight: 500; font-size: 0.875rem; position: relative; color: #1c1c1e; }
         .calendar-day:hover { background-color: #e5e5ea; transform: scale(1.05); }
@@ -962,6 +969,8 @@
         // ==========================
         function renderGroupChat() {
             const container = document.getElementById('groupChatMessageList');
+            const scrollArea = document.getElementById('groupChatScrollArea');
+            const distanceFromBottom = scrollArea ? scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight : 0;
             if(!container) return;
 
             if(window.fbGroupChats.length === 0) {
@@ -1084,6 +1093,7 @@
                 }
             });
             container.innerHTML = html;
+            window.restoreChatScrollPosition(scrollArea, distanceFromBottom);
         }
 
         // ==========================
@@ -1091,6 +1101,8 @@
         // ==========================
         function renderPrivateChat() {
             const container = document.getElementById('privateChatMessageList');
+            const scrollArea = document.getElementById('privateChatScrollArea');
+            const distanceFromBottom = scrollArea ? scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight : 0;
             if(!container) return;
 
             const myChats = window.fbPrivateChats.filter(c => c.studentId === window.currentUser.studentId);
@@ -1201,7 +1213,18 @@
             });
 
             container.innerHTML = html;
+            window.restoreChatScrollPosition(scrollArea, distanceFromBottom);
         }
+
+        window.restoreChatScrollPosition = (container, distanceFromBottom) => {
+            if (!container) return;
+            requestAnimationFrame(() => {
+                const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+                container.scrollTop = distanceFromBottom <= 24
+                    ? maxScrollTop
+                    : Math.max(0, maxScrollTop - distanceFromBottom);
+            });
+        };
 
         window.scrollToGroupChatBottom = () => {
             const container = document.getElementById('groupChatScrollArea');
