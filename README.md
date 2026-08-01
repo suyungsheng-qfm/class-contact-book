@@ -62,6 +62,7 @@
 | `teacher.html` | 教師端介面與日常管理功能。 |
 | `manifest.webmanifest`、`service-worker.js` | 安裝為手機桌面捷徑與基本離線快取。 |
 | `app-icon-*`、`apple-touch-icon.png`、`807.png` | 網站與桌面捷徑圖示資源。 |
+| `yssu.png` | 教師專用頭像，用於家長端的班群與私訊教師訊息。 |
 | `統一後端.gs`（本機／Apps Script） | Apps Script 後端程式；不作為 GitHub Pages 前端部署內容。 |
 | `firestore.rules` | Firebase Firestore 的存取規則；發布前請貼入 Firebase Console。 |
 
