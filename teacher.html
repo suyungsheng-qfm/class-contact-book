@@ -959,18 +959,27 @@
             const { fields, error } = window.getTeacherFormFields();
             if (error) return window.setTeacherFormStatus(error, 'error');
             if (!title || !fields.length) return window.setTeacherFormStatus('請先填寫表單標題與至少一題，再預覽。', 'error');
-            const escape = window.formEscapeHtml;
-            const fieldHtml = fields.map((field, index) => {
-                const label = `${index + 1}. ${escape(field.label)}`;
-                if (field.type === 'select') {
-                    const options = (field.options || []).map(option => `<option>${escape(option)}</option>`).join('');
-                    return `<label class="block"><span class="mb-2 block text-sm font-black">${label}</span><select disabled class="min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-[16px] font-medium text-slate-500"><option>請選擇</option>${options}</select></label>`;
-                }
-                return `<label class="block"><span class="mb-2 block text-sm font-black">${label}</span><input disabled type="text" placeholder="家長填寫內容" class="min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-[16px] text-slate-500"></label>`;
-            }).join('');
-            const content = document.getElementById('teacherFormPreviewContent');
-            content.innerHTML = `<div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">${deadline ? `<p class="mb-3 w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">填寫期限：${escape(deadline)}</p>` : ''}<h2 class="text-2xl font-black leading-tight text-slate-900">${escape(title)}</h2>${description ? `<p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-500">${escape(description)}</p>` : ''}<div class="mt-5 rounded-2xl bg-blue-50 p-4 text-sm"><p class="font-black text-blue-800">已自動帶入填寫人資料</p><p class="mt-1 font-bold text-blue-700">○○ 號　家長姓名</p><p class="mt-1 text-xs text-blue-600">實際填寫時不需要再次輸入學號或姓名。</p></div><div class="mt-6 space-y-5">${fieldHtml}</div><button type="button" disabled class="mt-6 min-h-13 w-full rounded-2xl bg-blue-600 px-4 py-3 font-black text-white opacity-50">送出回覆</button><p class="mt-3 text-center text-xs font-bold text-slate-400">預覽畫面不會送出或儲存資料。</p></div>`;
+            window.teacherFormPreviewDraft = { title, description, deadline, fields, step: 0 };
+            window.renderTeacherFormPreviewStep();
             document.getElementById('teacherFormPreview').classList.remove('hidden');
+        };
+        window.renderTeacherFormPreviewStep = () => {
+            const draft = window.teacherFormPreviewDraft;
+            if (!draft) return;
+            const escape = window.formEscapeHtml;
+            const isReview = draft.step >= draft.fields.length;
+            const field = draft.fields[draft.step];
+            const content = document.getElementById('teacherFormPreviewContent');
+            const questionHtml = isReview ? `<div class="rounded-2xl bg-slate-50 p-4"><h3 class="font-black">請確認填寫內容</h3><p class="mt-2 text-sm text-slate-500">家長會在這一步確認答案後送出。</p></div>` : `<div><h3 class="text-xl font-black leading-snug">${draft.step + 1}. ${escape(field.label)}</h3><p class="mt-2 text-sm text-slate-500">請選擇一個答案</p><div class="mt-5 space-y-3">${(field.options || []).map(option => `<div class="min-h-14 rounded-2xl border-2 border-slate-200 bg-white px-4 py-4 text-[16px] font-black text-slate-700">${escape(option)}</div>`).join('')}</div></div>`;
+            const progress = isReview ? 100 : ((draft.step + 1) / draft.fields.length) * 100;
+            const nextLabel = isReview ? '確認送出' : draft.step === draft.fields.length - 1 ? '確認答案' : '下一步';
+            content.innerHTML = `<div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">${draft.deadline ? `<p class="mb-3 w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">填寫期限：${escape(draft.deadline)}</p>` : ''}<h2 class="text-2xl font-black leading-tight text-slate-900">${escape(draft.title)}</h2>${draft.description ? `<p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-500">${escape(draft.description)}</p>` : ''}<div class="mt-5 rounded-2xl bg-blue-50 p-4 text-sm"><p class="font-black text-blue-800">已自動帶入填寫人資料</p><p class="mt-1 font-bold text-blue-700">○○ 號　家長姓名</p></div><div class="mt-6"><div class="flex items-center justify-between text-xs font-black text-slate-400"><span>${isReview ? '確認答案' : `第 ${draft.step + 1} 題`}</span><span>${isReview ? `共 ${draft.fields.length} 題` : `${draft.step + 1}／${draft.fields.length}`}</span></div><div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full bg-blue-600" style="width:${progress}%"></div></div></div><div class="mt-6">${questionHtml}</div><div class="mt-6 grid ${draft.step ? 'grid-cols-2' : 'grid-cols-1'} gap-3">${draft.step ? '<button type="button" onclick="window.changeTeacherFormPreviewStep(-1)" class="min-h-13 rounded-2xl bg-slate-100 px-4 py-3 font-black text-slate-700">上一步</button>' : ''}<button type="button" ${isReview ? 'disabled' : 'onclick="window.changeTeacherFormPreviewStep(1)"'} class="min-h-13 rounded-2xl bg-blue-600 px-4 py-3 font-black text-white ${isReview ? 'opacity-50' : ''}">${nextLabel}</button></div><p class="mt-3 text-center text-xs font-bold text-slate-400">預覽畫面不會送出或儲存資料。</p></div>`;
+        };
+        window.changeTeacherFormPreviewStep = delta => {
+            const draft = window.teacherFormPreviewDraft;
+            if (!draft) return;
+            draft.step = Math.max(0, Math.min(draft.fields.length, draft.step + delta));
+            window.renderTeacherFormPreviewStep();
         };
         window.setTeacherFormStatus = (message, type = 'success') => {
             const status = document.getElementById('teacherFormCreateStatus');

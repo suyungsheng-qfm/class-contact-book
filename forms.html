@@ -32,8 +32,9 @@
           <p id="identity" class="mt-1 font-bold text-blue-700"></p>
           <p class="mt-1 text-xs text-blue-600">不需要再次填寫學號或姓名。</p>
         </div>
-        <form id="responseForm" class="mt-6 space-y-5"></form>
-        <button id="submitButton" type="button" onclick="window.submitForm()" class="mt-6 min-h-13 w-full rounded-2xl bg-blue-600 px-4 py-3 font-black text-white shadow-lg shadow-blue-200 active:scale-[.98]">送出回覆</button>
+        <div class="mt-6"><div class="flex items-center justify-between text-xs font-black text-slate-400"><span id="formProgressText">第 1 題</span><span id="formProgressCount"></span></div><div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div id="formProgressBar" class="h-full rounded-full bg-blue-600 transition-all duration-300"></div></div></div>
+        <form id="responseForm" class="mt-6"></form>
+        <div id="formNavigator" class="mt-6"></div>
         <p id="status" class="hidden mt-3 rounded-xl px-3 py-2 text-center text-sm font-bold"></p>
       </div>
     </section>
@@ -92,36 +93,82 @@
       document.getElementById('formDescription').textContent = currentForm.description || '';
       document.getElementById('identity').textContent = `${currentUser.seatNo ? `${currentUser.seatNo} 號　` : ''}${currentUser.name || '家長'}`;
       const deadline = document.getElementById('deadline');
-      if (currentForm.deadline) {
-        deadline.textContent = `填寫期限：${currentForm.deadline}`;
-        deadline.classList.remove('hidden');
-      }
-      const form = document.getElementById('responseForm');
-      form.innerHTML = normalizeFields(currentForm.fields).map((field, index) => {
-        const value = previousAnswers[field.id] || '';
-        const label = `${index + 1}. ${escapeHtml(field.label)}`;
-        if (field.type === 'select') {
-          const choices = (field.options || []).map(option => `<option value="${escapeHtml(option)}" ${option === value ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('');
-          return `<label class="block"><span class="mb-2 block text-sm font-black">${label}</span><select data-field="${escapeHtml(field.id)}" class="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-medium outline-none focus:border-blue-500" required><option value="">請選擇</option>${choices}</select></label>`;
-        }
-        return `<label class="block"><span class="mb-2 block text-sm font-black">${label}</span><input data-field="${escapeHtml(field.id)}" value="${escapeHtml(value)}" type="text" class="min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] outline-none focus:border-blue-500" required></label>`;
-      }).join('') || '<p class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">此表單尚未設定題目。</p>';
-      const disabled = currentForm.status !== 'open' || isExpired(currentForm) || !normalizeFields(currentForm.fields).length;
-      const button = document.getElementById('submitButton');
-      button.disabled = disabled;
-      button.classList.toggle('opacity-50', disabled);
-      if (disabled) setStatus(currentForm.status !== 'open' ? '此表單已關閉。' : isExpired(currentForm) ? '此表單已超過填寫期限。' : '此表單尚未設定可填寫題目。', 'error');
+      deadline.classList.toggle('hidden', !currentForm.deadline);
+      if (currentForm.deadline) deadline.textContent = `填寫期限：${currentForm.deadline}`;
+      currentQuestionIndex = 0;
+      formReadOnly = currentForm.status !== 'open' || isExpired(currentForm) || !normalizeFields(currentForm.fields).length;
+      renderCurrentFormStep();
+      if (formReadOnly) setStatus(currentForm.status !== 'open' ? '此表單已關閉。' : isExpired(currentForm) ? '此表單已超過填寫期限。' : '此表單尚未設定可填寫題目。', 'error');
     }
+
+    let currentQuestionIndex = 0;
+    let formReadOnly = false;
+    const getFields = () => normalizeFields(currentForm?.fields);
+
+    function renderCurrentFormStep() {
+      const fields = getFields();
+      const isReview = currentQuestionIndex >= fields.length;
+      const progressText = document.getElementById('formProgressText');
+      const progressCount = document.getElementById('formProgressCount');
+      const progressBar = document.getElementById('formProgressBar');
+      const form = document.getElementById('responseForm');
+      const navigator = document.getElementById('formNavigator');
+      if (!fields.length) {
+        progressText.textContent = '尚未設定題目';
+        progressCount.textContent = '';
+        progressBar.style.width = '0%';
+        form.innerHTML = '<p class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">此表單尚未設定題目。</p>';
+        navigator.innerHTML = '';
+        return;
+      }
+      progressText.textContent = isReview ? '確認答案' : `第 ${currentQuestionIndex + 1} 題`;
+      progressCount.textContent = isReview ? `共 ${fields.length} 題` : `${currentQuestionIndex + 1}／${fields.length}`;
+      progressBar.style.width = `${isReview ? 100 : ((currentQuestionIndex + 1) / fields.length) * 100}%`;
+      if (isReview) {
+        form.innerHTML = `<div class="rounded-2xl bg-slate-50 p-4"><h3 class="font-black text-slate-900">請確認填寫內容</h3><div class="mt-4 space-y-4">${fields.map((field, index) => `<div><p class="text-xs font-black text-slate-400">${index + 1}. ${escapeHtml(field.label)}</p><p class="mt-1 break-words font-bold text-slate-700">${escapeHtml(previousAnswers[field.id] || '未填寫')}</p></div>`).join('')}</div></div>`;
+        navigator.innerHTML = `<div class="grid grid-cols-2 gap-3"><button type="button" onclick="window.goToPreviousQuestion()" class="min-h-13 rounded-2xl bg-slate-100 px-4 py-3 font-black text-slate-700 active:scale-[.98]">上一步</button><button id="submitButton" type="button" onclick="window.submitForm()" ${formReadOnly ? 'disabled' : ''} class="min-h-13 rounded-2xl bg-blue-600 px-4 py-3 font-black text-white shadow-lg shadow-blue-200 active:scale-[.98] ${formReadOnly ? 'opacity-50' : ''}">確認送出</button></div>`;
+        return;
+      }
+      const field = fields[currentQuestionIndex];
+      const answer = previousAnswers[field.id] || '';
+      const label = `${currentQuestionIndex + 1}. ${escapeHtml(field.label)}`;
+      if (field.type === 'select') {
+        form.innerHTML = `<div><h3 class="text-xl font-black leading-snug text-slate-900">${label}</h3><p class="mt-2 text-sm text-slate-500">請選擇一個答案</p><div class="mt-5 space-y-3">${(field.options || []).map(option => `<button type="button" data-choice-value="${escapeHtml(option)}" class="form-choice min-h-14 w-full rounded-2xl border-2 px-4 text-left text-[16px] font-black transition active:scale-[.98] ${option === answer ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white text-slate-700'}" ${formReadOnly ? 'disabled' : ''}>${escapeHtml(option)}</button>`).join('')}</div></div>`;
+        form.querySelectorAll('[data-choice-value]').forEach(button => button.addEventListener('click', () => window.chooseFormAnswer(field.id, button.dataset.choiceValue)));
+      } else {
+        form.innerHTML = `<label class="block"><span class="text-xl font-black leading-snug text-slate-900">${label}</span><p class="mt-2 text-sm text-slate-500">請填寫答案</p><input id="currentTextAnswer" value="${escapeHtml(answer)}" ${formReadOnly ? 'disabled' : ''} type="text" class="mt-5 min-h-14 w-full rounded-2xl border-2 border-slate-200 px-4 text-[16px] font-medium outline-none focus:border-blue-500" placeholder="請輸入答案"></label>`;
+        form.querySelector('#currentTextAnswer')?.addEventListener('input', event => { previousAnswers[field.id] = event.target.value; });
+      }
+      navigator.innerHTML = `<div class="grid ${currentQuestionIndex ? 'grid-cols-2' : 'grid-cols-1'} gap-3">${currentQuestionIndex ? '<button type="button" onclick="window.goToPreviousQuestion()" class="min-h-13 rounded-2xl bg-slate-100 px-4 py-3 font-black text-slate-700 active:scale-[.98]">上一步</button>' : ''}<button type="button" onclick="window.goToNextQuestion()" ${formReadOnly ? 'disabled' : ''} class="min-h-13 rounded-2xl bg-blue-600 px-4 py-3 font-black text-white shadow-lg shadow-blue-200 active:scale-[.98] ${formReadOnly ? 'opacity-50' : ''}">${currentQuestionIndex === fields.length - 1 ? '確認答案' : '下一步'}</button></div>`;
+    }
+
+    window.chooseFormAnswer = (fieldId, value) => {
+      if (formReadOnly) return;
+      previousAnswers[fieldId] = value;
+      document.getElementById('status').classList.add('hidden');
+      renderCurrentFormStep();
+    };
+    window.goToNextQuestion = () => {
+      if (formReadOnly) return;
+      const field = getFields()[currentQuestionIndex];
+      if (!field || !String(previousAnswers[field.id] || '').trim()) return setStatus('請選擇或填寫答案後再繼續。', 'error');
+      currentQuestionIndex += 1;
+      document.getElementById('status').classList.add('hidden');
+      renderCurrentFormStep();
+    };
+    window.goToPreviousQuestion = () => {
+      currentQuestionIndex = Math.max(0, currentQuestionIndex - 1);
+      document.getElementById('status').classList.add('hidden');
+      renderCurrentFormStep();
+    };
 
     window.submitForm = async () => {
       if (!currentForm || currentForm.status !== 'open' || isExpired(currentForm)) return;
       const answers = {};
-      for (const input of document.querySelectorAll('#responseForm [data-field]')) {
-        if (!input.value.trim()) {
-          input.focus();
-          return setStatus('請完成所有題目後再送出。', 'error');
-        }
-        answers[input.dataset.field] = input.value.trim();
+      for (const field of getFields()) {
+        const value = String(previousAnswers[field.id] || '').trim();
+        if (!value) return setStatus('請完成所有題目後再送出。', 'error');
+        answers[field.id] = value;
       }
       const button = document.getElementById('submitButton');
       button.disabled = true;
