@@ -303,7 +303,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, getDocs, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         function getSemesterData(targetDate) {
             const now = targetDate ? new Date(targetDate) : new Date();
@@ -1019,6 +1019,28 @@
             try { await updateDoc(doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId), { status: 'closed', updatedAt: Date.now() }); }
             catch (error) { window.setTeacherFormStatus(error.message || '無法關閉表單。', 'error'); }
         };
+        window.deleteTeacherForm = async formId => {
+            const form = window.fbForms.find(item => item.id === formId);
+            if (!form || !checkFbAuth()) return;
+            if (!window.confirm(`確定要刪除「${form.title}」嗎？\n\n此動作會一併永久刪除所有家長回覆，且無法復原。`)) return;
+            try {
+                const formRef = doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId);
+                const submissions = await getDocs(collection(formRef, 'submissions'));
+                const batch = writeBatch(db);
+                submissions.docs.forEach(item => batch.delete(item.ref));
+                batch.delete(formRef);
+                await batch.commit();
+                if (window.activeFormId === formId) {
+                    window.activeFormId = null;
+                    window.formResponses = [];
+                    window.formResponsesUnsubscribe?.();
+                    window.formResponsesUnsubscribe = null;
+                }
+                window.setTeacherFormStatus('表單與全部回覆已刪除。');
+            } catch (error) {
+                window.setTeacherFormStatus(error.message || '刪除失敗，請確認網路後再試。', 'error');
+            }
+        };
         window.openTeacherFormResponses = formId => {
             window.activeFormId = formId;
             window.formResponsesUnsubscribe?.();
@@ -1039,7 +1061,7 @@
             list.innerHTML = forms.map(form => {
                 const isOpen = form.status === 'open';
                 const deadline = form.deadline ? `期限：${window.formEscapeHtml(form.deadline)}` : '未設定期限';
-                return `<article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><h4 class="truncate font-black">${window.formEscapeHtml(form.title)}</h4><p class="mt-1 text-xs font-bold text-slate-400">${deadline}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${isOpen ? '開放中' : '已關閉'}</span></div><div class="mt-4 grid grid-cols-2 gap-2 text-sm font-black"><button type="button" onclick="window.openTeacherFormResponses('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">查看回覆</button>${isOpen ? `<button type="button" onclick="window.publishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">公告到班群</button>` : `<button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-11 rounded-xl bg-slate-100 text-slate-600">複製連結</button>`}</div>${isOpen ? `<button type="button" onclick="window.closeTeacherForm('${form.id}')" class="mt-2 min-h-10 w-full rounded-xl text-xs font-black text-rose-600">關閉表單</button>` : ''}</article>`;
+                return `<article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><h4 class="truncate font-black">${window.formEscapeHtml(form.title)}</h4><p class="mt-1 text-xs font-bold text-slate-400">${deadline}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${isOpen ? '開放中' : '已關閉'}</span></div><div class="mt-4 grid grid-cols-2 gap-2 text-sm font-black"><button type="button" onclick="window.openTeacherFormResponses('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">查看回覆</button>${isOpen ? `<button type="button" onclick="window.publishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">公告到班群</button>` : `<button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-11 rounded-xl bg-slate-100 text-slate-600">複製連結</button>`}</div><div class="mt-2 grid ${isOpen ? 'grid-cols-2' : 'grid-cols-1'} gap-2">${isOpen ? `<button type="button" onclick="window.closeTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">關閉表單</button>` : ''}<button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button></div></article>`;
             }).join('');
             const responseBox = document.getElementById('teacherFormResponses');
             const activeForm = forms.find(form => form.id === window.activeFormId);

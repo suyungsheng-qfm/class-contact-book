@@ -156,7 +156,7 @@
         await signInWithCustomToken(auth, session.firebaseToken);
         const formRef = doc(db, 'artifacts', FORM_APP_ID, 'public', 'data', 'forms', formId);
         const formSnapshot = await getDoc(formRef);
-        if (!formSnapshot.exists()) throw new Error('找不到這份表單，可能已被教師移除。');
+        if (!formSnapshot.exists()) throw new Error('此表單已被教師刪除或不存在。');
         currentForm = { id: formSnapshot.id, ...formSnapshot.data() };
         const submissionSnapshot = await getDoc(doc(formRef, 'submissions', String(currentUser.studentId)));
         previousAnswers = submissionSnapshot.exists() ? (submissionSnapshot.data().answers || {}) : {};
