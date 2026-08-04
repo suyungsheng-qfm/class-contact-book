@@ -328,6 +328,7 @@
         window.fbAppId = fbAppId; 
 
         window.CHAT_APP_ID = (isCanvas && typeof __app_id !== 'undefined') ? __app_id : 'contact-chat'; 
+        window.FORM_APP_ID = 'contact-forms';
 
         window.unsubscribers = []; 
         window.globalUnsubscribers = []; 
@@ -379,6 +380,7 @@
                     button.onclick = window.goToUnifiedLogin;
                 });
                 window.setupTeacherChatReadStateListener();
+                window.setupTeacherFormsListener();
                 window.populateTeacherPhotoSeats && window.populateTeacherPhotoSeats();
                 document.getElementById('loginPage').classList.add('hidden');
                 document.getElementById('teacherDashboard').classList.remove('hidden');
@@ -409,6 +411,9 @@
 
         window.expandedGroupMonths = null; 
         window.expandedPrivateMonths = null;
+        window.fbForms = [];
+        window.formResponses = [];
+        window.activeFormId = null;
 
         window.fbNotes = [];
         window.fbEvents = []; 
@@ -587,6 +592,16 @@
                 window.refreshUI();
             }, e => console.error(e)));
         }
+
+        window.setupTeacherFormsListener = function() {
+            window.formsUnsubscribe?.();
+            const formsRef = collection(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms');
+            window.formsUnsubscribe = onSnapshot(formsRef, snapshot => {
+                window.fbForms = snapshot.docs.map(item => ({ id: item.id, ...item.data() }))
+                    .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+                if (window.activeTab === 'forms') window.renderTeacherForms();
+            }, error => console.error('Unable to load forms.', error));
+        };
 
         // 一對一語音通話：協商資料經由已登入的 Apps Script 工作階段傳遞，音訊不會寫入資料庫。
         window.voiceCall = { peer: null, localStream: null, callId: null, studentId: null, pollTimer: null, remoteDescriptionSet: false, parentCandidateIndex: 0, pendingParentCandidates: [], signalReady: false, pendingCandidates: [], candidateQueue: Promise.resolve(), connectionTimer: null };
@@ -839,6 +854,127 @@
             window.initTeacherPhotoUpload();
         };
 
+        window.ensureFormsTab = () => {
+            const photoTab = document.getElementById('tabPhoto');
+            if (!document.getElementById('tabForms') && photoTab && photoTab.parentElement) {
+                const formsTab = document.createElement('button');
+                formsTab.id = 'tabForms';
+                formsTab.type = 'button';
+                formsTab.textContent = '表單';
+                formsTab.className = 'px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap';
+                formsTab.onclick = () => window.switchTab('forms');
+                photoTab.parentElement.appendChild(formsTab);
+            }
+            if (document.getElementById('formsPage')) return;
+            const dashboard = document.getElementById('teacherDashboard');
+            if (!dashboard) return;
+            const page = document.createElement('main');
+            page.id = 'formsPage';
+            page.className = 'hidden flex-1 w-full flex-col min-h-0 overflow-y-auto bg-slate-50';
+            page.innerHTML = `
+                <section class="w-full max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
+                    <div><p class="text-xs font-black tracking-widest text-violet-600">CLASS FORM</p><h2 class="mt-1 text-3xl font-black text-slate-900">表單</h2><p class="mt-1 text-sm text-slate-500">建立後再公告到班群；家長開啟連結時會自動帶入登入身分。</p></div>
+                    <section class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+                        <h3 class="text-lg font-black">建立新表單</h3>
+                        <div class="mt-4 space-y-4">
+                            <label class="block text-sm font-black">表單標題<input id="teacherFormTitle" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-violet-500" placeholder="例如：校外教學午餐調查"></label>
+                            <label class="block text-sm font-black">說明（選填）<textarea id="teacherFormDescription" class="mt-2 min-h-20 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium outline-none focus:border-violet-500" placeholder="提供家長閱讀的說明"></textarea></label>
+                            <label class="block text-sm font-black">題目<input id="teacherFormQuestions" class="hidden"><textarea id="teacherFormQuestionLines" class="mt-2 min-h-32 w-full rounded-xl border border-slate-200 p-3 text-[16px] leading-relaxed outline-none focus:border-violet-500" placeholder="每行一題&#10;例如：是否參加｜參加,不參加&#10;例如：備註"></textarea><span class="mt-2 block text-xs font-medium text-slate-400">每行一題；以「｜」接選項並用逗號分隔，即成為選單題。所有題目皆為必填。</span></label>
+                            <label class="block text-sm font-black">填寫期限（選填）<input id="teacherFormDeadline" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-violet-500"></label>
+                            <button type="button" onclick="window.createTeacherForm()" class="min-h-13 w-full rounded-2xl bg-violet-600 px-4 py-3 font-black text-white shadow-lg shadow-violet-200 active:scale-[.98]">建立表單</button>
+                            <p id="teacherFormCreateStatus" class="hidden rounded-xl px-3 py-2 text-center text-sm font-bold"></p>
+                        </div>
+                    </section>
+                    <section><div class="mb-3 flex items-center justify-between"><h3 class="text-lg font-black">已建立的表單</h3><span id="teacherFormCount" class="rounded-full bg-slate-200 px-3 py-1 text-xs font-black text-slate-600">0</span></div><div id="teacherFormsList" class="space-y-3"></div></section>
+                    <section id="teacherFormResponses" class="hidden rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"></section>
+                </section>`;
+            dashboard.appendChild(page);
+        };
+
+        window.formEscapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+        window.formPublicUrl = formId => new URL(`./forms.html?id=${encodeURIComponent(formId)}`, window.location.href).href;
+        window.parseTeacherFormFields = raw => String(raw || '').split('\n').map(line => line.trim()).filter(Boolean).map((line, index) => {
+            const [labelPart, optionPart] = line.split('｜');
+            const options = String(optionPart || '').split(',').map(option => option.trim()).filter(Boolean);
+            return { id: `q${index + 1}`, label: labelPart.trim(), type: options.length ? 'select' : 'text', options };
+        }).filter(field => field.label);
+        window.setTeacherFormStatus = (message, type = 'success') => {
+            const status = document.getElementById('teacherFormCreateStatus');
+            if (!status) return;
+            status.textContent = message;
+            status.className = `rounded-xl px-3 py-2 text-center text-sm font-bold ${type === 'error' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`;
+            status.classList.remove('hidden');
+        };
+        window.createTeacherForm = async () => {
+            if (!checkFbAuth()) return;
+            const title = document.getElementById('teacherFormTitle').value.trim();
+            const description = document.getElementById('teacherFormDescription').value.trim();
+            const fields = window.parseTeacherFormFields(document.getElementById('teacherFormQuestionLines').value);
+            const deadline = document.getElementById('teacherFormDeadline').value;
+            if (!title || !fields.length) return window.setTeacherFormStatus('請填寫表單標題與至少一題。', 'error');
+            try {
+                const form = await addDoc(collection(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms'), { title, description, fields, deadline, status: 'open', createdAt: Date.now(), updatedAt: Date.now() });
+                document.getElementById('teacherFormTitle').value = '';
+                document.getElementById('teacherFormDescription').value = '';
+                document.getElementById('teacherFormQuestionLines').value = '';
+                document.getElementById('teacherFormDeadline').value = '';
+                window.setTeacherFormStatus('表單已建立，請按「公告到班群」。');
+                window.openTeacherFormResponses(form.id);
+            } catch (error) {
+                window.setTeacherFormStatus(error.message || '建立失敗，請再試一次。', 'error');
+            }
+        };
+        window.publishTeacherForm = async formId => {
+            const form = window.fbForms.find(item => item.id === formId);
+            if (!form || !checkFbAuth()) return;
+            try {
+                await addDoc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat'), { studentId: 'teacher', name: '蘇老師', seatNo: 'T', sender: 'teacher', text: `請填寫表單：${form.title}`, formId, formTitle: form.title, messageType: 'form', timestamp: window.getPreciseTime() });
+                window.setTeacherFormStatus('已公告到班群。');
+                window.switchTab('group');
+            } catch (error) {
+                window.setTeacherFormStatus(error.message || '公告失敗，請再試一次。', 'error');
+            }
+        };
+        window.copyTeacherFormLink = async formId => {
+            const url = window.formPublicUrl(formId);
+            try { await navigator.clipboard.writeText(url); window.setTeacherFormStatus('表單連結已複製。'); }
+            catch (_) { window.prompt('複製這個表單連結：', url); }
+        };
+        window.closeTeacherForm = async formId => {
+            try { await updateDoc(doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId), { status: 'closed', updatedAt: Date.now() }); }
+            catch (error) { window.setTeacherFormStatus(error.message || '無法關閉表單。', 'error'); }
+        };
+        window.openTeacherFormResponses = formId => {
+            window.activeFormId = formId;
+            window.formResponsesUnsubscribe?.();
+            const responsesRef = collection(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId, 'submissions');
+            window.formResponsesUnsubscribe = onSnapshot(responsesRef, snapshot => {
+                window.formResponses = snapshot.docs.map(item => ({ id: item.id, ...item.data() })).sort((a, b) => String(a.seatNo || '').localeCompare(String(b.seatNo || ''), 'zh-Hant', { numeric: true }));
+                window.renderTeacherForms();
+            }, error => console.error('Unable to load form responses.', error));
+            window.renderTeacherForms();
+        };
+        window.renderTeacherForms = () => {
+            const list = document.getElementById('teacherFormsList');
+            const count = document.getElementById('teacherFormCount');
+            if (!list || !count) return;
+            const forms = window.fbForms || [];
+            count.textContent = String(forms.length);
+            if (!forms.length) { list.innerHTML = '<p class="rounded-2xl bg-white p-5 text-center text-sm font-bold text-slate-400 ring-1 ring-slate-200">尚未建立表單。</p>'; return; }
+            list.innerHTML = forms.map(form => {
+                const isOpen = form.status === 'open';
+                const deadline = form.deadline ? `期限：${window.formEscapeHtml(form.deadline)}` : '未設定期限';
+                return `<article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><h4 class="truncate font-black">${window.formEscapeHtml(form.title)}</h4><p class="mt-1 text-xs font-bold text-slate-400">${deadline}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${isOpen ? '開放中' : '已關閉'}</span></div><div class="mt-4 grid grid-cols-2 gap-2 text-sm font-black"><button type="button" onclick="window.openTeacherFormResponses('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">查看回覆</button>${isOpen ? `<button type="button" onclick="window.publishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">公告到班群</button>` : `<button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-11 rounded-xl bg-slate-100 text-slate-600">複製連結</button>`}</div>${isOpen ? `<button type="button" onclick="window.closeTeacherForm('${form.id}')" class="mt-2 min-h-10 w-full rounded-xl text-xs font-black text-rose-600">關閉表單</button>` : ''}</article>`;
+            }).join('');
+            const responseBox = document.getElementById('teacherFormResponses');
+            const activeForm = forms.find(form => form.id === window.activeFormId);
+            if (!responseBox || !activeForm) { if (responseBox) responseBox.classList.add('hidden'); return; }
+            const fields = Array.isArray(activeForm.fields) ? activeForm.fields : [];
+            const responses = window.formResponses || [];
+            responseBox.innerHTML = `<div class="flex items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-violet-600">RESPONSES</p><h3 class="mt-1 text-xl font-black">${window.formEscapeHtml(activeForm.title)}</h3></div><span class="rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700">${responses.length} 份</span></div><div class="mt-4 space-y-3">${responses.length ? responses.map(response => `<article class="rounded-2xl bg-slate-50 p-4"><p class="font-black">${window.formEscapeHtml(response.seatNo)} 號　${window.formEscapeHtml(response.studentName)}</p>${fields.map(field => `<div class="mt-3"><p class="text-xs font-black text-slate-400">${window.formEscapeHtml(field.label)}</p><p class="mt-1 break-words text-sm font-medium text-slate-700">${window.formEscapeHtml(response.answers?.[field.id] || '—')}</p></div>`).join('')}<p class="mt-3 text-[11px] font-bold text-slate-400">${response.submittedAt ? new Date(response.submittedAt).toLocaleString('zh-TW') : ''}</p></article>`).join('') : '<p class="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">尚未收到回覆。</p>'}</div>`;
+            responseBox.classList.remove('hidden');
+        };
+
         window.populateTeacherPhotoSeats = () => {
             const select = document.getElementById('teacherPhotoSeat');
             const grid = document.getElementById('teacherPhotoSeatGrid');
@@ -997,6 +1133,7 @@
         window.onload = () => {
             window.ensureContactBookPage();
             window.ensurePhotoTab();
+            window.ensureFormsTab();
             window.restoreUnifiedSession();
         };
 
@@ -1042,14 +1179,16 @@
             const groupChatPage = document.getElementById('groupChatPage');
             const privateChatPage = document.getElementById('privateChatPage');
             const photoPage = document.getElementById('photoPage');
+            const formsPage = document.getElementById('formsPage');
             
             const tabCalendar = document.getElementById('tabCalendar');
             const tabBook = document.getElementById('tabBook');
             const tabGroup = document.getElementById('tabGroup');
             const tabPrivate = document.getElementById('tabPrivate');
             const tabPhoto = document.getElementById('tabPhoto');
+            const tabForms = document.getElementById('tabForms');
 
-            [calendarPage, contactBookPage, groupChatPage, privateChatPage, photoPage]
+            [calendarPage, contactBookPage, groupChatPage, privateChatPage, photoPage, formsPage]
                 .filter(Boolean)
                 .forEach(page => {
                     page.classList.add('hidden');
@@ -1062,6 +1201,7 @@
             tabGroup.className = inactiveClass;
             tabPrivate.className = inactiveClass;
             tabPhoto.className = inactiveClass;
+            if (tabForms) tabForms.className = inactiveClass;
 
             if (tab === 'calendar') {
                 calendarPage.classList.remove('hidden');
@@ -1090,6 +1230,10 @@
                 photoPage.classList.remove('hidden');
                 photoPage.classList.add('flex');
                 tabPhoto.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-blue-600 transition-all whitespace-nowrap";
+            } else if (tab === 'forms') {
+                formsPage.classList.remove('hidden');
+                formsPage.classList.add('flex');
+                if (tabForms) tabForms.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-violet-600 transition-all whitespace-nowrap";
             }
             window.refreshUI();
         };
@@ -1123,6 +1267,8 @@
                 } else if (window.activeTab === 'private') {
                     renderPrivateChatSidebar();
                     renderPrivateChatWindow();
+                } else if (window.activeTab === 'forms') {
+                    window.renderTeacherForms();
                 }
                 setTimeout(() => lucide.createIcons(), 0);
             }
@@ -1464,7 +1610,9 @@
                         const msgTime = msg.timestamp.split(' ')[1];
                         const isMe = msg.sender === 'teacher';
                         const isImage = msg.messageType === 'image';
+                        const isForm = msg.messageType === 'form' && msg.formId;
                         const isCallRequest = msg.messageType === 'call_request';
+                        const safeFormTitle = String(msg.formTitle || msg.text || '班級表單').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
                         const isWithdrawn = Boolean(msg.withdrawn) || msg.messageType === 'withdrawn';
                         const withdrawButton = isMe && !isWithdrawn
                             ? `<button type="button" onclick="window.withdrawChatMessage('group_chat', '${msg.id}')" class="mb-1 text-[10px] font-bold text-slate-400 underline underline-offset-2">收回</button>`
@@ -1478,9 +1626,11 @@
                         // 圖片渲染
                         const bubbleContent = isImage 
                             ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-sm border border-slate-200" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
-                            : (isCallRequest
+                            : (isForm
+                                ? `<a href="./forms.html?id=${encodeURIComponent(String(msg.formId))}" class="block min-w-[190px] rounded-xl bg-violet-50 p-3 text-violet-800"><span class="block text-xs font-black tracking-widest text-violet-500">CLASS FORM</span><span class="mt-1 block font-black">${safeFormTitle}</span><span class="mt-2 inline-flex rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white">查看表單</span></a>`
+                                : (isCallRequest
                                 ? `<div class="font-black">&#128222; 申請語音通話</div><div class="mt-1 text-xs opacity-80">${Number(msg.callRequestExpiresAt || 0) > Date.now() ? '可按右上電話圖示回應' : '申請已逾時'}</div>`
-                                : msg.text);
+                                : msg.text));
 
                         if(isMe) {
                             html += `

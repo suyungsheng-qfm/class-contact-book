@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>807 班級聯絡簿｜表單</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { --app-height: 100dvh; }
+    html, body { min-height: var(--app-height); background: #f2f2f7; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800">
+  <main class="mx-auto flex min-h-screen w-full max-w-2xl flex-col">
+    <header class="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+      <button type="button" onclick="window.backToGroup()" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-lg font-black text-slate-600" aria-label="返回">‹</button>
+      <div class="min-w-0"><p class="text-xs font-black tracking-widest text-blue-600">CLASS FORM</p><h1 class="truncate text-lg font-black">班級表單</h1></div>
+    </header>
+    <section id="loading" class="m-auto w-full px-5 text-center">
+      <div class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"></div>
+      <p class="mt-4 font-bold text-slate-500">正在開啟表單…</p>
+    </section>
+    <section id="error" class="hidden m-auto w-full px-5 text-center"></section>
+    <section id="formPage" class="hidden flex-1 px-4 py-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <p id="deadline" class="hidden mb-3 w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700"></p>
+        <h2 id="formTitle" class="text-2xl font-black leading-tight"></h2>
+        <p id="formDescription" class="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-500"></p>
+        <div class="mt-5 rounded-2xl bg-blue-50 p-4 text-sm">
+          <p class="font-black text-blue-800">已自動帶入填寫人資料</p>
+          <p id="identity" class="mt-1 font-bold text-blue-700"></p>
+          <p class="mt-1 text-xs text-blue-600">不需要再次填寫學號或姓名。</p>
+        </div>
+        <form id="responseForm" class="mt-6 space-y-5"></form>
+        <button id="submitButton" type="button" onclick="window.submitForm()" class="mt-6 min-h-13 w-full rounded-2xl bg-blue-600 px-4 py-3 font-black text-white shadow-lg shadow-blue-200 active:scale-[.98]">送出回覆</button>
+        <p id="status" class="hidden mt-3 rounded-xl px-3 py-2 text-center text-sm font-bold"></p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getAuth, setPersistence, browserSessionPersistence, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+    import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: 'AIzaSyD_IvR1rEMxDSw3Fv_3zkM1mGetMQv8gg8',
+      authDomain: 'classcontact-c148d.firebaseapp.com',
+      projectId: 'classcontact-c148d',
+      storageBucket: 'classcontact-c148d.firebasestorage.app',
+      messagingSenderId: '559132828543',
+      appId: '1:559132828543:web:a47598010956175eda304a'
+    };
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzQBi-uoqSy73_VUD2xCpXqx2qPfARxvXxUFJwsd8wf_FcVkehubPpaDA0RQVgI11ky/exec';
+    const FORM_APP_ID = 'contact-forms';
+    const formId = new URLSearchParams(location.search).get('id');
+    const sessionToken = sessionStorage.getItem('contact-book-session');
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    let currentUser = null;
+    let currentForm = null;
+    let previousAnswers = {};
+
+    window.backToGroup = () => {
+      if (history.length > 1) history.back();
+      else location.assign('./guardians.html');
+    };
+
+    const showError = message => {
+      document.getElementById('loading').classList.add('hidden');
+      const box = document.getElementById('error');
+      box.innerHTML = `<div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-2xl font-black text-red-500">!</div><h2 class="mt-4 text-xl font-black">無法開啟表單</h2><p class="mt-2 text-sm leading-relaxed text-slate-500"></p><button type="button" onclick="window.backToGroup()" class="mt-6 min-h-12 w-full rounded-2xl bg-slate-800 font-black text-white">返回班群</button></div>`;
+      box.querySelector('p').textContent = message;
+      box.classList.remove('hidden');
+    };
+    const setStatus = (message, type = 'info') => {
+      const el = document.getElementById('status');
+      el.textContent = message;
+      el.className = `mt-3 rounded-xl px-3 py-2 text-center text-sm font-bold ${type === 'error' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`;
+      el.classList.remove('hidden');
+    };
+    const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+    const normalizeFields = fields => Array.isArray(fields) ? fields.filter(field => field && field.label) : [];
+    const isExpired = form => form.deadline && new Date(`${form.deadline}T23:59:59`).getTime() < Date.now();
+
+    function renderForm() {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('formPage').classList.remove('hidden');
+      document.getElementById('formTitle').textContent = currentForm.title;
+      document.getElementById('formDescription').textContent = currentForm.description || '';
+      document.getElementById('identity').textContent = `${currentUser.seatNo ? `${currentUser.seatNo} 號　` : ''}${currentUser.name || '家長'}`;
+      const deadline = document.getElementById('deadline');
+      if (currentForm.deadline) {
+        deadline.textContent = `填寫期限：${currentForm.deadline}`;
+        deadline.classList.remove('hidden');
+      }
+      const form = document.getElementById('responseForm');
+      form.innerHTML = normalizeFields(currentForm.fields).map((field, index) => {
+        const value = previousAnswers[field.id] || '';
+        const label = `${index + 1}. ${escapeHtml(field.label)}`;
+        if (field.type === 'select') {
+          const choices = (field.options || []).map(option => `<option value="${escapeHtml(option)}" ${option === value ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('');
+          return `<label class="block"><span class="mb-2 block text-sm font-black">${label}</span><select data-field="${escapeHtml(field.id)}" class="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-medium outline-none focus:border-blue-500" required><option value="">請選擇</option>${choices}</select></label>`;
+        }
+        return `<label class="block"><span class="mb-2 block text-sm font-black">${label}</span><input data-field="${escapeHtml(field.id)}" value="${escapeHtml(value)}" type="text" class="min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] outline-none focus:border-blue-500" required></label>`;
+      }).join('') || '<p class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">此表單尚未設定題目。</p>';
+      const disabled = currentForm.status !== 'open' || isExpired(currentForm) || !normalizeFields(currentForm.fields).length;
+      const button = document.getElementById('submitButton');
+      button.disabled = disabled;
+      button.classList.toggle('opacity-50', disabled);
+      if (disabled) setStatus(currentForm.status !== 'open' ? '此表單已關閉。' : isExpired(currentForm) ? '此表單已超過填寫期限。' : '此表單尚未設定可填寫題目。', 'error');
+    }
+
+    window.submitForm = async () => {
+      if (!currentForm || currentForm.status !== 'open' || isExpired(currentForm)) return;
+      const answers = {};
+      for (const input of document.querySelectorAll('#responseForm [data-field]')) {
+        if (!input.value.trim()) {
+          input.focus();
+          return setStatus('請完成所有題目後再送出。', 'error');
+        }
+        answers[input.dataset.field] = input.value.trim();
+      }
+      const button = document.getElementById('submitButton');
+      button.disabled = true;
+      button.textContent = '送出中…';
+      try {
+        await setDoc(doc(db, 'artifacts', FORM_APP_ID, 'public', 'data', 'forms', formId, 'submissions', String(currentUser.studentId)), {
+          studentId: String(currentUser.studentId),
+          studentName: String(currentUser.name || ''),
+          seatNo: String(currentUser.seatNo || ''),
+          answers,
+          submittedAt: Date.now(),
+          formTitle: currentForm.title
+        }, { merge: true });
+        previousAnswers = answers;
+        setStatus('已送出回覆，若需要可再次開啟修改。');
+      } catch (error) {
+        setStatus(error.message || '送出失敗，請確認網路後再試。', 'error');
+      } finally {
+        button.disabled = false;
+        button.textContent = '送出回覆';
+      }
+    };
+
+    async function openForm() {
+      if (!formId || !sessionToken) return showError('請先從統一登入頁登入後，再開啟表單連結。');
+      try {
+        const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'validateSession', sessionToken }) });
+        const session = await response.json();
+        if (!session.success || session.role !== 'parent' || !session.user || !session.firebaseToken) throw new Error('登入已過期，請重新登入。');
+        currentUser = session.user;
+        await setPersistence(auth, browserSessionPersistence);
+        await signInWithCustomToken(auth, session.firebaseToken);
+        const formRef = doc(db, 'artifacts', FORM_APP_ID, 'public', 'data', 'forms', formId);
+        const formSnapshot = await getDoc(formRef);
+        if (!formSnapshot.exists()) throw new Error('找不到這份表單，可能已被教師移除。');
+        currentForm = { id: formSnapshot.id, ...formSnapshot.data() };
+        const submissionSnapshot = await getDoc(doc(formRef, 'submissions', String(currentUser.studentId)));
+        previousAnswers = submissionSnapshot.exists() ? (submissionSnapshot.data().answers || {}) : {};
+        renderForm();
+      } catch (error) {
+        console.error(error);
+        showError(error.message || '請稍後再試。');
+      }
+    }
+    openForm();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
+    }
+  </script>
+</body>
+</html>

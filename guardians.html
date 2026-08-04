@@ -1029,6 +1029,8 @@
                         
                         // 🌟 判斷是否為圖片訊息
                         const isImage = msg.messageType === 'image';
+                        const isForm = msg.messageType === 'form' && msg.formId;
+                        const safeFormTitle = String(msg.formTitle || msg.text || '班級表單').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
                         
                         if(msgDate !== lastDate) {
                             html += `<div class="text-center my-4"><span class="bg-black/15 text-white text-xs font-medium px-3 py-1 rounded-full shadow-sm">${msgDate}</span></div>`;
@@ -1038,7 +1040,9 @@
                         // 生成訊息內嵌泡泡內容
                         const bubbleContent = isImage 
                             ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-inner border border-black/10" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
-                            : msg.text;
+                            : isForm
+                                ? `<a href="./forms.html?id=${encodeURIComponent(String(msg.formId))}" class="block min-w-[190px] rounded-xl bg-violet-50 p-3 text-violet-800"><span class="block text-xs font-black tracking-widest text-violet-500">CLASS FORM</span><span class="mt-1 block font-black">${safeFormTitle}</span><span class="mt-2 inline-flex rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white">開啟並填寫</span></a>`
+                                : msg.text;
 
                         if(isMe) {
                             html += `
