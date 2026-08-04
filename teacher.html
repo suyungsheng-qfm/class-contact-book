@@ -879,7 +879,7 @@
                         <div class="mt-4 space-y-4">
                             <label class="block text-sm font-black">表單標題<input id="teacherFormTitle" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-violet-500" placeholder="例如：校外教學午餐調查"></label>
                             <label class="block text-sm font-black">說明（選填）<textarea id="teacherFormDescription" class="mt-2 min-h-20 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium outline-none focus:border-violet-500" placeholder="提供家長閱讀的說明"></textarea></label>
-                            <label class="block text-sm font-black">題目<input id="teacherFormQuestions" class="hidden"><textarea id="teacherFormQuestionLines" class="mt-2 min-h-32 w-full rounded-xl border border-slate-200 p-3 text-[16px] leading-relaxed outline-none focus:border-violet-500" placeholder="每行一題&#10;例如：是否參加｜參加,不參加&#10;例如：備註"></textarea><span class="mt-2 block text-xs font-medium text-slate-400">每行一題；以「｜」接選項並用逗號分隔，即成為選單題。所有題目皆為必填。</span></label>
+                            <div><div class="flex items-center justify-between gap-3"><p class="text-sm font-black">題目</p><span class="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-black text-violet-700">選擇題</span></div><div id="teacherFormQuestionBuilder" class="mt-2 space-y-3"></div><button type="button" onclick="window.addTeacherFormQuestion()" class="mt-3 min-h-11 w-full rounded-xl border border-dashed border-violet-300 bg-violet-50 px-3 text-sm font-black text-violet-700 active:scale-[.98]">＋ 新增題目</button><span class="mt-2 block text-xs font-medium text-slate-400">每題至少設定兩個選項；家長需從選項中擇一填寫。</span></div>
                             <label class="block text-sm font-black">填寫期限（選填）<input id="teacherFormDeadline" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-violet-500"></label>
                             <div class="grid grid-cols-2 gap-3">
                                 <button type="button" onclick="window.openTeacherFormPreview()" class="min-h-13 rounded-2xl bg-violet-50 px-4 py-3 font-black text-violet-700 ring-1 ring-violet-200 active:scale-[.98]">預覽</button>
@@ -898,21 +898,66 @@
                     </div>
                 </div>`;
             dashboard.appendChild(page);
+            window.resetTeacherFormQuestions();
         };
 
         window.formEscapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
         window.formPublicUrl = formId => new URL(`./forms.html?id=${encodeURIComponent(formId)}`, window.location.href).href;
-        window.parseTeacherFormFields = raw => String(raw || '').split('\n').map(line => line.trim()).filter(Boolean).map((line, index) => {
-            const [labelPart, optionPart] = line.split('｜');
-            const options = String(optionPart || '').split(',').map(option => option.trim()).filter(Boolean);
-            return { id: `q${index + 1}`, label: labelPart.trim(), type: options.length ? 'select' : 'text', options };
-        }).filter(field => field.label);
+        window.readTeacherFormQuestions = () => Array.from(document.querySelectorAll('#teacherFormQuestionBuilder [data-form-question]')).map(question => ({
+            label: question.querySelector('[data-question-label]')?.value || '',
+            options: Array.from(question.querySelectorAll('[data-question-option]')).map(input => input.value || '')
+        }));
+        window.renderTeacherFormQuestionBuilder = (questions = window.readTeacherFormQuestions()) => {
+            const builder = document.getElementById('teacherFormQuestionBuilder');
+            if (!builder) return;
+            const items = questions.length ? questions : [{ label: '', options: ['', ''] }];
+            builder.innerHTML = items.map((question, questionIndex) => {
+                const options = question.options.length ? question.options : ['', ''];
+                return `<section data-form-question class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><div class="flex items-center justify-between gap-2"><span class="text-xs font-black text-violet-600">第 ${questionIndex + 1} 題</span>${items.length > 1 ? `<button type="button" onclick="window.removeTeacherFormQuestion(${questionIndex})" class="min-h-9 px-2 text-xs font-black text-rose-600">移除題目</button>` : ''}</div><input data-question-label value="${window.formEscapeHtml(question.label)}" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-medium outline-none focus:border-violet-500" placeholder="題目內容，例如：是否參加？"><div class="mt-3 space-y-2">${options.map((option, optionIndex) => `<div class="flex items-center gap-2"><span class="w-12 shrink-0 text-xs font-bold text-slate-400">選項 ${optionIndex + 1}</span><input data-question-option value="${window.formEscapeHtml(option)}" class="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[16px] outline-none focus:border-violet-500" placeholder="選項內容">${options.length > 2 ? `<button type="button" onclick="window.removeTeacherFormOption(${questionIndex}, ${optionIndex})" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-lg font-black text-rose-500 ring-1 ring-slate-200" aria-label="移除此選項">×</button>` : ''}</div>`).join('')}</div><button type="button" onclick="window.addTeacherFormOption(${questionIndex})" class="mt-3 min-h-10 w-full rounded-xl bg-white text-xs font-black text-violet-700 ring-1 ring-violet-200">＋ 新增選項</button></section>`;
+            }).join('');
+        };
+        window.resetTeacherFormQuestions = () => window.renderTeacherFormQuestionBuilder([{ label: '', options: ['', ''] }]);
+        window.addTeacherFormQuestion = () => {
+            const questions = window.readTeacherFormQuestions();
+            questions.push({ label: '', options: ['', ''] });
+            window.renderTeacherFormQuestionBuilder(questions);
+        };
+        window.removeTeacherFormQuestion = questionIndex => {
+            const questions = window.readTeacherFormQuestions();
+            questions.splice(questionIndex, 1);
+            window.renderTeacherFormQuestionBuilder(questions);
+        };
+        window.addTeacherFormOption = questionIndex => {
+            const questions = window.readTeacherFormQuestions();
+            if (!questions[questionIndex]) return;
+            questions[questionIndex].options.push('');
+            window.renderTeacherFormQuestionBuilder(questions);
+        };
+        window.removeTeacherFormOption = (questionIndex, optionIndex) => {
+            const questions = window.readTeacherFormQuestions();
+            if (!questions[questionIndex] || questions[questionIndex].options.length <= 2) return;
+            questions[questionIndex].options.splice(optionIndex, 1);
+            window.renderTeacherFormQuestionBuilder(questions);
+        };
+        window.getTeacherFormFields = () => {
+            const questions = window.readTeacherFormQuestions();
+            const fields = [];
+            for (let index = 0; index < questions.length; index += 1) {
+                const label = questions[index].label.trim();
+                const options = questions[index].options.map(option => option.trim()).filter(Boolean);
+                if (!label) return { fields: [], error: `請填寫第 ${index + 1} 題的題目。` };
+                if (options.length < 2) return { fields: [], error: `第 ${index + 1} 題至少要有兩個選項。` };
+                fields.push({ id: `q${index + 1}`, label, type: 'select', options });
+            }
+            return fields.length ? { fields, error: '' } : { fields: [], error: '請至少新增一題。' };
+        };
         window.closeTeacherFormPreview = () => document.getElementById('teacherFormPreview')?.classList.add('hidden');
         window.openTeacherFormPreview = () => {
             const title = document.getElementById('teacherFormTitle')?.value.trim();
             const description = document.getElementById('teacherFormDescription')?.value.trim();
             const deadline = document.getElementById('teacherFormDeadline')?.value;
-            const fields = window.parseTeacherFormFields(document.getElementById('teacherFormQuestionLines')?.value);
+            const { fields, error } = window.getTeacherFormFields();
+            if (error) return window.setTeacherFormStatus(error, 'error');
             if (!title || !fields.length) return window.setTeacherFormStatus('請先填寫表單標題與至少一題，再預覽。', 'error');
             const escape = window.formEscapeHtml;
             const fieldHtml = fields.map((field, index) => {
@@ -938,14 +983,15 @@
             if (!checkFbAuth()) return;
             const title = document.getElementById('teacherFormTitle').value.trim();
             const description = document.getElementById('teacherFormDescription').value.trim();
-            const fields = window.parseTeacherFormFields(document.getElementById('teacherFormQuestionLines').value);
+            const { fields, error } = window.getTeacherFormFields();
             const deadline = document.getElementById('teacherFormDeadline').value;
+            if (error) return window.setTeacherFormStatus(error, 'error');
             if (!title || !fields.length) return window.setTeacherFormStatus('請填寫表單標題與至少一題。', 'error');
             try {
                 const form = await addDoc(collection(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms'), { title, description, fields, deadline, status: 'open', createdAt: Date.now(), updatedAt: Date.now() });
                 document.getElementById('teacherFormTitle').value = '';
                 document.getElementById('teacherFormDescription').value = '';
-                document.getElementById('teacherFormQuestionLines').value = '';
+                window.resetTeacherFormQuestions();
                 document.getElementById('teacherFormDeadline').value = '';
                 window.setTeacherFormStatus('表單已建立，請按「公告到班群」。');
                 window.openTeacherFormResponses(form.id);
