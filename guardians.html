@@ -1268,7 +1268,7 @@
             if (!checkFbAuth() || !window.currentUser || !['group_chat', 'private_chats'].includes(chatCollection)) return;
             const messages = chatCollection === 'group_chat' ? window.fbGroupChats : window.fbPrivateChats;
             const message = messages.find(item => item.id === messageId);
-            if (!message || message.sender !== 'parent' || String(message.studentId) !== String(window.currentUser.studentId) || message.withdrawn || message.messageType === 'call_request') return;
+            if (!message || message.sender !== 'parent' || String(message.studentId) !== String(window.currentUser.studentId) || message.withdrawn || ['call_request', 'leave_request'].includes(message.messageType)) return;
             const confirmation = await Swal.fire({ icon: 'warning', title: '收回訊息？', text: '對方將看到「訊息已收回」。', showCancelButton: true, confirmButtonText: '收回', cancelButtonText: '取消', confirmButtonColor: '#dc2626' });
             if (!confirmation.isConfirmed) return;
             try {
@@ -1642,6 +1642,8 @@
                     const now = window.getPreciseTime();
                     batch.set(leaveRef, { date: dateToManage, studentId: String(window.currentUser.studentId), studentName: String(window.currentUser.name || ''), seatNo: String(window.currentUser.seatNo || ''), reason: leaveApplication.reason, parentSignatureDataUrl: leaveApplication.signatureDataUrl, signatureFileId: archive.fileId, signatureFileName: archive.fileName || '', status: 'submitted', submittedAt: now, updatedAt: now }, { merge: true });
                     batch.set(recordRef, { date: dateToManage, studentId: window.currentUser.studentId, signed: false, isLeave: true, leaveTime: now }, { merge: true });
+                    const messageRef = doc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats'));
+                    batch.set(messageRef, { studentId: window.currentUser.studentId, name: window.currentUser.name, seatNo: window.currentUser.seatNo, sender: 'parent', text: `📝 已送出線上請假單\n請假日期：${dateToManage}\n請至聯絡簿查看及列印。`, messageType: 'leave_request', timestamp: now });
                 } else {
                     batch.set(recordRef, { date: dateToManage, studentId: window.currentUser.studentId, signed: false, isLeave: false }, { merge: true });
                     const existingRequest = window.fbLeaveRequests.find(item => item.id === docId);
