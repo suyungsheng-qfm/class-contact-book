@@ -174,7 +174,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, addDoc, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, addDoc, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         function getSemesterData(targetDate) {
             const now = targetDate ? new Date(targetDate) : new Date();
@@ -283,6 +283,7 @@
         window.fbEvents = [];
         window.fbHolidays = [];
         window.fbRecords = [];
+        window.fbLeaveRequests = [];
         window.fbGroupChats = []; 
         window.fbPrivateChats = []; 
         window.chatReadState = null;
@@ -448,6 +449,14 @@
             window.unsubscribers.push(onSnapshot(pathRecords, snap => {
                 window.fbRecords = snap.docs.map(d => ({ date: d.data().date, studentId: d.data().studentId, signed: d.data().signed, isLeave: d.data().isLeave }));
                 window.refreshUI();
+            }, e => console.error(e)));
+
+            const pathLeaveRequests = query(
+                collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'leave_requests'),
+                where('studentId', '==', String(window.currentUser.studentId))
+            );
+            window.unsubscribers.push(onSnapshot(pathLeaveRequests, snap => {
+                window.fbLeaveRequests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             }, e => console.error(e)));
         }
 
@@ -1521,37 +1530,125 @@
             }
         };
 
+        window.setupLeaveSignatureCanvas = () => {
+            const canvas = document.getElementById('leaveSignatureCanvas');
+            const clearButton = document.getElementById('clearLeaveSignature');
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const scale = Math.min(window.devicePixelRatio || 1, 2);
+            const width = Math.max(280, Math.round(rect.width || 600));
+            const height = 180;
+            canvas.width = width * scale;
+            canvas.height = height * scale;
+            const context = canvas.getContext('2d');
+            context.scale(scale, scale);
+            context.lineCap = 'round';
+            context.lineJoin = 'round';
+            context.strokeStyle = '#172554';
+            context.fillStyle = '#172554';
+            context.lineWidth = 3;
+            let drawing = false;
+            let previousPoint = null;
+            const point = event => {
+                const bounds = canvas.getBoundingClientRect();
+                return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+            };
+            const begin = event => {
+                drawing = true;
+                previousPoint = point(event);
+                canvas.setPointerCapture?.(event.pointerId);
+                context.beginPath();
+                context.arc(previousPoint.x, previousPoint.y, 1.5, 0, Math.PI * 2);
+                context.fill();
+                canvas.dataset.signed = 'true';
+                event.preventDefault();
+            };
+            const draw = event => {
+                if (!drawing || !previousPoint) return;
+                const nextPoint = point(event);
+                context.beginPath();
+                context.moveTo(previousPoint.x, previousPoint.y);
+                context.lineTo(nextPoint.x, nextPoint.y);
+                context.stroke();
+                previousPoint = nextPoint;
+                event.preventDefault();
+            };
+            const end = event => {
+                drawing = false;
+                previousPoint = null;
+                canvas.releasePointerCapture?.(event.pointerId);
+            };
+            canvas.addEventListener('pointerdown', begin);
+            canvas.addEventListener('pointermove', draw);
+            canvas.addEventListener('pointerup', end);
+            canvas.addEventListener('pointercancel', end);
+            clearButton?.addEventListener('click', () => {
+                context.clearRect(0, 0, width, height);
+                canvas.dataset.signed = '';
+            });
+        };
+
+        window.openLeaveApplication = async dateToManage => {
+            const result = await Swal.fire({
+                title: '線上請假單',
+                html: `<div class="text-left"><div class="rounded-2xl bg-blue-50 p-4 text-sm text-blue-800"><p class="font-black">請假日期</p><p class="mt-1 text-lg font-black">${dateToManage}</p><p class="mt-1 text-xs font-bold">${window.currentUser.seatNo || ''} 號　${window.currentUser.name || ''}</p></div><label class="mt-4 block text-sm font-black text-slate-700">請假事由（選填）<textarea id="leaveReasonInput" class="mt-2 min-h-20 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium outline-none focus:border-blue-500" maxlength="300" placeholder="例如：身體不適"></textarea></label><div class="mt-4"><div class="mb-2 flex items-center justify-between"><span class="text-sm font-black text-slate-700">家長簽名</span><button id="clearLeaveSignature" type="button" class="rounded-lg px-2 py-1 text-xs font-black text-blue-600">清除</button></div><canvas id="leaveSignatureCanvas" class="h-[180px] w-full rounded-2xl border-2 border-dashed border-blue-200 bg-white" style="touch-action:none"></canvas><p class="mt-2 text-xs font-medium text-slate-400">請以手指或觸控筆於框內簽名；簽名將與此請假單一併儲存。</p></div></div>`,
+                showCancelButton: true,
+                confirmButtonText: '送出請假單',
+                cancelButtonText: '返回',
+                confirmButtonColor: '#2563eb',
+                focusConfirm: false,
+                didOpen: window.setupLeaveSignatureCanvas,
+                preConfirm: () => {
+                    const canvas = document.getElementById('leaveSignatureCanvas');
+                    if (!canvas?.dataset.signed) {
+                        Swal.showValidationMessage('請完成家長簽名。');
+                        return false;
+                    }
+                    return {
+                        reason: String(document.getElementById('leaveReasonInput')?.value || '').trim(),
+                        signatureDataUrl: canvas.toDataURL('image/png')
+                    };
+                }
+            });
+            return result.isConfirmed ? result.value : null;
+        };
+
         window.handleLeave = async (dateToManage, shouldLeave) => {
             if (!checkFbAuth() || !window.currentUser) return;
             if (dateToManage < window.todayStr) {
                 Swal.fire('無法設定', '只能登記今天或未來日期的請假。', 'info');
                 return;
             }
-            const actionLabel = shouldLeave ? '登記請假' : '取消請假登記';
-            const confirmation = await Swal.fire({
-                icon: 'question',
-                title: actionLabel,
-                text: shouldLeave ? `${dateToManage} 將標記為請假，當日無須簽閱。` : `${dateToManage} 將恢復為一般出席狀態。`,
-                showCancelButton: true,
-                confirmButtonText: '確認',
-                cancelButtonText: '返回',
-                confirmButtonColor: shouldLeave ? '#2563eb' : '#64748b'
-            });
-            if (!confirmation.isConfirmed) return;
+            let leaveApplication = null;
+            if (shouldLeave) {
+                leaveApplication = await window.openLeaveApplication(dateToManage);
+                if (!leaveApplication) return;
+            } else {
+                const confirmation = await Swal.fire({ icon: 'question', title: '取消請假登記', text: `${dateToManage} 將恢復為一般出席狀態。`, showCancelButton: true, confirmButtonText: '確認取消', cancelButtonText: '返回', confirmButtonColor: '#64748b' });
+                if (!confirmation.isConfirmed) return;
+            }
 
             const button = document.getElementById('leaveBtn');
             if (button) { button.disabled = true; button.innerHTML = '<span class="loading-spinner mx-auto"></span>'; }
             try {
                 const docId = `${window.toDocId(dateToManage)}_${window.currentUser.studentId}`;
-                const docRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', docId);
-                await setDoc(docRef, {
-                    date: dateToManage,
-                    studentId: window.currentUser.studentId,
-                    signed: false,
-                    isLeave: shouldLeave,
-                    leaveTime: window.getPreciseTime()
-                }, { merge: true });
-                Swal.fire({ icon: 'success', title: shouldLeave ? '已登記請假' : '已取消請假', showConfirmButton: false, timer: 1300 });
+                const recordRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', docId);
+                const leaveRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'leave_requests', docId);
+                const batch = writeBatch(db);
+                if (shouldLeave) {
+                    const archiveResponse = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'uploadLeaveSignature', sessionToken: window.sessionToken, studentId: window.currentUser.studentId, date: dateToManage, base64Data: leaveApplication.signatureDataUrl, mimeType: 'image/png' }) });
+                    const archive = await archiveResponse.json();
+                    if (!archive.success) throw new Error(archive.message || '家長簽名儲存失敗。');
+                    const now = window.getPreciseTime();
+                    batch.set(leaveRef, { date: dateToManage, studentId: String(window.currentUser.studentId), studentName: String(window.currentUser.name || ''), seatNo: String(window.currentUser.seatNo || ''), reason: leaveApplication.reason, parentSignatureDataUrl: leaveApplication.signatureDataUrl, signatureFileId: archive.fileId, signatureFileName: archive.fileName || '', status: 'submitted', submittedAt: now, updatedAt: now }, { merge: true });
+                    batch.set(recordRef, { date: dateToManage, studentId: window.currentUser.studentId, signed: false, isLeave: true, leaveTime: now }, { merge: true });
+                } else {
+                    batch.set(recordRef, { date: dateToManage, studentId: window.currentUser.studentId, signed: false, isLeave: false }, { merge: true });
+                    const existingRequest = window.fbLeaveRequests.find(item => item.id === docId);
+                    if (existingRequest) batch.update(leaveRef, { status: 'cancelled', cancelledAt: window.getPreciseTime(), updatedAt: window.getPreciseTime() });
+                }
+                await batch.commit();
+                Swal.fire({ icon: 'success', title: shouldLeave ? '請假單已送出' : '已取消請假', showConfirmButton: false, timer: 1500 });
             } catch (error) {
                 if (button) { button.disabled = false; button.textContent = shouldLeave ? '我要登記請假' : '取消請假登記'; }
                 Swal.fire('系統錯誤', error.message || '請假設定失敗，請再試一次。', 'error');

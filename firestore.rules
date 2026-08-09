@@ -69,6 +69,22 @@ service cloud.firestore {
       allow delete: if isSemester(appId) && isTeacher();
     }
 
+    // 線上請假單：僅該家長與教師可讀取手寫簽名與請假資料。
+    match /artifacts/{appId}/public/data/leave_requests/{requestId} {
+      allow get, list: if isSemester(appId) && (isTeacher() || isOwnStudent(resource.data.studentId));
+      allow create: if isSemester(appId)
+        && isOwnStudent(request.resource.data.studentId)
+        && request.resource.data.date is string;
+      allow update: if isSemester(appId) && (
+        isTeacher() || (
+          isOwnStudent(resource.data.studentId)
+          && request.resource.data.studentId == resource.data.studentId
+          && request.resource.data.date == resource.data.date
+        )
+      );
+      allow delete: if isSemester(appId) && isTeacher();
+    }
+
     match /artifacts/contact-chat/public/data/group_chat/{messageId} {
       allow read: if signedIn();
       allow create: if isTeacher() || (
