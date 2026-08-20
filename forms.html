@@ -109,12 +109,17 @@
       const lastOption = (field.options || []).at(-1);
       return String(lastOption || '').trim().startsWith('其他') ? lastOption : '';
     };
-    const isOtherAnswer = (field, value) => Boolean(otherOptionFor(field)) && (value === otherOptionFor(field) || String(value || '').startsWith(`${otherOptionFor(field)}：`));
+    const isOtherAnswer = (field, value) => Boolean(otherOptionFor(field)) && String(value || '').trim().startsWith('其他');
+    const otherTextFor = (field, value) => {
+      const answer = String(value || '').trim();
+      const marker = `${otherOptionFor(field)}：`;
+      return answer.startsWith(marker) ? answer.slice(marker.length) : '';
+    };
     const isAnswerComplete = (field, value) => {
       const answer = String(value || '').trim();
       if (!answer) return false;
       if (!isOtherAnswer(field, answer)) return true;
-      return answer.slice(`${otherOptionFor(field)}：`.length).trim().length > 0;
+      return otherTextFor(field, answer).trim().length > 0;
     };
 
     function renderCurrentFormStep() {
@@ -147,7 +152,7 @@
       if (field.type === 'select') {
         const otherOption = otherOptionFor(field);
         const selectedOther = isOtherAnswer(field, answer);
-        const otherText = selectedOther ? String(answer).slice(`${otherOption}：`.length) : '';
+        const otherText = selectedOther ? otherTextFor(field, answer) : '';
         form.innerHTML = `<div><h3 class="text-xl font-black leading-snug text-slate-900">${label}</h3><p class="mt-2 text-sm text-slate-500">請選擇一個答案</p><div class="mt-5 space-y-3">${(field.options || []).map(option => `<button type="button" data-choice-value="${escapeHtml(option)}" class="form-choice min-h-14 w-full rounded-2xl border-2 px-4 text-left text-[16px] font-black transition active:scale-[.98] ${(option === answer || (option === otherOption && selectedOther)) ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white text-slate-700'}" ${formReadOnly ? 'disabled' : ''}>${escapeHtml(option)}</button>`).join('')}</div>${selectedOther ? `<label class="mt-4 block"><span class="text-sm font-black text-slate-700">請填寫其他內容</span><input id="otherTextAnswer" value="${escapeHtml(otherText)}" ${formReadOnly ? 'disabled' : ''} type="text" class="mt-2 min-h-14 w-full rounded-2xl border-2 border-blue-200 bg-blue-50 px-4 text-[16px] font-medium outline-none focus:border-blue-500" placeholder="請輸入其他內容"></label>` : ''}</div>`;
         form.querySelectorAll('[data-choice-value]').forEach(button => button.addEventListener('click', () => window.chooseFormAnswer(field.id, button.dataset.choiceValue)));
         form.querySelector('#otherTextAnswer')?.addEventListener('input', event => { previousAnswers[field.id] = `${otherOption}：${event.target.value}`; });
