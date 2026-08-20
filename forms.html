@@ -107,7 +107,7 @@
     const getFields = () => normalizeFields(currentForm?.fields);
     const otherOptionFor = field => {
       const lastOption = (field.options || []).at(-1);
-      return String(lastOption || '').trim() === '其他' ? lastOption : '';
+      return String(lastOption || '').trim().startsWith('其他') ? lastOption : '';
     };
     const isOtherAnswer = (field, value) => Boolean(otherOptionFor(field)) && (value === otherOptionFor(field) || String(value || '').startsWith(`${otherOptionFor(field)}：`));
     const isAnswerComplete = (field, value) => {
@@ -161,7 +161,7 @@
     window.chooseFormAnswer = (fieldId, value) => {
       if (formReadOnly) return;
       const field = getFields().find(item => item.id === fieldId);
-      previousAnswers[fieldId] = field && String(value).trim() === '其他' ? `${value}：` : value;
+      previousAnswers[fieldId] = field && value === otherOptionFor(field) ? `${value}：` : value;
       document.getElementById('status').classList.add('hidden');
       renderCurrentFormStep();
     };
