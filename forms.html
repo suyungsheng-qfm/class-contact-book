@@ -105,6 +105,17 @@
     let currentQuestionIndex = 0;
     let formReadOnly = false;
     const getFields = () => normalizeFields(currentForm?.fields);
+    const otherOptionFor = field => {
+      const lastOption = (field.options || []).at(-1);
+      return String(lastOption || '').trim() === '其他' ? lastOption : '';
+    };
+    const isOtherAnswer = (field, value) => Boolean(otherOptionFor(field)) && (value === otherOptionFor(field) || String(value || '').startsWith(`${otherOptionFor(field)}：`));
+    const isAnswerComplete = (field, value) => {
+      const answer = String(value || '').trim();
+      if (!answer) return false;
+      if (!isOtherAnswer(field, answer)) return true;
+      return answer.slice(`${otherOptionFor(field)}：`.length).trim().length > 0;
+    };
 
     function renderCurrentFormStep() {
       const fields = getFields();
@@ -134,8 +145,12 @@
       const answer = previousAnswers[field.id] || '';
       const label = `${currentQuestionIndex + 1}. ${escapeHtml(field.label)}`;
       if (field.type === 'select') {
-        form.innerHTML = `<div><h3 class="text-xl font-black leading-snug text-slate-900">${label}</h3><p class="mt-2 text-sm text-slate-500">請選擇一個答案</p><div class="mt-5 space-y-3">${(field.options || []).map(option => `<button type="button" data-choice-value="${escapeHtml(option)}" class="form-choice min-h-14 w-full rounded-2xl border-2 px-4 text-left text-[16px] font-black transition active:scale-[.98] ${option === answer ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white text-slate-700'}" ${formReadOnly ? 'disabled' : ''}>${escapeHtml(option)}</button>`).join('')}</div></div>`;
+        const otherOption = otherOptionFor(field);
+        const selectedOther = isOtherAnswer(field, answer);
+        const otherText = selectedOther ? String(answer).slice(`${otherOption}：`.length) : '';
+        form.innerHTML = `<div><h3 class="text-xl font-black leading-snug text-slate-900">${label}</h3><p class="mt-2 text-sm text-slate-500">請選擇一個答案</p><div class="mt-5 space-y-3">${(field.options || []).map(option => `<button type="button" data-choice-value="${escapeHtml(option)}" class="form-choice min-h-14 w-full rounded-2xl border-2 px-4 text-left text-[16px] font-black transition active:scale-[.98] ${(option === answer || (option === otherOption && selectedOther)) ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white text-slate-700'}" ${formReadOnly ? 'disabled' : ''}>${escapeHtml(option)}</button>`).join('')}</div>${selectedOther ? `<label class="mt-4 block"><span class="text-sm font-black text-slate-700">請填寫其他內容</span><input id="otherTextAnswer" value="${escapeHtml(otherText)}" ${formReadOnly ? 'disabled' : ''} type="text" class="mt-2 min-h-14 w-full rounded-2xl border-2 border-blue-200 bg-blue-50 px-4 text-[16px] font-medium outline-none focus:border-blue-500" placeholder="請輸入其他內容"></label>` : ''}</div>`;
         form.querySelectorAll('[data-choice-value]').forEach(button => button.addEventListener('click', () => window.chooseFormAnswer(field.id, button.dataset.choiceValue)));
+        form.querySelector('#otherTextAnswer')?.addEventListener('input', event => { previousAnswers[field.id] = `${otherOption}：${event.target.value}`; });
       } else {
         form.innerHTML = `<label class="block"><span class="text-xl font-black leading-snug text-slate-900">${label}</span><p class="mt-2 text-sm text-slate-500">請填寫答案</p><input id="currentTextAnswer" value="${escapeHtml(answer)}" ${formReadOnly ? 'disabled' : ''} type="text" class="mt-5 min-h-14 w-full rounded-2xl border-2 border-slate-200 px-4 text-[16px] font-medium outline-none focus:border-blue-500" placeholder="請輸入答案"></label>`;
         form.querySelector('#currentTextAnswer')?.addEventListener('input', event => { previousAnswers[field.id] = event.target.value; });
@@ -145,14 +160,15 @@
 
     window.chooseFormAnswer = (fieldId, value) => {
       if (formReadOnly) return;
-      previousAnswers[fieldId] = value;
+      const field = getFields().find(item => item.id === fieldId);
+      previousAnswers[fieldId] = field && String(value).trim() === '其他' ? `${value}：` : value;
       document.getElementById('status').classList.add('hidden');
       renderCurrentFormStep();
     };
     window.goToNextQuestion = () => {
       if (formReadOnly) return;
       const field = getFields()[currentQuestionIndex];
-      if (!field || !String(previousAnswers[field.id] || '').trim()) return setStatus('請選擇或填寫答案後再繼續。', 'error');
+      if (!field || !isAnswerComplete(field, previousAnswers[field.id])) return setStatus(isOtherAnswer(field, previousAnswers[field.id]) ? '請填寫其他內容後再繼續。' : '請選擇或填寫答案後再繼續。', 'error');
       currentQuestionIndex += 1;
       document.getElementById('status').classList.add('hidden');
       renderCurrentFormStep();
@@ -168,7 +184,7 @@
       const answers = {};
       for (const field of getFields()) {
         const value = String(previousAnswers[field.id] || '').trim();
-        if (!value) return setStatus('請完成所有題目後再送出。', 'error');
+        if (!isAnswerComplete(field, value)) return setStatus('請完成所有題目後再送出。', 'error');
         answers[field.id] = value;
       }
       const button = document.getElementById('submitButton');
