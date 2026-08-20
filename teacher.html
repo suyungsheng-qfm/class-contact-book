@@ -1092,6 +1092,48 @@
                 window.setTeacherFormStatus(error.message || '收回失敗，請再試一次。', 'error');
             }
         };
+        window.republishTeacherForm = async formId => {
+            const form = window.fbForms.find(item => item.id === formId);
+            if (!form || form.status !== 'retracted' || !checkFbAuth()) return;
+            const confirmation = await Swal.fire({
+                icon: 'question',
+                title: '再次發佈表單？',
+                html: '<p class="text-sm leading-relaxed text-slate-600">會在班群建立新的表單通知，家長可再次填寫。已收到的回覆會保留，家長也可更新自己的回答。</p>',
+                showCancelButton: true,
+                confirmButtonText: '再次發佈',
+                cancelButtonText: '返回',
+                confirmButtonColor: '#7c3aed'
+            });
+            if (!confirmation.isConfirmed) return;
+            try {
+                const now = Date.now();
+                const formRef = doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId);
+                const messageRef = doc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat'));
+                const batch = writeBatch(db);
+                batch.update(formRef, {
+                    status: 'published',
+                    publishedMessageId: messageRef.id,
+                    republishedAt: now,
+                    updatedAt: now
+                });
+                batch.set(messageRef, {
+                    studentId: 'teacher',
+                    name: '蘇老師',
+                    seatNo: 'T',
+                    sender: 'teacher',
+                    text: `請填寫表單：${form.title}`,
+                    formId,
+                    formTitle: form.title,
+                    messageType: 'form',
+                    timestamp: window.getPreciseTime()
+                });
+                await batch.commit();
+                window.setTeacherFormStatus('表單已再次發佈到班群，既有回覆已保留。');
+                window.switchTab('group');
+            } catch (error) {
+                window.setTeacherFormStatus(error.message || '再次發佈失敗，請再試一次。', 'error');
+            }
+        };
         window.deleteTeacherForm = async formId => {
             const form = window.fbForms.find(item => item.id === formId);
             if (!form || !checkFbAuth()) return;
@@ -1145,6 +1187,8 @@
                             : { label: '已關閉', color: 'bg-slate-100 text-slate-500' };
                 const primaryActions = isDraft
                     ? `<button type="button" onclick="window.editTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">修改草稿</button><button type="button" onclick="window.publishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">發佈到班群</button>`
+                    : form.status === 'retracted'
+                        ? `<button type="button" onclick="window.openTeacherFormResponses('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">查看回覆</button><button type="button" onclick="window.republishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">再次發佈</button>`
                     : `<button type="button" onclick="window.openTeacherFormResponses('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">查看回覆</button><button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-11 rounded-xl bg-slate-100 text-slate-600">複製連結</button>`;
                 const secondaryActions = isPublished
                     ? `<button type="button" onclick="window.retractTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">收回表單</button><button type="button" onclick="window.closeTeacherForm('${form.id}')" class="min-h-10 rounded-xl bg-slate-100 text-xs font-black text-slate-600">關閉表單</button><button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="col-span-2 min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`
