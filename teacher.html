@@ -880,9 +880,9 @@
             page.className = 'hidden flex-1 w-full flex-col min-h-0 overflow-y-auto bg-slate-50';
             page.innerHTML = `
                 <section class="w-full max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
-                    <div><p class="text-xs font-black tracking-widest text-violet-600">CLASS FORM</p><h2 class="mt-1 text-3xl font-black text-slate-900">表單</h2><p class="mt-1 text-sm text-slate-500">建立後再公告到班群；家長開啟連結時會自動帶入登入身分。</p></div>
+                    <div><p class="text-xs font-black tracking-widest text-violet-600">CLASS FORM</p><h2 class="mt-1 text-3xl font-black text-slate-900">表單</h2><p class="mt-1 text-sm text-slate-500">先儲存草稿並修改，確認後再發佈到班群；家長開啟連結時會自動帶入登入身分。</p></div>
                     <section class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-                        <h3 class="text-lg font-black">建立新表單</h3>
+                        <div class="flex items-center justify-between gap-3"><h3 id="teacherFormEditorTitle" class="text-lg font-black">建立新表單</h3><button id="cancelTeacherFormEdit" type="button" onclick="window.resetTeacherFormEditor()" class="hidden min-h-10 rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-600">取消編輯</button></div>
                         <div class="mt-4 space-y-4">
                             <label class="block text-sm font-black">表單標題<input id="teacherFormTitle" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-violet-500" placeholder="例如：校外教學午餐調查"></label>
                             <label class="block text-sm font-black">說明（選填）<textarea id="teacherFormDescription" class="mt-2 min-h-20 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium outline-none focus:border-violet-500" placeholder="提供家長閱讀的說明"></textarea></label>
@@ -890,7 +890,7 @@
                             <label class="block text-sm font-black">填寫期限（選填）<input id="teacherFormDeadline" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-violet-500"></label>
                             <div class="grid grid-cols-2 gap-3">
                                 <button type="button" onclick="window.openTeacherFormPreview()" class="min-h-13 rounded-2xl bg-violet-50 px-4 py-3 font-black text-violet-700 ring-1 ring-violet-200 active:scale-[.98]">預覽</button>
-                                <button type="button" onclick="window.createTeacherForm()" class="min-h-13 rounded-2xl bg-violet-600 px-4 py-3 font-black text-white shadow-lg shadow-violet-200 active:scale-[.98]">建立表單</button>
+                                <button id="saveTeacherFormButton" type="button" onclick="window.createTeacherForm()" class="min-h-13 rounded-2xl bg-violet-600 px-4 py-3 font-black text-white shadow-lg shadow-violet-200 active:scale-[.98]">儲存草稿</button>
                             </div>
                             <p id="teacherFormCreateStatus" class="hidden rounded-xl px-3 py-2 text-center text-sm font-bold"></p>
                         </div>
@@ -924,6 +924,22 @@
             }).join('');
         };
         window.resetTeacherFormQuestions = () => window.renderTeacherFormQuestionBuilder([{ label: '', options: ['', ''] }]);
+        window.resetTeacherFormEditor = () => {
+            window.editingTeacherFormId = null;
+            const title = document.getElementById('teacherFormTitle');
+            const description = document.getElementById('teacherFormDescription');
+            const deadline = document.getElementById('teacherFormDeadline');
+            if (title) title.value = '';
+            if (description) description.value = '';
+            if (deadline) deadline.value = '';
+            window.resetTeacherFormQuestions();
+            const heading = document.getElementById('teacherFormEditorTitle');
+            const save = document.getElementById('saveTeacherFormButton');
+            const cancel = document.getElementById('cancelTeacherFormEdit');
+            if (heading) heading.textContent = '建立新表單';
+            if (save) save.textContent = '儲存草稿';
+            if (cancel) cancel.classList.add('hidden');
+        };
         window.addTeacherFormQuestion = () => {
             const questions = window.readTeacherFormQuestions();
             questions.push({ label: '', options: ['', ''] });
@@ -1004,26 +1020,49 @@
             if (error) return window.setTeacherFormStatus(error, 'error');
             if (!title || !fields.length) return window.setTeacherFormStatus('請填寫表單標題與至少一題。', 'error');
             try {
-                const form = await addDoc(collection(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms'), { title, description, fields, deadline, status: 'open', createdAt: Date.now(), updatedAt: Date.now() });
-                document.getElementById('teacherFormTitle').value = '';
-                document.getElementById('teacherFormDescription').value = '';
-                window.resetTeacherFormQuestions();
-                document.getElementById('teacherFormDeadline').value = '';
-                window.setTeacherFormStatus('表單已建立，請按「公告到班群」。');
-                window.openTeacherFormResponses(form.id);
+                const now = Date.now();
+                if (window.editingTeacherFormId) {
+                    await updateDoc(doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', window.editingTeacherFormId), { title, description, fields, deadline, updatedAt: now });
+                    window.setTeacherFormStatus('草稿已更新。');
+                } else {
+                    await addDoc(collection(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms'), { title, description, fields, deadline, status: 'draft', createdAt: now, updatedAt: now });
+                    window.setTeacherFormStatus('草稿已儲存；確認後可發佈到班群。');
+                }
+                window.resetTeacherFormEditor();
             } catch (error) {
-                window.setTeacherFormStatus(error.message || '建立失敗，請再試一次。', 'error');
+                window.setTeacherFormStatus(error.message || '儲存草稿失敗，請再試一次。', 'error');
             }
+        };
+        window.editTeacherForm = formId => {
+            const form = window.fbForms.find(item => item.id === formId);
+            if (!form || form.status !== 'draft') return window.setTeacherFormStatus('只有草稿可以修改；已發佈表單請以關閉後保留紀錄。', 'error');
+            window.editingTeacherFormId = formId;
+            document.getElementById('teacherFormTitle').value = form.title || '';
+            document.getElementById('teacherFormDescription').value = form.description || '';
+            document.getElementById('teacherFormDeadline').value = form.deadline || '';
+            window.renderTeacherFormQuestionBuilder((form.fields || []).map(field => ({ label: field.label || '', options: Array.isArray(field.options) ? field.options : ['', ''] })));
+            document.getElementById('teacherFormEditorTitle').textContent = '修改草稿';
+            document.getElementById('saveTeacherFormButton').textContent = '儲存修改';
+            document.getElementById('cancelTeacherFormEdit').classList.remove('hidden');
+            document.getElementById('formsPage')?.scrollTo({ top: 0, behavior: 'smooth' });
         };
         window.publishTeacherForm = async formId => {
             const form = window.fbForms.find(item => item.id === formId);
-            if (!form || !checkFbAuth()) return;
+            if (!form || form.status !== 'draft' || !checkFbAuth()) return;
             try {
-                await addDoc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat'), { studentId: 'teacher', name: '蘇老師', seatNo: 'T', sender: 'teacher', text: `請填寫表單：${form.title}`, formId, formTitle: form.title, messageType: 'form', timestamp: window.getPreciseTime() });
-                window.setTeacherFormStatus('已公告到班群。');
+                const confirmation = await Swal.fire({ icon: 'question', title: '發佈到班群？', text: '發佈後家長即可填寫，題目將不能再修改。', showCancelButton: true, confirmButtonText: '發佈', cancelButtonText: '返回', confirmButtonColor: '#7c3aed' });
+                if (!confirmation.isConfirmed) return;
+                const now = Date.now();
+                const formRef = doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId);
+                const messageRef = doc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat'));
+                const batch = writeBatch(db);
+                batch.update(formRef, { status: 'published', publishedAt: now, updatedAt: now, publishedMessageId: messageRef.id });
+                batch.set(messageRef, { studentId: 'teacher', name: '蘇老師', seatNo: 'T', sender: 'teacher', text: `請填寫表單：${form.title}`, formId, formTitle: form.title, messageType: 'form', timestamp: window.getPreciseTime() });
+                await batch.commit();
+                window.setTeacherFormStatus('表單已發佈到班群。');
                 window.switchTab('group');
             } catch (error) {
-                window.setTeacherFormStatus(error.message || '公告失敗，請再試一次。', 'error');
+                window.setTeacherFormStatus(error.message || '發佈失敗，請再試一次。', 'error');
             }
         };
         window.copyTeacherFormLink = async formId => {
@@ -1075,9 +1114,22 @@
             count.textContent = String(forms.length);
             if (!forms.length) { list.innerHTML = '<p class="rounded-2xl bg-white p-5 text-center text-sm font-bold text-slate-400 ring-1 ring-slate-200">尚未建立表單。</p>'; return; }
             list.innerHTML = forms.map(form => {
-                const isOpen = form.status === 'open';
+                // Earlier forms used "open" before drafts existed; preserve them as published forms.
+                const isDraft = form.status === 'draft';
+                const isPublished = form.status === 'published' || form.status === 'open';
                 const deadline = form.deadline ? `期限：${window.formEscapeHtml(form.deadline)}` : '未設定期限';
-                return `<article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><h4 class="truncate font-black">${window.formEscapeHtml(form.title)}</h4><p class="mt-1 text-xs font-bold text-slate-400">${deadline}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}">${isOpen ? '開放中' : '已關閉'}</span></div><div class="mt-4 grid grid-cols-2 gap-2 text-sm font-black"><button type="button" onclick="window.openTeacherFormResponses('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">查看回覆</button>${isOpen ? `<button type="button" onclick="window.publishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">公告到班群</button>` : `<button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-11 rounded-xl bg-slate-100 text-slate-600">複製連結</button>`}</div><div class="mt-2 grid ${isOpen ? 'grid-cols-2' : 'grid-cols-1'} gap-2">${isOpen ? `<button type="button" onclick="window.closeTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">關閉表單</button>` : ''}<button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button></div></article>`;
+                const state = isDraft
+                    ? { label: '草稿', color: 'bg-slate-100 text-slate-600' }
+                    : isPublished
+                        ? { label: '已發佈', color: 'bg-emerald-50 text-emerald-700' }
+                        : { label: '已關閉', color: 'bg-slate-100 text-slate-500' };
+                const primaryActions = isDraft
+                    ? `<button type="button" onclick="window.editTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">修改草稿</button><button type="button" onclick="window.publishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">發佈到班群</button>`
+                    : `<button type="button" onclick="window.openTeacherFormResponses('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">查看回覆</button><button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-11 rounded-xl bg-slate-100 text-slate-600">複製連結</button>`;
+                const secondaryActions = isPublished
+                    ? `<button type="button" onclick="window.closeTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">關閉表單</button><button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`
+                    : `<button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="min-h-10 w-full rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`;
+                return `<article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><h4 class="truncate font-black">${window.formEscapeHtml(form.title)}</h4><p class="mt-1 text-xs font-bold text-slate-400">${deadline}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${state.color}">${state.label}</span></div><div class="mt-4 grid grid-cols-2 gap-2 text-sm font-black">${primaryActions}</div><div class="mt-2 grid ${isPublished ? 'grid-cols-2' : 'grid-cols-1'} gap-2">${secondaryActions}</div></article>`;
             }).join('');
             const responseBox = document.getElementById('teacherFormResponses');
             const activeForm = forms.find(form => form.id === window.activeFormId);

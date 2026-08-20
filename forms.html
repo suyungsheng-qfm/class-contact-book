@@ -96,9 +96,10 @@
       deadline.classList.toggle('hidden', !currentForm.deadline);
       if (currentForm.deadline) deadline.textContent = `填寫期限：${currentForm.deadline}`;
       currentQuestionIndex = 0;
-      formReadOnly = currentForm.status !== 'open' || isExpired(currentForm) || !normalizeFields(currentForm.fields).length;
+      const isPublished = currentForm.status === 'published' || currentForm.status === 'open';
+      formReadOnly = !isPublished || isExpired(currentForm) || !normalizeFields(currentForm.fields).length;
       renderCurrentFormStep();
-      if (formReadOnly) setStatus(currentForm.status !== 'open' ? '此表單已關閉。' : isExpired(currentForm) ? '此表單已超過填寫期限。' : '此表單尚未設定可填寫題目。', 'error');
+      if (formReadOnly) setStatus(!isPublished ? '此表單尚未發佈或已關閉。' : isExpired(currentForm) ? '此表單已超過填寫期限。' : '此表單尚未設定可填寫題目。', 'error');
     }
 
     let currentQuestionIndex = 0;
@@ -163,7 +164,7 @@
     };
 
     window.submitForm = async () => {
-      if (!currentForm || currentForm.status !== 'open' || isExpired(currentForm)) return;
+      if (!currentForm || !['published', 'open'].includes(currentForm.status) || isExpired(currentForm)) return;
       const answers = {};
       for (const field of getFields()) {
         const value = String(previousAnswers[field.id] || '').trim();

@@ -127,7 +127,7 @@ service cloud.firestore {
 
     // 教師建立表單；家長只能透過已知連結讀取開放中的單一表單，不能列出全部表單。
     match /artifacts/contact-forms/public/data/forms/{formId} {
-      allow get: if isTeacher() || (isParent() && resource.data.status == 'open');
+      allow get: if isTeacher() || (isParent() && (resource.data.status == 'published' || resource.data.status == 'open'));
       allow list: if isTeacher();
       allow create, update, delete: if isTeacher();
 
@@ -137,7 +137,8 @@ service cloud.firestore {
         allow create, update: if isParent()
           && isOwnStudent(studentId)
           && request.resource.data.studentId == studentId
-          && get(/databases/$(database)/documents/artifacts/contact-forms/public/data/forms/$(formId)).data.status == 'open';
+          && (get(/databases/$(database)/documents/artifacts/contact-forms/public/data/forms/$(formId)).data.status == 'published'
+            || get(/databases/$(database)/documents/artifacts/contact-forms/public/data/forms/$(formId)).data.status == 'open');
         allow delete: if isTeacher();
       }
     }
