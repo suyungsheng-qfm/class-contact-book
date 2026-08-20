@@ -1075,6 +1075,23 @@
             try { await updateDoc(doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId), { status: 'closed', updatedAt: Date.now() }); }
             catch (error) { window.setTeacherFormStatus(error.message || '無法關閉表單。', 'error'); }
         };
+        window.retractTeacherForm = async formId => {
+            const form = window.fbForms.find(item => item.id === formId);
+            if (!form || !['published', 'open'].includes(form.status) || !checkFbAuth()) return;
+            const confirmation = await Swal.fire({ icon: 'warning', title: '收回已發佈的表單？', html: '<p class="text-sm leading-relaxed text-slate-600">班群公告會顯示「訊息已收回」，家長將不能再填寫；已收到的回覆會保留給教師查看。</p>', showCancelButton: true, confirmButtonText: '收回表單', cancelButtonText: '返回', confirmButtonColor: '#dc2626' });
+            if (!confirmation.isConfirmed) return;
+            try {
+                const now = Date.now();
+                const batch = writeBatch(db);
+                batch.update(doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId), { status: 'retracted', retractedAt: now, updatedAt: now });
+                const announcements = (window.fbGroupChats || []).filter(message => message.sender === 'teacher' && message.messageType === 'form' && message.formId === formId && !message.withdrawn);
+                announcements.forEach(message => batch.update(doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat', message.id), { withdrawn: true, messageType: 'withdrawn', text: '訊息已收回', withdrawnAt: window.getPreciseTime() }));
+                await batch.commit();
+                window.setTeacherFormStatus('表單已收回；既有回覆已保留。');
+            } catch (error) {
+                window.setTeacherFormStatus(error.message || '收回失敗，請再試一次。', 'error');
+            }
+        };
         window.deleteTeacherForm = async formId => {
             const form = window.fbForms.find(item => item.id === formId);
             if (!form || !checkFbAuth()) return;
@@ -1123,12 +1140,14 @@
                     ? { label: '草稿', color: 'bg-slate-100 text-slate-600' }
                     : isPublished
                         ? { label: '已發佈', color: 'bg-emerald-50 text-emerald-700' }
-                        : { label: '已關閉', color: 'bg-slate-100 text-slate-500' };
+                        : form.status === 'retracted'
+                            ? { label: '已收回', color: 'bg-rose-50 text-rose-700' }
+                            : { label: '已關閉', color: 'bg-slate-100 text-slate-500' };
                 const primaryActions = isDraft
                     ? `<button type="button" onclick="window.editTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">修改草稿</button><button type="button" onclick="window.publishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">發佈到班群</button>`
                     : `<button type="button" onclick="window.openTeacherFormResponses('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">查看回覆</button><button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-11 rounded-xl bg-slate-100 text-slate-600">複製連結</button>`;
                 const secondaryActions = isPublished
-                    ? `<button type="button" onclick="window.closeTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">關閉表單</button><button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`
+                    ? `<button type="button" onclick="window.retractTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">收回表單</button><button type="button" onclick="window.closeTeacherForm('${form.id}')" class="min-h-10 rounded-xl bg-slate-100 text-xs font-black text-slate-600">關閉表單</button><button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="col-span-2 min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`
                     : `<button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="min-h-10 w-full rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`;
                 return `<article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><h4 class="truncate font-black">${window.formEscapeHtml(form.title)}</h4><p class="mt-1 text-xs font-bold text-slate-400">${deadline}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${state.color}">${state.label}</span></div><div class="mt-4 grid grid-cols-2 gap-2 text-sm font-black">${primaryActions}</div><div class="mt-2 grid ${isPublished ? 'grid-cols-2' : 'grid-cols-1'} gap-2">${secondaryActions}</div></article>`;
             }).join('');
@@ -1137,7 +1156,10 @@
             if (!responseBox || !activeForm) { if (responseBox) responseBox.classList.add('hidden'); return; }
             const fields = Array.isArray(activeForm.fields) ? activeForm.fields : [];
             const responses = window.formResponses || [];
-            responseBox.innerHTML = `<div class="flex items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-violet-600">RESPONSES</p><h3 class="mt-1 text-xl font-black">${window.formEscapeHtml(activeForm.title)}</h3></div><span class="rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700">${responses.length} 份</span></div><div class="mt-4 space-y-3">${responses.length ? responses.map(response => `<article class="rounded-2xl bg-slate-50 p-4"><p class="font-black">${window.formEscapeHtml(response.seatNo)} 號　${window.formEscapeHtml(response.studentName)}</p>${fields.map(field => `<div class="mt-3"><p class="text-xs font-black text-slate-400">${window.formEscapeHtml(field.label)}</p><p class="mt-1 break-words text-sm font-medium text-slate-700">${window.formEscapeHtml(response.answers?.[field.id] || '—')}</p></div>`).join('')}<p class="mt-3 text-[11px] font-bold text-slate-400">${response.submittedAt ? new Date(response.submittedAt).toLocaleString('zh-TW') : ''}</p></article>`).join('') : '<p class="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">尚未收到回覆。</p>'}</div>`;
+            const respondedIds = new Set(responses.map(response => String(response.studentId)));
+            const students = window.allStudents || [];
+            const pendingStudents = students.filter(student => !respondedIds.has(String(student.studentId)));
+            responseBox.innerHTML = `<div class="flex items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-violet-600">RESPONSES</p><h3 class="mt-1 text-xl font-black">${window.formEscapeHtml(activeForm.title)}</h3></div><span class="rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700">${responses.length}／${students.length || '—'} 已回覆</span></div><div class="mt-4 grid grid-cols-2 gap-3"><div class="rounded-2xl bg-emerald-50 p-3"><p class="text-xs font-black text-emerald-700">已回覆</p><p class="mt-1 text-2xl font-black text-emerald-800">${responses.length}</p></div><div class="rounded-2xl bg-rose-50 p-3"><p class="text-xs font-black text-rose-700">未回覆</p><p class="mt-1 text-2xl font-black text-rose-800">${students.length ? pendingStudents.length : '—'}</p></div></div>${students.length && pendingStudents.length ? `<details class="mt-3 rounded-2xl bg-slate-50 p-4"><summary class="cursor-pointer text-sm font-black text-slate-700">查看未回覆名單（${pendingStudents.length}）</summary><p class="mt-3 text-sm font-medium leading-relaxed text-slate-600">${pendingStudents.map(student => `${window.formEscapeHtml(student.seatNo)} 號 ${window.formEscapeHtml(student.name)}`).join('、')}</p></details>` : ''}<div class="mt-4 space-y-3">${responses.length ? responses.map(response => `<article class="rounded-2xl bg-slate-50 p-4"><p class="font-black">${window.formEscapeHtml(response.seatNo)} 號　${window.formEscapeHtml(response.studentName)}</p>${fields.map(field => `<div class="mt-3"><p class="text-xs font-black text-slate-400">${window.formEscapeHtml(field.label)}</p><p class="mt-1 break-words text-sm font-medium text-slate-700">${window.formEscapeHtml(response.answers?.[field.id] || '—')}</p></div>`).join('')}<p class="mt-3 text-[11px] font-bold text-slate-400">${response.submittedAt ? new Date(response.submittedAt).toLocaleString('zh-TW') : ''}</p></article>`).join('') : '<p class="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">尚未收到回覆。</p>'}</div>`;
             responseBox.classList.remove('hidden');
         };
 
@@ -2118,6 +2140,9 @@
             const messages = chatCollection === 'group_chat' ? window.fbGroupChats : window.fbPrivateChats;
             const message = messages.find(item => item.id === messageId);
             if (!message || message.sender !== 'teacher' || message.withdrawn) return;
+            if (chatCollection === 'group_chat' && message.messageType === 'form' && message.formId) {
+                return window.retractTeacherForm(message.formId);
+            }
             const confirmation = await Swal.fire({ icon: 'warning', title: '收回訊息？', text: '對方將看到「訊息已收回」。', showCancelButton: true, confirmButtonText: '收回', cancelButtonText: '取消', confirmButtonColor: '#dc2626' });
             if (!confirmation.isConfirmed) return;
             try {
