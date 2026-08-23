@@ -186,8 +186,8 @@
             #teacherSignatureCard thead { display: none; }
             #teacherSignatureCard tbody tr {
                 display: grid;
-                grid-template-columns: 2.5rem minmax(0, 1fr);
-                gap: 0 .75rem;
+                grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 1fr);
+                gap: .15rem 1.25rem;
                 margin: .5rem;
                 padding: .7rem;
                 border: 1px solid #e2e8f0;
@@ -208,7 +208,9 @@
                 color: #2563eb;
             }
             #teacherSignatureCard tbody td[colspan] { grid-column: 1 / -1; grid-row: auto; width: auto; height: auto; display: block; background: transparent; color: #94a3b8; }
-            #teacherSignatureCard tbody td:nth-child(2) { font-size: 1rem; }
+            #teacherSignatureCard tbody td:nth-child(2) { grid-column: 2 / -1; font-size: 1rem; }
+            #teacherSignatureCard tbody td:nth-child(3) { grid-column: 2; grid-row: 2; }
+            #teacherSignatureCard tbody td:nth-child(4) { grid-column: 3; grid-row: 2; }
             #teacherSignatureCard tbody td:nth-child(3)::before { content: '簽閱'; }
             #teacherSignatureCard tbody td:nth-child(4)::before { content: '出缺席'; }
             #teacherSignatureCard tbody td:nth-child(3)::before, #teacherSignatureCard tbody td:nth-child(4)::before { display: inline-block; min-width: 3.6rem; font-size: .7rem; font-weight: 800; color: #94a3b8; }
@@ -1629,10 +1631,9 @@
                     <tr class="group hover:bg-blue-50/50 transition-colors">
                         <td class="px-2 py-3 text-center font-bold text-slate-400 group-hover:text-blue-400 transition-colors border-b border-slate-50">${String(s.seatNo).padStart(2, '0')}</td>
                         <td class="px-2 py-3 font-bold text-slate-700 border-b border-slate-50">
-                            <div class="flex items-center gap-2"><span>${s.name}</span></div>
-                            <div class="mt-2 flex flex-wrap gap-1.5">
-                                <button type="button" onclick="window.openStudentHistory('${s.studentId}', '${s.name}')" class="min-h-8 rounded-lg bg-blue-50 px-2 text-[10px] font-black text-blue-700 active:scale-[.98]">出缺席紀錄</button>
-                                <button type="button" onclick="window.openStudentProfile('${s.studentId}')" class="min-h-8 rounded-lg bg-violet-50 px-2 text-[10px] font-black text-violet-700 active:scale-[.98]">個人資料卡</button>
+                            <div class="flex min-w-0 items-center gap-2">
+                                <button type="button" onclick="window.openStudentProfile('${s.studentId}')" class="min-h-8 min-w-0 truncate text-left font-black text-slate-700 underline decoration-violet-200 underline-offset-4 active:text-violet-700" title="開啟個人資料卡">${s.name}</button>
+                                <button type="button" onclick="window.openStudentHistory('${s.studentId}', '${s.name}')" class="min-h-8 shrink-0 rounded-lg bg-blue-50 px-2 text-[10px] font-black text-blue-700 active:scale-[.98]">出缺席紀錄</button>
                             </div>
                         </td>
                         <td class="px-2 py-3 text-center border-b border-slate-50">${signHtml}</td>
