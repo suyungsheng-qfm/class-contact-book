@@ -1104,12 +1104,16 @@
                 icon: 'question',
                 title: '再次發佈表單？',
                 html: '<p class="text-sm leading-relaxed text-slate-600">會在班群建立新的表單通知，家長可再次填寫。已收到的回覆會保留，家長也可更新自己的回答。</p>',
+                input: 'date',
+                inputLabel: '填寫期限（可留白）',
+                inputValue: form.deadline || '',
                 showCancelButton: true,
                 confirmButtonText: '再次發佈',
                 cancelButtonText: '返回',
                 confirmButtonColor: '#7c3aed'
             });
             if (!confirmation.isConfirmed) return;
+            const deadline = String(confirmation.value || '').trim();
             try {
                 const now = Date.now();
                 const formRef = doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId);
@@ -1118,6 +1122,7 @@
                 batch.update(formRef, {
                     status: 'published',
                     publishedMessageId: messageRef.id,
+                    deadline,
                     republishedAt: now,
                     updatedAt: now
                 });
@@ -1133,7 +1138,7 @@
                     timestamp: window.getPreciseTime()
                 });
                 await batch.commit();
-                window.setTeacherFormStatus('表單已再次發佈到班群，既有回覆已保留。');
+                window.setTeacherFormStatus('表單已再次發佈到班群；期限已更新，既有回覆已保留。');
                 window.switchTab('group');
             } catch (error) {
                 window.setTeacherFormStatus(error.message || '再次發佈失敗，請再試一次。', 'error');
