@@ -1340,12 +1340,17 @@
                         reader.readAsDataURL(file);
                     });
                     const extension = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
+                    const uploadedAt = new Date();
+                    const timeLabel = [uploadedAt.getHours(), uploadedAt.getMinutes(), uploadedAt.getSeconds()]
+                        .map(value => String(value).padStart(2, '0'))
+                        .join('');
+                    const uploadedName = `${seat.value}_${timeLabel}.${extension}`;
                     const response = await fetch(GAS_API_URL, {
                         method: 'POST',
                         body: JSON.stringify({
                             action: 'uploadClassPhoto',
                             sessionToken: window.sessionToken,
-                            name: `${seat.value}.${extension}`,
+                            name: uploadedName,
                             mimeType: getTeacherPhotoMimeType(file),
                             data: base64Data,
                             folderName: date.value.replace(/-/g, '_')
@@ -1353,7 +1358,6 @@
                     });
                     const result = JSON.parse(await response.text());
                     if (result.status !== 'success') throw new Error(result.message || '上傳失敗。');
-                    const uploadedName = `${seat.value}.${extension}`;
                     resetPhotoForm();
                     setStatus(`上傳完成：${uploadedName}，已重置表單。`, 'success');
                     statusTimer = setTimeout(() => status.classList.add('hidden'), 2500);
