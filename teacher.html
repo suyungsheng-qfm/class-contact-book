@@ -885,7 +885,7 @@
             const bPanel = document.createElement('section');
             bPanel.id = 'recordBPanel';
             bPanel.className = 'hidden w-full max-w-2xl mx-auto space-y-4 p-4 sm:p-6';
-            bPanel.innerHTML = `<article class="overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-sm"><header class="bg-gradient-to-br from-amber-500 to-orange-500 px-5 py-5 text-white"><div class="flex items-start gap-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl">&#128221;</span><div><h3 class="text-xl font-black">學生綜合資料 B表</h3><p class="mt-1 text-sm text-amber-50">輔導紀錄僅限教師登入後查看與管理。</p></div></div></header><div id="bRecordForm" class="p-4 sm:p-5"></div></article><article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-amber-600">B RECORDS</p><h3 class="mt-1 text-lg font-black text-slate-800">歷史紀錄</h3></div><div class="flex w-full flex-wrap gap-2 sm:w-auto"><select id="bRecordStudentFilter" onchange="window.filterBRecords(this.value)" class="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-700"><option value="">全班學生</option></select><button type="button" onclick="window.openBRecordPrintOptions()" class="min-h-11 shrink-0 rounded-xl bg-amber-500 px-3 text-sm font-black text-white shadow-sm active:scale-[.98]">列印／輸出</button></div></div><div id="bRecordList" class="mt-4 space-y-3"></div></article>`;
+            bPanel.innerHTML = `<article class="overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-sm"><header class="bg-gradient-to-br from-amber-500 to-orange-500 px-5 py-5 text-white"><div class="flex items-start gap-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl">&#128221;</span><div><h3 class="text-xl font-black">學生綜合資料 B表</h3><p class="mt-1 text-sm text-amber-50">輔導紀錄僅限教師登入後查看與管理。</p></div></div></header><div id="bRecordForm" class="p-4 sm:p-5"></div></article><article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-amber-600">B RECORDS</p><h3 class="mt-1 text-lg font-black text-slate-800">歷史紀錄</h3></div><div class="flex w-full flex-wrap gap-2 sm:w-auto"><select id="bRecordStudentFilter" onchange="window.filterBRecords(this.value)" class="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-700"><option value="">全班學生</option></select><button type="button" onclick="window.openBRecordPrintOptions()" class="min-h-11 shrink-0 rounded-xl bg-amber-500 px-3 text-sm font-black text-white shadow-sm active:scale-[.98]">列印／輸出</button></div></div><div id="bPrintOptions" class="hidden"></div><div id="bRecordList" class="mt-4 space-y-3"></div></article>`;
             photoPage.appendChild(bPanel);
             window.initTeacherPhotoUpload();
             window.switchRecordSection('album');
@@ -1533,33 +1533,30 @@
             list.innerHTML = records.length ? records.map(record => `<article class="rounded-2xl border ${record.isImportant ? 'border-rose-200 bg-rose-50/50' : 'border-slate-200 bg-slate-50/70'} p-4"><div class="flex items-start justify-between gap-3"><div><p class="font-black text-slate-800">${window.bRecordEscapeHtml(String(record.seatNo || '').padStart(2, '0'))} 號　${window.bRecordEscapeHtml(record.studentName || '')}</p><p class="mt-1 text-xs font-bold text-slate-400">${window.bRecordEscapeHtml(record.date || '')}　${window.bRecordEscapeHtml(record.time || '')}　${window.bRecordEscapeHtml(record.period || '')}</p></div>${record.isImportant ? '<span class="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700">持續追蹤</span>' : ''}</div><div class="mt-3 flex flex-wrap gap-2"><span class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800">${window.bRecordEscapeHtml(record.method || '')}</span><span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-black text-slate-600">${window.bRecordEscapeHtml(record.target || '')}</span></div><div class="mt-3 space-y-3 text-sm leading-relaxed"><div><p class="text-xs font-black text-slate-400">事件經過｜來源：${window.bRecordEscapeHtml(record.source || '')}</p><p class="mt-1 whitespace-pre-wrap font-medium text-slate-700">${window.bRecordEscapeHtml(record.eventSummary || '')}</p></div><div><p class="text-xs font-black text-slate-400">處理情形</p><p class="mt-1 whitespace-pre-wrap font-medium text-slate-700">${window.bRecordEscapeHtml(record.handling || '')}</p></div><div><p class="text-xs font-black text-slate-400">後續追蹤</p><p class="mt-1 whitespace-pre-wrap font-medium text-slate-700">${window.bRecordEscapeHtml(record.followUp || '')}</p></div></div><div class="mt-4 grid grid-cols-2 gap-2"><button type="button" onclick="window.editBRecord('${record.id}')" class="min-h-11 rounded-xl bg-white text-sm font-black text-amber-700 ring-1 ring-amber-200 active:scale-[.98]">修改</button><button type="button" onclick="window.deleteBRecord('${record.id}')" class="min-h-11 rounded-xl bg-white text-sm font-black text-rose-600 ring-1 ring-rose-200 active:scale-[.98]">刪除</button></div></article>`).join('') : '<div class="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-400">尚無符合條件的 B表紀錄。</div>';
         };
 
-        window.openBRecordPrintOptions = async () => {
+        window.openBRecordPrintOptions = () => {
+            const panel = document.getElementById('bPrintOptions');
+            if (!panel) return;
             const selectedStudentId = window.bRecordFilterStudentId || '';
-            const studentOptions = window.renderBRecordStudentOptions(selectedStudentId);
-            const result = await Swal.fire({
-                title: '列印／輸出 B表',
-                html: `<div class="text-left"><p class="mb-4 text-sm leading-relaxed text-slate-500">選擇一位學生與日期範圍後，會開啟符合 B表欄位的 A4 列印頁；也可在列印視窗另存為 PDF。</p><label class="block text-sm font-black text-slate-700">學生<select id="bPrintStudentId" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold"><option value="">請選擇學生</option>${studentOptions}</select></label><div class="mt-4 grid grid-cols-2 gap-3"><label class="block text-sm font-black text-slate-700">起始日期<span class="ml-1 text-xs font-medium text-slate-400">（選填）</span><input id="bPrintStartDate" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold"></label><label class="block text-sm font-black text-slate-700">結束日期<span class="ml-1 text-xs font-medium text-slate-400">（選填）</span><input id="bPrintEndDate" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold"></label></div></div>`,
-                showCancelButton: true,
-                confirmButtonText: '開啟列印版',
-                cancelButtonText: '取消',
-                confirmButtonColor: '#d97706',
-                focusConfirm: false,
-                preConfirm: () => {
-                    const studentId = String(document.getElementById('bPrintStudentId')?.value || '');
-                    const startDate = String(document.getElementById('bPrintStartDate')?.value || '');
-                    const endDate = String(document.getElementById('bPrintEndDate')?.value || '');
-                    if (!studentId) {
-                        Swal.showValidationMessage('請選擇學生。');
-                        return false;
-                    }
-                    if (startDate && endDate && endDate < startDate) {
-                        Swal.showValidationMessage('結束日期不可早於起始日期。');
-                        return false;
-                    }
-                    return { studentId, startDate, endDate };
-                }
-            });
-            if (result.isConfirmed) window.printBRecords(result.value);
+            panel.innerHTML = `<section class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4"><div class="flex items-start justify-between gap-3"><div><h4 class="font-black text-amber-950">列印／輸出 B表</h4><p class="mt-1 text-xs font-bold leading-relaxed text-amber-700">選擇學生與日期範圍後開啟 A4 列印版；可在下一步另存為 PDF。</p></div><button type="button" onclick="window.closeBRecordPrintOptions()" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-lg font-black text-amber-700 shadow-sm" aria-label="關閉列印選項">×</button></div><label class="mt-4 block text-sm font-black text-slate-700">學生<select id="bPrintStudentId" class="mt-2 min-h-12 w-full rounded-xl border border-amber-200 bg-white px-3 text-[16px] font-bold"><option value="">請選擇學生</option>${window.renderBRecordStudentOptions(selectedStudentId)}</select></label><div class="mt-4 grid grid-cols-2 gap-3"><label class="block text-sm font-black text-slate-700">起始日期<span class="ml-1 text-xs font-medium text-slate-400">（選填）</span><input id="bPrintStartDate" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-amber-200 bg-white px-3 text-[16px] font-bold"></label><label class="block text-sm font-black text-slate-700">結束日期<span class="ml-1 text-xs font-medium text-slate-400">（選填）</span><input id="bPrintEndDate" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-amber-200 bg-white px-3 text-[16px] font-bold"></label></div><button type="button" onclick="window.submitBRecordPrint()" class="mt-4 min-h-12 w-full rounded-2xl bg-amber-500 px-4 text-[16px] font-black text-white shadow-sm active:scale-[.98]">開啟列印版</button></section>`;
+            panel.classList.remove('hidden');
+            document.getElementById('bPrintStudentId')?.focus();
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        };
+
+        window.closeBRecordPrintOptions = () => {
+            const panel = document.getElementById('bPrintOptions');
+            if (!panel) return;
+            panel.classList.add('hidden');
+            panel.innerHTML = '';
+        };
+
+        window.submitBRecordPrint = () => {
+            const studentId = String(document.getElementById('bPrintStudentId')?.value || '');
+            const startDate = String(document.getElementById('bPrintStartDate')?.value || '');
+            const endDate = String(document.getElementById('bPrintEndDate')?.value || '');
+            if (!studentId) return Swal.fire('請選擇學生', '請先選擇要輸出的學生。', 'warning');
+            if (startDate && endDate && endDate < startDate) return Swal.fire('日期範圍有誤', '結束日期不可早於起始日期。', 'warning');
+            window.printBRecords({ studentId, startDate, endDate });
         };
 
         window.printBRecords = ({ studentId, startDate = '', endDate = '' }) => {
