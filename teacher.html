@@ -885,7 +885,7 @@
             const bPanel = document.createElement('section');
             bPanel.id = 'recordBPanel';
             bPanel.className = 'hidden w-full max-w-2xl mx-auto space-y-4 p-4 sm:p-6';
-            bPanel.innerHTML = `<article class="overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-sm"><header class="bg-gradient-to-br from-amber-500 to-orange-500 px-5 py-5 text-white"><div class="flex items-start gap-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl">&#128221;</span><div><h3 class="text-xl font-black">學生綜合資料 B表</h3><p class="mt-1 text-sm text-amber-50">輔導紀錄僅限教師登入後查看與管理。</p></div></div></header><div id="bRecordForm" class="p-4 sm:p-5"></div></article><article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-amber-600">B RECORDS</p><h3 class="mt-1 text-lg font-black text-slate-800">歷史紀錄</h3></div><select id="bRecordStudentFilter" onchange="window.filterBRecords(this.value)" class="min-h-11 max-w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-700"><option value="">全班學生</option></select></div><div id="bRecordList" class="mt-4 space-y-3"></div></article>`;
+            bPanel.innerHTML = `<article class="overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-sm"><header class="bg-gradient-to-br from-amber-500 to-orange-500 px-5 py-5 text-white"><div class="flex items-start gap-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl">&#128221;</span><div><h3 class="text-xl font-black">學生綜合資料 B表</h3><p class="mt-1 text-sm text-amber-50">輔導紀錄僅限教師登入後查看與管理。</p></div></div></header><div id="bRecordForm" class="p-4 sm:p-5"></div></article><article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-amber-600">B RECORDS</p><h3 class="mt-1 text-lg font-black text-slate-800">歷史紀錄</h3></div><div class="flex w-full flex-wrap gap-2 sm:w-auto"><select id="bRecordStudentFilter" onchange="window.filterBRecords(this.value)" class="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-700"><option value="">全班學生</option></select><button type="button" onclick="window.openBRecordPrintOptions()" class="min-h-11 shrink-0 rounded-xl bg-amber-500 px-3 text-sm font-black text-white shadow-sm active:scale-[.98]">列印／輸出</button></div></div><div id="bRecordList" class="mt-4 space-y-3"></div></article>`;
             photoPage.appendChild(bPanel);
             window.initTeacherPhotoUpload();
             window.switchRecordSection('album');
@@ -1531,6 +1531,63 @@
             filter.value = selected;
             const records = (window.fbBRecords || []).filter(record => !selected || String(record.studentId) === selected);
             list.innerHTML = records.length ? records.map(record => `<article class="rounded-2xl border ${record.isImportant ? 'border-rose-200 bg-rose-50/50' : 'border-slate-200 bg-slate-50/70'} p-4"><div class="flex items-start justify-between gap-3"><div><p class="font-black text-slate-800">${window.bRecordEscapeHtml(String(record.seatNo || '').padStart(2, '0'))} 號　${window.bRecordEscapeHtml(record.studentName || '')}</p><p class="mt-1 text-xs font-bold text-slate-400">${window.bRecordEscapeHtml(record.date || '')}　${window.bRecordEscapeHtml(record.time || '')}　${window.bRecordEscapeHtml(record.period || '')}</p></div>${record.isImportant ? '<span class="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700">持續追蹤</span>' : ''}</div><div class="mt-3 flex flex-wrap gap-2"><span class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800">${window.bRecordEscapeHtml(record.method || '')}</span><span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-black text-slate-600">${window.bRecordEscapeHtml(record.target || '')}</span></div><div class="mt-3 space-y-3 text-sm leading-relaxed"><div><p class="text-xs font-black text-slate-400">事件經過｜來源：${window.bRecordEscapeHtml(record.source || '')}</p><p class="mt-1 whitespace-pre-wrap font-medium text-slate-700">${window.bRecordEscapeHtml(record.eventSummary || '')}</p></div><div><p class="text-xs font-black text-slate-400">處理情形</p><p class="mt-1 whitespace-pre-wrap font-medium text-slate-700">${window.bRecordEscapeHtml(record.handling || '')}</p></div><div><p class="text-xs font-black text-slate-400">後續追蹤</p><p class="mt-1 whitespace-pre-wrap font-medium text-slate-700">${window.bRecordEscapeHtml(record.followUp || '')}</p></div></div><div class="mt-4 grid grid-cols-2 gap-2"><button type="button" onclick="window.editBRecord('${record.id}')" class="min-h-11 rounded-xl bg-white text-sm font-black text-amber-700 ring-1 ring-amber-200 active:scale-[.98]">修改</button><button type="button" onclick="window.deleteBRecord('${record.id}')" class="min-h-11 rounded-xl bg-white text-sm font-black text-rose-600 ring-1 ring-rose-200 active:scale-[.98]">刪除</button></div></article>`).join('') : '<div class="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-400">尚無符合條件的 B表紀錄。</div>';
+        };
+
+        window.openBRecordPrintOptions = async () => {
+            const selectedStudentId = window.bRecordFilterStudentId || '';
+            const studentOptions = window.renderBRecordStudentOptions(selectedStudentId);
+            const result = await Swal.fire({
+                title: '列印／輸出 B表',
+                html: `<div class="text-left"><p class="mb-4 text-sm leading-relaxed text-slate-500">選擇一位學生與日期範圍後，會開啟符合 B表欄位的 A4 列印頁；也可在列印視窗另存為 PDF。</p><label class="block text-sm font-black text-slate-700">學生<select id="bPrintStudentId" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold"><option value="">請選擇學生</option>${studentOptions}</select></label><div class="mt-4 grid grid-cols-2 gap-3"><label class="block text-sm font-black text-slate-700">起始日期<span class="ml-1 text-xs font-medium text-slate-400">（選填）</span><input id="bPrintStartDate" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold"></label><label class="block text-sm font-black text-slate-700">結束日期<span class="ml-1 text-xs font-medium text-slate-400">（選填）</span><input id="bPrintEndDate" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold"></label></div></div>`,
+                showCancelButton: true,
+                confirmButtonText: '開啟列印版',
+                cancelButtonText: '取消',
+                confirmButtonColor: '#d97706',
+                focusConfirm: false,
+                preConfirm: () => {
+                    const studentId = String(document.getElementById('bPrintStudentId')?.value || '');
+                    const startDate = String(document.getElementById('bPrintStartDate')?.value || '');
+                    const endDate = String(document.getElementById('bPrintEndDate')?.value || '');
+                    if (!studentId) {
+                        Swal.showValidationMessage('請選擇學生。');
+                        return false;
+                    }
+                    if (startDate && endDate && endDate < startDate) {
+                        Swal.showValidationMessage('結束日期不可早於起始日期。');
+                        return false;
+                    }
+                    return { studentId, startDate, endDate };
+                }
+            });
+            if (result.isConfirmed) window.printBRecords(result.value);
+        };
+
+        window.printBRecords = ({ studentId, startDate = '', endDate = '' }) => {
+            const student = (window.allStudents || []).find(item => String(item.studentId) === String(studentId));
+            const records = (window.fbBRecords || []).filter(record => String(record.studentId) === String(studentId)
+                && (!startDate || String(record.date || '') >= startDate)
+                && (!endDate || String(record.date || '') <= endDate))
+                .sort((a, b) => `${a.date || ''} ${a.time || ''}`.localeCompare(`${b.date || ''} ${b.time || ''}`));
+            if (!student || !records.length) {
+                Swal.fire('沒有可輸出的紀錄', '請確認學生與日期範圍。', 'info');
+                return;
+            }
+            const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+            const periodText = record => [record.time, record.period, record.method].filter(Boolean).join('　');
+            const rows = records.map(record => {
+                const [year = '', month = '', day = ''] = String(record.date || '').split('-');
+                const rocYear = Number(year) >= 1912 ? String(Number(year) - 1911) : year;
+                const summary = `時間：${periodText(record)}\n內容來源：${record.source || '—'}\n\n（一）事件經過\n${record.eventSummary || '—'}\n\n（二）輔導／處理情形\n${record.handling || '—'}\n\n（三）後續追蹤\n${record.followUp || '—'}${record.isImportant ? '\n\n【重大／持續追蹤】' : ''}`;
+                return `<tr><td>${escape(String(record.grade || '七').replace('年級', ''))}</td><td>${escape(rocYear)}</td><td>${escape(month)}</td><td>${escape(day)}</td><td>${escape(record.target || '')}</td><td class="summary">${escape(summary)}</td></tr>`;
+            }).join('');
+            const range = [startDate || '全部', endDate || '全部'].join(' 至 ');
+            const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+            if (!printWindow) {
+                Swal.fire('無法開啟列印', '請允許瀏覽器開啟彈出視窗後再試一次。', 'info');
+                return;
+            }
+            printWindow.document.write(`<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><title>高雄市立前峰國中學生綜合資料 B表</title><style>@page{size:A4 portrait;margin:14mm}body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;color:#111;line-height:1.45}main{max-width:182mm;margin:0 auto}h1{text-align:center;font-size:22px;letter-spacing:2px;margin:0 0 12px}.meta{display:flex;flex-wrap:wrap;gap:6px 22px;margin-bottom:8px;font-size:14px}.range{font-size:12px;color:#444;margin:0 0 12px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #222;padding:6px 4px;vertical-align:top;text-align:center;font-size:12px}th{background:#f3f4f6;font-weight:800}th:nth-child(1){width:8%}th:nth-child(2),th:nth-child(3),th:nth-child(4){width:7%}th:nth-child(5){width:14%}th:nth-child(6){width:57%}td.summary{white-space:pre-wrap;text-align:left;line-height:1.55;padding:8px 9px}.note{margin-top:10px;font-size:10px;color:#555}@media print{tr{break-inside:avoid;page-break-inside:avoid}}</style></head><body><main><h1>高雄市立前峰國中學生綜合資料 B表</h1><div class="meta"><span>班級：807</span><span>座號：${escape(String(student.seatNo || '').padStart(2, '0'))}</span><span>姓名：${escape(student.name || '')}</span><span>學號：${escape(student.studentId || '')}</span></div><p class="range">列印範圍：${escape(range)}　｜　共 ${records.length} 筆紀錄</p><table><thead><tr><th>年級</th><th>年</th><th>月</th><th>日</th><th>對象</th><th>輔導紀要</th></tr></thead><tbody>${rows}</tbody></table><p class="note">本表由班級聯絡簿系統依教師輸入的 B表紀錄產生。內容應依個人資料保護與校內保存規範妥善保管。</p><script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script></main></body></html>`);
+            printWindow.document.close();
         };
 
         window.onload = () => {
