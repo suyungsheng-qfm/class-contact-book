@@ -25,7 +25,7 @@
 - 以月曆查看每日公告、班級／學校事項、假日與簽閱狀態；可回到今天。
 - 三步內完成「今天公告 → 簽閱 → 班級訊息／私訊 → 圖片」的日常流程。
 - 可在指定日期填寫線上請假單、手寫家長簽名；送出時會自動私訊通知導師，簽名與資料受登入權限保護。
-- 班群與教師私訊皆支援文字、圖片、未讀提醒、送出中／失敗提示及重試。
+- 班群與教師私訊皆支援文字、圖片、未讀提醒、送出中／失敗提示及重試；可由右上角鈴鐺主動開啟背景通知。
 - 自己送出的文字或圖片可軟收回，畫面改顯示「訊息已收回」。
 - 可向教師提出五分鐘內有效的緊急單一語音通話申請。
 - 可透過手機瀏覽器加入桌面，作為網頁捷徑使用。
@@ -39,7 +39,7 @@
 - 聯絡簿集中顯示待簽、已簽、未簽與請假統計；未簽採紅色提示，可篩選名單並快速私訊。
 - 聯絡簿可由學生姓名開啟個人資料卡，也可依欄位查詢全班資料；資料僅在教師查詢時從 Google 試算表讀取，不寫入 Firebase。個人資料卡可顯示指定相簿資料夾內的學生大頭照縮圖。
 - 可從請假名單開啟含家長簽名的假單並列印；導師簽名欄保留給紙本手寫。
-- 班群與個別家長私訊支援圖片、未讀提醒、失敗重試及軟收回。
+- 班群與個別家長私訊支援圖片、未讀提醒、失敗重試及軟收回；可由右上角鈴鐺主動開啟背景通知。
 - 相簿支援教師以 iPhone 等手機單張上傳；上傳成功後會回到可再次上傳的初始狀態。
 - 教師端「記錄」分為「相簿」與「B表」；B表以日期時間、節次、方式、對象、資料來源、事件經過、處理情形與後續追蹤建立學生輔導紀錄，可篩選、修改、刪除，並能依學生與日期範圍輸出 A4 B表列印版或另存 PDF。
 - 可從家長的通話申請發起一對一網頁語音通話。
@@ -51,6 +51,7 @@
 | --- | --- |
 | GitHub Pages | 發布 `index.html`、`guardians.html`、`teacher.html` 與 PWA 資源。推送 `main` 後自動更新。 |
 | Firebase Firestore | 儲存各學期的聯絡簿、行事曆、簽閱／請假、班群、私訊、相簿資料與未讀狀態，並提供即時同步。 |
+| Firebase Cloud Messaging | 在手機捷徑不開啟時，傳送班群與私訊的背景通知；iPhone／iPad 支援時可在捷徑上顯示未讀徽章。 |
 | Google Apps Script | 統一登入、教師／家長權限判斷、核發短效 Firebase 自訂憑證、圖片上傳、學校行事曆讀取，以及語音通話訊號交換。 |
 | Google 試算表 | 保存家長帳號、驗證碼、學生名單，以及教師限定的學生個人資料。 |
 | Google Drive | 保存班級相簿、聊天圖片，以及按學生與日期歸檔的私密請假簽名。 |
@@ -66,7 +67,7 @@
 | `guardians.html` | 家長端介面與 Firebase 即時資料處理。 |
 | `teacher.html` | 教師端介面與日常管理功能。 |
 | `forms.html` | 家長由班群連結開啟的表單回覆頁。 |
-| `manifest.webmanifest`、`service-worker.js` | 安裝為手機桌面捷徑與基本離線快取。 |
+| `manifest.webmanifest`、`service-worker.js` | 安裝為手機桌面捷徑、基本離線快取、背景推播與捷徑徽章。 |
 | `app-icon-*`、`apple-touch-icon.png`、`807.png` | 網站與桌面捷徑圖示資源。 |
 | `yssu.png` | 教師專用頭像，用於家長端的班群與私訊教師訊息。 |
 | `統一後端.gs`（本機／Apps Script） | Apps Script 後端程式；不作為 GitHub Pages 前端部署內容。 |
@@ -92,8 +93,24 @@ Apps Script 的「指令碼屬性」至少需要設定：
 - `VOICE_TURN_USERNAME`（Metered.ca 使用者名稱）
 - `VOICE_TURN_CREDENTIAL`（Metered.ca 密鑰）
 - `FIREBASE_SERVICE_ACCOUNT_EMAIL`（Firebase／Google Cloud 服務帳號的電子郵件）
+- `FCM_VAPID_KEY`（Firebase Cloud Messaging 的 Web Push 公開金鑰）
 
 請只在 Apps Script 指令碼屬性設定實際帳密與 TURN 憑證，勿將它們寫入 HTML、README 或 GitHub。
+
+### 背景通知與桌面捷徑徽章（需手動啟用）
+
+班群或私訊送出後，系統會由 Apps Script 以 Firebase Cloud Messaging 通知已同意接收通知的裝置。為避免在鎖定畫面顯示私人內容，通知僅顯示「班群有新訊息」、「老師傳來新訊息」或「家長傳來新訊息」，不含正文與圖片。已不再使用的裝置通知識別會在傳送失敗時自動移除；試算表會自動新增「通知訂閱」分頁保存通知識別、角色與更新時間。
+
+啟用步驟：
+
+1. 在 Firebase Console 開啟 **專案設定 → Cloud Messaging → Web configuration → Web Push certificates**，按「Generate key pair」，複製顯示的**公開金鑰**。這不是服務帳戶私密金鑰，也可以安全地交給網頁使用。
+2. 在 Apps Script 的「專案設定 → 指令碼屬性」新增 `FCM_VAPID_KEY`，貼上第 1 步公開金鑰。
+3. 在 Firebase 專案的 Google Cloud Console 確認已啟用 **Firebase Cloud Messaging API** 與 **FCM Registration API**；新版專案通常已啟用，但舊專案可能需要手動啟用。
+4. 將本機 `統一後端.gs` 與 `appsscript.json` 完整更新到 Apps Script，儲存後以部署者帳號完成一次新的授權流程，再重新部署網頁應用程式。`appsscript.json` 要保留 `cloud-platform` 與 `firebase.messaging` scope。
+5. 前端推送至 GitHub Pages 後，在教師與家長手機各自登入，點右上角鈴鐺並允許通知。iPhone／iPad 必須以「加入主畫面」建立的捷徑開啟，才可使用網頁推播與捷徑徽章。
+6. 以另一個帳號傳送班群或私訊測試：App 開啟時會同步正確未讀數；關閉時的推播先以 `1` 作提醒，重新開啟後會依目前未讀狀態清除或更新徽章。
+
+Firebase Cloud Messaging 本身不收費；此版本直接由既有 Apps Script 發送，不需要 Cloud Functions 或額外伺服器。
 
 ### 學生個人資料（需手動更新 Apps Script）
 

@@ -313,6 +313,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, getDocs, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js";
 
         function getSemesterData(targetDate) {
             const now = targetDate ? new Date(targetDate) : new Date();
@@ -390,6 +391,7 @@
                     button.onclick = window.goToUnifiedLogin;
                 });
                 window.setupTeacherChatReadStateListener();
+                window.setupAppNotifications();
                 window.setupTeacherFormsListener();
                 window.populateTeacherPhotoSeats && window.populateTeacherPhotoSeats();
                 document.getElementById('loginPage').classList.add('hidden');
@@ -407,6 +409,88 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        let messaging = null;
+        let foregroundMessageUnsubscribe = null;
+
+        window.callNotificationApi = async (action, payload = {}) => {
+            const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action, sessionToken: window.sessionToken, ...payload }) });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || '通知服務暫時無法使用。');
+            return result;
+        };
+
+        window.updateNotificationButton = () => {
+            const button = document.getElementById('notificationButton');
+            if (!button) return;
+            if (!('Notification' in window) || Notification.permission === 'denied') {
+                button.classList.add('hidden');
+                return;
+            }
+            button.classList.remove('hidden');
+            const enabled = Notification.permission === 'granted' && window.notificationsRegistered;
+            button.title = enabled ? '通知已開啟' : '開啟通知';
+            button.setAttribute('aria-label', button.title);
+            button.classList.toggle('text-blue-600', enabled);
+            button.classList.toggle('bg-blue-50', enabled);
+        };
+
+        window.setAppUnreadBadge = async count => {
+            const unread = Math.max(0, Number(count) || 0);
+            try {
+                if (unread && typeof navigator.setAppBadge === 'function') await navigator.setAppBadge(unread);
+                if (!unread && typeof navigator.clearAppBadge === 'function') await navigator.clearAppBadge();
+            } catch (_) {}
+        };
+
+        window.setupAppNotifications = async () => {
+            if (!window.sessionToken || !('Notification' in window) || !('serviceWorker' in navigator)) return window.updateNotificationButton();
+            try {
+                const supported = await isMessagingSupported();
+                if (!supported) return window.updateNotificationButton();
+                const config = await window.callNotificationApi('notificationConfig');
+                if (!config.vapidKey) return window.updateNotificationButton();
+                window.pushNotificationConfig = config;
+                messaging = getMessaging(app);
+                if (!foregroundMessageUnsubscribe) {
+                    foregroundMessageUnsubscribe = onMessage(messaging, payload => {
+                        const count = Math.max(1, Number(payload?.data?.badgeCount) || 1);
+                        window.setAppUnreadBadge(count);
+                    });
+                }
+                if (Notification.permission === 'granted') await window.registerAppNotifications();
+            } catch (error) {
+                console.warn('Notification setup was skipped.', error);
+            } finally {
+                window.updateNotificationButton();
+            }
+        };
+
+        window.registerAppNotifications = async () => {
+            if (!messaging || !window.pushNotificationConfig?.vapidKey || Notification.permission !== 'granted') return;
+            const registration = await navigator.serviceWorker.ready;
+            const token = await getToken(messaging, { vapidKey: window.pushNotificationConfig.vapidKey, serviceWorkerRegistration: registration });
+            if (!token) throw new Error('無法取得此裝置的通知識別。');
+            await window.callNotificationApi('registerNotificationToken', { token });
+            window.notificationsRegistered = true;
+            window.updateNotificationButton();
+        };
+
+        window.requestAppNotifications = async () => {
+            if (!('Notification' in window)) return Swal.fire('此裝置不支援', '目前瀏覽器無法使用通知功能。', 'info');
+            try {
+                if (!messaging) await window.setupAppNotifications();
+                if (Notification.permission === 'default') await Notification.requestPermission();
+                if (Notification.permission !== 'granted') return Swal.fire('尚未開啟通知', '可在瀏覽器或手機的網站通知設定中隨時開啟。', 'info');
+                await window.registerAppNotifications();
+                Swal.fire({ icon: 'success', title: '通知已開啟', text: '有新的班群或私訊時會提示您。', timer: 1800, showConfirmButton: false });
+            } catch (error) {
+                Swal.fire('無法開啟通知', error.message || '請稍後再試。', 'error');
+            }
+        };
+
+        window.sendMessageNotification = payload => {
+            window.callNotificationApi('notifyUnread', payload).catch(error => console.warn('Unable to send push notification.', error));
+        };
 
         let fbUser = null;
         window.allStudents = [];
@@ -516,6 +600,7 @@
 
         window.updateTeacherChatUnreadIndicators = function() {
             if (window.teacherChatReadState === null) return;
+            let unreadCount = 0;
             const chatTypes = [
                 { tab: 'group', badge: 'groupUnreadBadge', field: 'teacherGroupReadAt', messages: window.fbGroupChats.filter(message => message.studentId !== 'teacher') },
                 { tab: 'private', badge: 'privateUnreadBadge', field: 'teacherPrivateReadAt', messages: window.fbPrivateChats.filter(message => message.sender === 'parent') }
@@ -530,8 +615,11 @@
                     badgeElement.classList.add('hidden');
                     return;
                 }
-                badgeElement.classList.toggle('hidden', String(latestMessage.timestamp) <= lastReadAt);
+                const hasUnread = String(latestMessage.timestamp) > lastReadAt;
+                badgeElement.classList.toggle('hidden', !hasUnread);
+                if (hasUnread) unreadCount += messages.filter(message => String(message.timestamp || '') > lastReadAt).length;
             });
+            window.setAppUnreadBadge(unreadCount);
         };
 
         const initAuth = async (firebaseToken) => {
@@ -2554,6 +2642,7 @@
                                 messageType: 'image',
                                 timestamp: window.getPreciseTime()
                             });
+                            window.sendMessageNotification({ channel: 'group', messageType: 'image' });
                             setTimeout(window.scrollToGroupChatBottom, 100);
                         } else {
                             await addDoc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats'), {
@@ -2565,6 +2654,7 @@
                                 messageType: 'image',
                                 timestamp: window.getPreciseTime()
                             });
+                            window.sendMessageNotification({ channel: 'private', studentId: window.activeChatStudentId, messageType: 'image' });
                             setTimeout(window.scrollToPrivateChatBottom, 100);
                         }
                     } else {
@@ -2596,6 +2686,7 @@
                     messageType: 'text',
                     timestamp: window.getPreciseTime()
                 });
+                window.sendMessageNotification({ channel: 'group', messageType: 'text' });
                 input.value = '';
                 input.style.height = 'auto'; 
             } catch(e) {
@@ -2627,6 +2718,7 @@
                     messageType: 'text',
                     timestamp: window.getPreciseTime()
                 });
+                window.sendMessageNotification({ channel: 'private', studentId: window.activeChatStudentId, messageType: 'text' });
                 input.value = '';
                 input.style.height = 'auto'; 
             } catch(e) {
@@ -3282,6 +3374,7 @@
                         }, 2000);
                     </script>
                 </div>
+                <button id="notificationButton" onclick="window.requestAppNotifications()" aria-label="開啟通知" title="開啟通知" class="hidden bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors"><i data-lucide="bell" class="w-5 h-5"></i></button>
                 <button onclick="window.goToUnifiedLogin()" aria-label="登出" title="登出" class="bg-slate-100 hover:bg-slate-200 p-2 rounded-full transition-colors"><i data-lucide="log-out" class="w-5 h-5"></i></button>
             </div>
         </header>
