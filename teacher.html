@@ -14,6 +14,13 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; height: var(--app-height) !important; min-height: var(--app-height) !important; }
         #teacherDashboard { min-height: 0; height: var(--app-height); }
+        @media print {
+            body * { visibility: hidden !important; }
+            #bPrintPreviewModal, #bPrintPreviewModal * { visibility: visible !important; }
+            #bPrintPreviewModal { position: absolute !important; inset: 0 !important; display: block !important; overflow: visible !important; background: #fff !important; padding: 0 !important; }
+            #bPrintPreviewActions { display: none !important; }
+            #bPrintPreviewDocument { width: 182mm !important; max-width: none !important; margin: 0 auto !important; box-shadow: none !important; }
+        }
         
         .t-calendar-day {
             aspect-ratio: 1 / 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -1578,13 +1585,28 @@
                 return `<tr><td>${escape(String(record.grade || '七').replace('年級', ''))}</td><td>${escape(rocYear)}</td><td>${escape(month)}</td><td>${escape(day)}</td><td>${escape(record.target || '')}</td><td class="summary">${escape(summary)}</td></tr>`;
             }).join('');
             const range = [startDate || '全部', endDate || '全部'].join(' 至 ');
-            const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-            if (!printWindow) {
-                Swal.fire('無法開啟列印', '請允許瀏覽器開啟彈出視窗後再試一次。', 'info');
-                return;
+            let preview = document.getElementById('bPrintPreviewModal');
+            if (!preview) {
+                preview = document.createElement('div');
+                preview.id = 'bPrintPreviewModal';
+                preview.className = 'fixed inset-0 z-[300] hidden bg-slate-950/60 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm';
+                document.body.appendChild(preview);
             }
-            printWindow.document.write(`<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><title>高雄市立前峰國中學生綜合資料 B表</title><style>@page{size:A4 portrait;margin:14mm}body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;color:#111;line-height:1.45}main{max-width:182mm;margin:0 auto}h1{text-align:center;font-size:22px;letter-spacing:2px;margin:0 0 12px}.meta{display:flex;flex-wrap:wrap;gap:6px 22px;margin-bottom:8px;font-size:14px}.range{font-size:12px;color:#444;margin:0 0 12px}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #222;padding:6px 4px;vertical-align:top;text-align:center;font-size:12px}th{background:#f3f4f6;font-weight:800}th:nth-child(1){width:8%}th:nth-child(2),th:nth-child(3),th:nth-child(4){width:7%}th:nth-child(5){width:14%}th:nth-child(6){width:57%}td.summary{white-space:pre-wrap;text-align:left;line-height:1.55;padding:8px 9px}.note{margin-top:10px;font-size:10px;color:#555}@media print{tr{break-inside:avoid;page-break-inside:avoid}}</style></head><body><main><h1>高雄市立前峰國中學生綜合資料 B表</h1><div class="meta"><span>班級：807</span><span>座號：${escape(String(student.seatNo || '').padStart(2, '0'))}</span><span>姓名：${escape(student.name || '')}</span><span>學號：${escape(student.studentId || '')}</span></div><p class="range">列印範圍：${escape(range)}　｜　共 ${records.length} 筆紀錄</p><table><thead><tr><th>年級</th><th>年</th><th>月</th><th>日</th><th>對象</th><th>輔導紀要</th></tr></thead><tbody>${rows}</tbody></table><p class="note">本表由班級聯絡簿系統依教師輸入的 B表紀錄產生。內容應依個人資料保護與校內保存規範妥善保管。</p><script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script></main></body></html>`);
-            printWindow.document.close();
+            preview.innerHTML = `<section class="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-slate-100 shadow-2xl"><header id="bPrintPreviewActions" class="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-5"><div><p class="text-xs font-black tracking-widest text-amber-600">PRINT PREVIEW</p><h2 class="mt-1 font-black text-slate-800">B表列印預覽</h2></div><div class="flex items-center gap-2"><button type="button" onclick="window.printBRecordPreview()" class="min-h-11 rounded-xl bg-amber-500 px-3 text-sm font-black text-white shadow-sm active:scale-[.98]">列印／另存 PDF</button><button type="button" onclick="window.closeBRecordPrintPreview()" class="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-xl font-black text-slate-600 active:scale-95" aria-label="關閉列印預覽">×</button></div></header><div class="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5"><article id="bPrintPreviewDocument" class="mx-auto w-full max-w-[182mm] bg-white p-6 text-slate-950 shadow-sm sm:p-10"><style>@page{size:A4 portrait;margin:14mm}#bPrintPreviewDocument{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;line-height:1.45}#bPrintPreviewDocument h1{text-align:center;font-size:22px;letter-spacing:2px;margin:0 0 12px}#bPrintPreviewDocument .meta{display:flex;flex-wrap:wrap;gap:6px 22px;margin-bottom:8px;font-size:14px}#bPrintPreviewDocument .range{font-size:12px;color:#444;margin:0 0 12px}#bPrintPreviewDocument table{width:100%;border-collapse:collapse;table-layout:fixed}#bPrintPreviewDocument th,#bPrintPreviewDocument td{border:1px solid #222;padding:6px 4px;vertical-align:top;text-align:center;font-size:12px}#bPrintPreviewDocument th{background:#f3f4f6;font-weight:800}#bPrintPreviewDocument th:nth-child(1){width:8%}#bPrintPreviewDocument th:nth-child(2),#bPrintPreviewDocument th:nth-child(3),#bPrintPreviewDocument th:nth-child(4){width:7%}#bPrintPreviewDocument th:nth-child(5){width:14%}#bPrintPreviewDocument th:nth-child(6){width:57%}#bPrintPreviewDocument td.summary{white-space:pre-wrap;text-align:left;line-height:1.55;padding:8px 9px}#bPrintPreviewDocument .note{margin-top:10px;font-size:10px;color:#555}@media print{#bPrintPreviewDocument tr{break-inside:avoid;page-break-inside:avoid}}</style><h1>高雄市立前峰國中學生綜合資料 B表</h1><div class="meta"><span>班級：807</span><span>座號：${escape(String(student.seatNo || '').padStart(2, '0'))}</span><span>姓名：${escape(student.name || '')}</span><span>學號：${escape(student.studentId || '')}</span></div><p class="range">列印範圍：${escape(range)}　｜　共 ${records.length} 筆紀錄</p><table><thead><tr><th>年級</th><th>年</th><th>月</th><th>日</th><th>對象</th><th>輔導紀要</th></tr></thead><tbody>${rows}</tbody></table><p class="note">本表由班級聯絡簿系統依教師輸入的 B表紀錄產生。內容應依個人資料保護與校內保存規範妥善保管。</p></article></div></section>`;
+            preview.classList.remove('hidden');
+            preview.classList.add('flex');
+        };
+
+        window.closeBRecordPrintPreview = () => {
+            const preview = document.getElementById('bPrintPreviewModal');
+            if (!preview) return;
+            preview.classList.add('hidden');
+            preview.classList.remove('flex');
+            preview.innerHTML = '';
+        };
+
+        window.printBRecordPreview = () => {
+            window.print();
         };
 
         window.onload = () => {
