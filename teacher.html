@@ -1276,7 +1276,11 @@
             const retry = document.getElementById('teacherPhotoRetry');
             const status = document.getElementById('teacherPhotoStatus');
             const today = document.getElementById('teacherPhotoToday');
-            date.value = new Date().toISOString().slice(0, 10);
+            const getLocalDateInputValue = () => {
+                const current = new Date();
+                return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+            };
+            date.value = getLocalDateInputValue();
             window.populateTeacherPhotoSeats();
 
             let statusTimer = null;
@@ -1299,7 +1303,7 @@
             const resetPhotoForm = () => {
                 clearPhoto();
                 fileName.textContent = '';
-                date.value = new Date().toISOString().slice(0, 10);
+                date.value = getLocalDateInputValue();
                 window.selectTeacherPhotoSeat('');
             };
             const getTeacherPhotoMimeType = (file) => {
@@ -1373,7 +1377,7 @@
             pick.addEventListener('click', () => input.click());
             input.addEventListener('change', event => selectPhoto(event.target.files[0]));
             remove.addEventListener('click', clearPhoto);
-            today.addEventListener('click', () => { date.value = new Date().toISOString().slice(0, 10); });
+            today.addEventListener('click', () => { date.value = getLocalDateInputValue(); });
             submit.addEventListener('click', window.submitTeacherPhoto);
             retry.addEventListener('click', window.submitTeacherPhoto);
         };
