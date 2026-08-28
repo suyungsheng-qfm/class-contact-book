@@ -1579,6 +1579,21 @@
             return [...new Set(lines)].join('\n');
         };
 
+        window.getLeaveRequestDates = request => {
+            if (Array.isArray(request?.leaveDates) && request.leaveDates.length) return request.leaveDates;
+            const startDate = request?.startDate || request?.date;
+            const endDate = request?.endDate || startDate;
+            const [startYear, startMonth, startDay] = String(startDate || '').split('/').map(Number);
+            const [endYear, endMonth, endDay] = String(endDate || '').split('/').map(Number);
+            const start = new Date(startYear, startMonth - 1, startDay, 12);
+            const end = new Date(endYear, endMonth - 1, endDay, 12);
+            if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [];
+            const dates = [];
+            for (const current = new Date(start); current <= end; current.setDate(current.getDate() + 1)) dates.push(window.normalizeDate(current));
+            return dates;
+        };
+        window.leaveRequestCoversDate = (request, date) => request?.status === 'submitted' && window.getLeaveRequestDates(request).includes(date);
+
         function renderContent() {
             const dateParts = window.selectedDateStr.split('/');
             document.getElementById('tDateTitle').innerText = `${dateParts[0]}年${parseInt(dateParts[1])}月${parseInt(dateParts[2])}日`;
@@ -1631,7 +1646,7 @@
                         ? `<span class="text-amber-500 text-[10px] font-black bg-amber-50 px-2 py-1 rounded border border-amber-100 shadow-sm">請假</span>`
                         : `<span class="text-blue-500 text-[10px] font-black bg-blue-50 px-2 py-1 rounded border border-blue-100 shadow-sm">出席</span>`;
 
-                    const leaveRequest = (window.fbLeaveRequests || []).find(item => item.date === window.selectedDateStr && String(item.studentId) === String(s.studentId) && item.status === 'submitted');
+                    const leaveRequest = (window.fbLeaveRequests || []).find(item => String(item.studentId) === String(s.studentId) && window.leaveRequestCoversDate(item, window.selectedDateStr));
                     const actionHtml = isLeave
                         ? `${leaveRequest ? `<button onclick="window.printLeaveRequest('${s.studentId}', '${window.selectedDateStr}')" class="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-700 px-2 py-1 rounded transition-colors font-bold border border-amber-200">假單</button>` : ''}<button onclick="window.handleToggleLeave('${s.studentId}', false)" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-500 px-2 py-1 rounded transition-colors font-bold border border-slate-200">取消請假</button>`
                         : `<button onclick="window.handleToggleLeave('${s.studentId}', true)" class="text-[10px] bg-white hover:bg-amber-50 text-amber-600 px-2 py-1 rounded transition-colors font-bold border border-amber-200 shadow-sm">設為請假</button>`;
@@ -2753,19 +2768,57 @@
             finally { document.getElementById('tLoading').classList.add('hidden'); }
         };
 
-        window.printLeaveRequest = (studentId, date) => {
-            const leaveRequest = (window.fbLeaveRequests || []).find(item => item.date === date && String(item.studentId) === String(studentId) && item.status === 'submitted');
+        window.printLegacyLeaveRequest = (studentId, date) => {
+            const leaveRequest = (window.fbLeaveRequests || []).find(item => String(item.studentId) === String(studentId) && window.leaveRequestCoversDate(item, date));
             if (!leaveRequest?.parentSignatureDataUrl) {
                 Swal.fire('找不到假單', '此請假紀錄沒有可列印的線上家長簽名。', 'info');
                 return;
             }
             const escape = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&gt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+            const formatDate = value => {
+                const [year, month, day] = String(value || '').split('/').map(Number);
+                return year && month && day ? `${year}年${month}月${day}日` : '未填寫';
+            };
+            const startDate = leaveRequest.startDate || leaveRequest.date;
+            const endDate = leaveRequest.endDate || startDate;
+            const periodText = value => value && value !== '全天' ? `第 ${value} 節` : '全天';
+            const leaveDates = window.getLeaveRequestDates(leaveRequest);
+            const totalDays = Number(leaveRequest.totalDays || leaveDates.length || 1);
+            const totalPeriods = Number(leaveRequest.totalPeriods || 0);
+            const totalText = totalPeriods ? `${totalDays} 日\n${totalPeriods} 節` : `${totalDays} 日`;
             const printWindow = window.open('', '_blank', 'width=860,height=1000');
             if (!printWindow) {
                 Swal.fire('無法開啟列印', '請允許瀏覽器開啟彈出視窗後再試一次。', 'info');
                 return;
             }
             printWindow.document.write(`<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><title>807 班級請假單</title><style>@page{size:A4;margin:18mm}body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;color:#111;line-height:1.5}main{max-width:720px;margin:0 auto}h1{text-align:center;font-size:26px;letter-spacing:3px;margin:0 0 20px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;margin:16px 0;font-size:16px}.line{border-bottom:1px solid #333;min-height:28px;padding:3px 4px}.reason{min-height:80px;border:1px solid #333;padding:10px;white-space:pre-wrap}.signature-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:42px}.signature-box{min-height:130px;border:1px solid #333;padding:10px;position:relative}.signature-box h2{font-size:15px;margin:0}.signature-box img{display:block;max-width:100%;height:82px;object-fit:contain;margin:8px auto 0}.blank{height:82px;border-bottom:1px solid #333;margin:8px 12px 0}.note{margin-top:30px;font-size:12px;color:#555}@media print{button{display:none}}</style></head><body><main><h1>807 班級請假單</h1><div class="meta"><div>學生姓名：<span class="line">${escape(leaveRequest.studentName)}</span></div><div>座號：<span class="line">${escape(leaveRequest.seatNo)}</span></div><div>請假日期：<span class="line">${escape(leaveRequest.date)}</span></div><div>填單時間：<span class="line">${escape(leaveRequest.submittedAt)}</span></div></div><p>請假事由：</p><div class="reason">${escape(leaveRequest.reason || '未填寫')}</div><div class="signature-grid"><section class="signature-box"><h2>家長簽名</h2><img src="${leaveRequest.parentSignatureDataUrl}" alt="家長簽名"></section><section class="signature-box"><h2>導師簽名</h2><div class="blank"></div></section></div><p class="note">本假單由班級聯絡簿系統產生；導師簽名欄請於列印後手寫。</p></main><script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script></body></html>`);
+            printWindow.document.close();
+        };
+
+        window.printLeaveRequest = (studentId, date) => {
+            const leaveRequest = (window.fbLeaveRequests || []).find(item => String(item.studentId) === String(studentId) && window.leaveRequestCoversDate(item, date));
+            if (!leaveRequest?.parentSignatureDataUrl) {
+                Swal.fire('找不到假單', '此請假紀錄沒有可列印的線上家長簽名。', 'info');
+                return;
+            }
+            const escape = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+            const formatDate = value => {
+                const [year, month, day] = String(value || '').split('/').map(Number);
+                return year && month && day ? `${year}年${month}月${day}日` : '未填寫';
+            };
+            const startDate = leaveRequest.startDate || leaveRequest.date;
+            const endDate = leaveRequest.endDate || startDate;
+            const periodText = value => value && value !== '全天' ? `第 ${value} 節` : '全天';
+            const leaveDates = window.getLeaveRequestDates(leaveRequest);
+            const totalDays = Number(leaveRequest.totalDays || leaveDates.length || 1);
+            const totalPeriods = Number(leaveRequest.totalPeriods || 0);
+            const totalText = totalPeriods ? `${totalDays} 日\n${totalPeriods} 節` : `${totalDays} 日`;
+            const printWindow = window.open('', '_blank', 'width=1120,height=780');
+            if (!printWindow) {
+                Swal.fire('無法開啟列印', '請允許瀏覽器開啟彈出視窗後再試一次。', 'info');
+                return;
+            }
+            printWindow.document.write(`<!doctype html><html lang="zh-TW"><head><meta charset="utf-8"><title>高雄市立前峰國中學生請假單</title><style>@page{size:A4 landscape;margin:12mm}body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;color:#111;line-height:1.35}main{max-width:1080px;margin:0 auto}h1{margin:0 0 12px;text-align:center;font-size:27px;letter-spacing:4px}.student{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 22px;margin-bottom:12px;font-size:16px}.line{display:inline-block;min-width:80px;border-bottom:1px solid #222;padding:0 5px}.reason{margin:10px 0 14px;border:1px solid #222;min-height:52px;padding:8px 10px;white-space:pre-wrap}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #222;padding:7px 6px;text-align:center;vertical-align:top;font-size:13px}th{background:#f7f7f7;font-weight:800}td{height:126px;white-space:pre-line}.time{text-align:left;line-height:1.7}.signature img{display:block;width:100%;height:80px;object-fit:contain}.approval{height:126px}.note{margin-top:9px;font-size:11px;color:#555}@media print{button{display:none}}</style></head><body><main><h1>高雄市立前峰國中學生請假單</h1><div class="student"><div>班級：<span class="line">${escape(leaveRequest.className || '807')}</span></div><div>座號：<span class="line">${escape(leaveRequest.seatNo)}</span></div><div>姓名：<span class="line">${escape(leaveRequest.studentName)}</span></div></div><p>請假事由：</p><div class="reason">${escape(leaveRequest.reason || '未填寫')}</div><table><thead><tr><th style="width:7%">假別</th><th style="width:20%">起訖時間</th><th style="width:7%">共計</th><th style="width:14%">家長簽章</th><th style="width:11%">導師核准</th><th style="width:11%">生教組核准</th><th style="width:11%">學務主任<br>（四日）</th><th style="width:11%">校長<br>（七日）</th><th style="width:7%">登記</th></tr></thead><tbody><tr><td>${escape(leaveRequest.leaveType || '未填寫')}</td><td class="time">自　${escape(formatDate(startDate))}　${escape(periodText(leaveRequest.startPeriod))}<br>至　${escape(formatDate(endDate))}　${escape(periodText(leaveRequest.endPeriod))}</td><td>${escape(totalText)}</td><td class="signature"><img src="${leaveRequest.parentSignatureDataUrl}" alt="家長簽章"></td><td class="approval"></td><td class="approval"></td><td class="approval"></td><td class="approval"></td><td class="approval"></td></tr></tbody></table><p class="note">填單時間：${escape(leaveRequest.submittedAt)}　｜　導師、生教組、學務主任、校長與登記欄請於列印後依校內流程核章。</p></main><script>window.onload=()=>setTimeout(()=>window.print(),250);<\/script></body></html>`);
             printWindow.document.close();
         };
 
@@ -2780,17 +2833,18 @@
 
             document.getElementById('tLoading').classList.remove('hidden');
             try {
-                const docId = `${window.toDocId(window.selectedDateStr)}_${studentId}`;
-                const docRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', docId);
                 const batch = writeBatch(db);
-                batch.set(docRef, {
-                    date: window.selectedDateStr,
-                    studentId: studentId,
-                    isLeave: isLeave
-                }, { merge: true });
-                if (!isLeave) {
-                    const leaveRequest = (window.fbLeaveRequests || []).find(item => item.id === docId && item.status === 'submitted');
-                    if (leaveRequest) batch.update(doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'leave_requests', docId), { status: 'cancelled', cancelledAt: window.getPreciseTime(), updatedAt: window.getPreciseTime() });
+                if (isLeave) {
+                    const docRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', `${window.toDocId(window.selectedDateStr)}_${studentId}`);
+                    batch.set(docRef, { date: window.selectedDateStr, studentId, isLeave: true }, { merge: true });
+                } else {
+                    const leaveRequest = (window.fbLeaveRequests || []).find(item => String(item.studentId) === String(studentId) && window.leaveRequestCoversDate(item, window.selectedDateStr));
+                    const leaveDates = leaveRequest ? window.getLeaveRequestDates(leaveRequest) : [window.selectedDateStr];
+                    leaveDates.forEach(leaveDate => {
+                        const recordRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', `${window.toDocId(leaveDate)}_${studentId}`);
+                        batch.set(recordRef, { date: leaveDate, studentId, isLeave: false }, { merge: true });
+                    });
+                    if (leaveRequest) batch.update(doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'leave_requests', leaveRequest.id), { status: 'cancelled', cancelledAt: window.getPreciseTime(), updatedAt: window.getPreciseTime() });
                 }
                 await batch.commit();
                 Swal.fire({ icon: 'success', title: '設定成功', text: isLeave ? '已設為請假' : '已取消請假', timer: 1000, showConfirmButton: false });

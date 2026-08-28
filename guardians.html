@@ -1588,10 +1588,34 @@
             });
         };
 
+        window.getLeaveDates = (startDate, endDate) => {
+            const [startYear, startMonth, startDay] = String(startDate || '').split('/').map(Number);
+            const [endYear, endMonth, endDay] = String(endDate || '').split('/').map(Number);
+            const start = new Date(startYear, startMonth - 1, startDay, 12);
+            const end = new Date(endYear, endMonth - 1, endDay, 12);
+            if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [];
+            const dates = [];
+            for (const current = new Date(start); current <= end; current.setDate(current.getDate() + 1)) {
+                dates.push(window.normalizeDate(current));
+            }
+            return dates;
+        };
+
+        window.getLeaveRequestDates = request => {
+            if (Array.isArray(request?.leaveDates) && request.leaveDates.length) return request.leaveDates;
+            const startDate = request?.startDate || request?.date;
+            const endDate = request?.endDate || startDate;
+            return window.getLeaveDates(startDate, endDate);
+        };
+
+        window.leaveRequestCoversDate = (request, date) => request?.status === 'submitted' && window.getLeaveRequestDates(request).includes(date);
+
+        window.leaveDateInputValue = date => String(date || '').replaceAll('/', '-');
+
         window.openLeaveApplication = async dateToManage => {
             const result = await Swal.fire({
                 title: '線上請假單',
-                html: `<div class="text-left"><div class="rounded-2xl bg-blue-50 p-4 text-sm text-blue-800"><p class="font-black">請假日期</p><p class="mt-1 text-lg font-black">${dateToManage}</p><p class="mt-1 text-xs font-bold">${window.currentUser.seatNo || ''} 號　${window.currentUser.name || ''}</p></div><label class="mt-4 block text-sm font-black text-slate-700">請假事由（選填）<textarea id="leaveReasonInput" class="mt-2 min-h-20 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium outline-none focus:border-blue-500" maxlength="300" placeholder="例如：身體不適"></textarea></label><div class="mt-4"><div class="mb-2 flex items-center justify-between"><span class="text-sm font-black text-slate-700">家長簽名</span><button id="clearLeaveSignature" type="button" class="rounded-lg px-2 py-1 text-xs font-black text-blue-600">清除</button></div><canvas id="leaveSignatureCanvas" class="h-[180px] w-full rounded-2xl border-2 border-dashed border-blue-200 bg-white" style="touch-action:none"></canvas><p class="mt-2 text-xs font-medium text-slate-400">請以手指或觸控筆於框內簽名；簽名將與此請假單一併儲存。</p></div></div>`,
+                html: `<div class="text-left"><div class="rounded-2xl bg-blue-50 p-4 text-sm text-blue-800"><p class="font-black">高雄市立前峰國中學生請假單</p><p class="mt-1 text-xs font-bold">807 班　${window.currentUser.seatNo || ''} 號　${window.currentUser.name || ''}</p></div><div class="mt-4 grid grid-cols-2 gap-3"><label class="block text-sm font-black text-slate-700">假別<select id="leaveTypeInput" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-medium outline-none focus:border-blue-500"><option value="病假">病假</option><option value="事假">事假</option><option value="喪假">喪假</option><option value="公假">公假</option><option value="其他">其他</option></select></label><label class="block text-sm font-black text-slate-700">請假事由（選填）<input id="leaveReasonInput" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-blue-500" maxlength="300" placeholder="例如：身體不適"></label></div><div class="mt-4 grid grid-cols-2 gap-3"><label class="block text-sm font-black text-slate-700">起始日期<input id="leaveStartDateInput" type="date" value="${window.leaveDateInputValue(dateToManage)}" min="${window.leaveDateInputValue(window.todayStr)}" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-blue-500"></label><label class="block text-sm font-black text-slate-700">結束日期<input id="leaveEndDateInput" type="date" value="${window.leaveDateInputValue(dateToManage)}" min="${window.leaveDateInputValue(dateToManage)}" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-blue-500"></label><label class="block text-sm font-black text-slate-700">起始節次<select id="leaveStartPeriodInput" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-medium outline-none focus:border-blue-500"><option value="全天">全天</option>${[1,2,3,4,5,6,7,8].map(period => `<option value="${period}">第 ${period} 節</option>`).join('')}</select></label><label class="block text-sm font-black text-slate-700">結束節次<select id="leaveEndPeriodInput" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-medium outline-none focus:border-blue-500"><option value="全天">全天</option>${[1,2,3,4,5,6,7,8].map(period => `<option value="${period}">第 ${period} 節</option>`).join('')}</select></label></div><div class="mt-4"><div class="mb-2 flex items-center justify-between"><span class="text-sm font-black text-slate-700">家長簽章</span><button id="clearLeaveSignature" type="button" class="rounded-lg px-2 py-1 text-xs font-black text-blue-600">清除</button></div><canvas id="leaveSignatureCanvas" class="h-[180px] w-full rounded-2xl border-2 border-dashed border-blue-200 bg-white" style="touch-action:none"></canvas><p class="mt-2 text-xs font-medium text-slate-400">請以手指或觸控筆於框內簽名；簽名將與此請假單一併儲存。</p></div></div>`,
                 showCancelButton: true,
                 confirmButtonText: '送出請假單',
                 cancelButtonText: '返回',
@@ -1604,7 +1628,39 @@
                         Swal.showValidationMessage('請完成家長簽名。');
                         return false;
                     }
+                    const startDate = window.normalizeDate(document.getElementById('leaveStartDateInput')?.value || '');
+                    const endDate = window.normalizeDate(document.getElementById('leaveEndDateInput')?.value || '');
+                    const leaveDates = window.getLeaveDates(startDate, endDate);
+                    const startPeriod = String(document.getElementById('leaveStartPeriodInput')?.value || '全天');
+                    const endPeriod = String(document.getElementById('leaveEndPeriodInput')?.value || '全天');
+                    if (!startDate || !endDate || !leaveDates.length) {
+                        Swal.showValidationMessage('請確認起訖日期。');
+                        return false;
+                    }
+                    if (startDate < window.todayStr || leaveDates.length > 31) {
+                        Swal.showValidationMessage('請假期間需從今天起算，且一次最多 31 天。');
+                        return false;
+                    }
+                    if (getSemesterData(`${startDate} 12:00:00`).dbPath !== getSemesterData(`${endDate} 12:00:00`).dbPath) {
+                        Swal.showValidationMessage('請假期間請設定在同一學期內。');
+                        return false;
+                    }
+                    if (startDate === endDate && startPeriod !== '全天' && endPeriod !== '全天' && Number(startPeriod) > Number(endPeriod)) {
+                        Swal.showValidationMessage('結束節次不可早於起始節次。');
+                        return false;
+                    }
+                    const totalPeriods = startDate === endDate && startPeriod !== '全天' && endPeriod !== '全天'
+                        ? Number(endPeriod) - Number(startPeriod) + 1
+                        : null;
                     return {
+                        leaveType: String(document.getElementById('leaveTypeInput')?.value || '病假'),
+                        startDate,
+                        endDate,
+                        startPeriod,
+                        endPeriod,
+                        leaveDates,
+                        totalDays: leaveDates.length,
+                        totalPeriods,
                         reason: String(document.getElementById('leaveReasonInput')?.value || '').trim(),
                         signatureDataUrl: canvas.toDataURL('image/png')
                     };
@@ -1624,30 +1680,38 @@
                 leaveApplication = await window.openLeaveApplication(dateToManage);
                 if (!leaveApplication) return;
             } else {
-                const confirmation = await Swal.fire({ icon: 'question', title: '取消請假登記', text: `${dateToManage} 將恢復為一般出席狀態。`, showCancelButton: true, confirmButtonText: '確認取消', cancelButtonText: '返回', confirmButtonColor: '#64748b' });
+                const existingRequest = window.fbLeaveRequests.find(item => window.leaveRequestCoversDate(item, dateToManage));
+                const rangeLabel = existingRequest ? `${existingRequest.startDate || existingRequest.date} 至 ${existingRequest.endDate || existingRequest.date}` : dateToManage;
+                const confirmation = await Swal.fire({ icon: 'question', title: '取消請假登記', text: `${rangeLabel} 將恢復為一般出席狀態。`, showCancelButton: true, confirmButtonText: '確認取消', cancelButtonText: '返回', confirmButtonColor: '#64748b' });
                 if (!confirmation.isConfirmed) return;
             }
 
             const button = document.getElementById('leaveBtn');
             if (button) { button.disabled = true; button.innerHTML = '<span class="loading-spinner mx-auto"></span>'; }
             try {
-                const docId = `${window.toDocId(dateToManage)}_${window.currentUser.studentId}`;
-                const recordRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', docId);
-                const leaveRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'leave_requests', docId);
                 const batch = writeBatch(db);
                 if (shouldLeave) {
-                    const archiveResponse = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'uploadLeaveSignature', sessionToken: window.sessionToken, studentId: window.currentUser.studentId, date: dateToManage, base64Data: leaveApplication.signatureDataUrl, mimeType: 'image/png' }) });
+                    const docId = `${window.toDocId(leaveApplication.startDate)}_${window.currentUser.studentId}`;
+                    const leaveRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'leave_requests', docId);
+                    const archiveResponse = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'uploadLeaveSignature', sessionToken: window.sessionToken, studentId: window.currentUser.studentId, date: leaveApplication.startDate, base64Data: leaveApplication.signatureDataUrl, mimeType: 'image/png' }) });
                     const archive = await archiveResponse.json();
                     if (!archive.success) throw new Error(archive.message || '家長簽名儲存失敗。');
                     const now = window.getPreciseTime();
-                    batch.set(leaveRef, { date: dateToManage, studentId: String(window.currentUser.studentId), studentName: String(window.currentUser.name || ''), seatNo: String(window.currentUser.seatNo || ''), reason: leaveApplication.reason, parentSignatureDataUrl: leaveApplication.signatureDataUrl, signatureFileId: archive.fileId, signatureFileName: archive.fileName || '', status: 'submitted', submittedAt: now, updatedAt: now }, { merge: true });
-                    batch.set(recordRef, { date: dateToManage, studentId: window.currentUser.studentId, signed: false, isLeave: true, leaveTime: now }, { merge: true });
+                    batch.set(leaveRef, { date: leaveApplication.startDate, startDate: leaveApplication.startDate, endDate: leaveApplication.endDate, leaveDates: leaveApplication.leaveDates, leaveType: leaveApplication.leaveType, startPeriod: leaveApplication.startPeriod, endPeriod: leaveApplication.endPeriod, totalDays: leaveApplication.totalDays, totalPeriods: leaveApplication.totalPeriods, studentId: String(window.currentUser.studentId), studentName: String(window.currentUser.name || ''), seatNo: String(window.currentUser.seatNo || ''), className: '807', reason: leaveApplication.reason, parentSignatureDataUrl: leaveApplication.signatureDataUrl, signatureFileId: archive.fileId, signatureFileName: archive.fileName || '', status: 'submitted', submittedAt: now, updatedAt: now }, { merge: true });
+                    leaveApplication.leaveDates.forEach(leaveDate => {
+                        const recordRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', `${window.toDocId(leaveDate)}_${window.currentUser.studentId}`);
+                        batch.set(recordRef, { date: leaveDate, studentId: window.currentUser.studentId, signed: false, isLeave: true, leaveTime: now }, { merge: true });
+                    });
                     const messageRef = doc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats'));
-                    batch.set(messageRef, { studentId: window.currentUser.studentId, name: window.currentUser.name, seatNo: window.currentUser.seatNo, sender: 'parent', text: `📝 已送出線上請假單\n請假日期：${dateToManage}\n請至聯絡簿查看及列印。`, messageType: 'leave_request', timestamp: now });
+                    batch.set(messageRef, { studentId: window.currentUser.studentId, name: window.currentUser.name, seatNo: window.currentUser.seatNo, sender: 'parent', text: `📝 已送出線上請假單\n${leaveApplication.leaveType}：${leaveApplication.startDate}～${leaveApplication.endDate}\n請至聯絡簿查看及列印。`, messageType: 'leave_request', timestamp: now });
                 } else {
-                    batch.set(recordRef, { date: dateToManage, studentId: window.currentUser.studentId, signed: false, isLeave: false }, { merge: true });
-                    const existingRequest = window.fbLeaveRequests.find(item => item.id === docId);
-                    if (existingRequest) batch.update(leaveRef, { status: 'cancelled', cancelledAt: window.getPreciseTime(), updatedAt: window.getPreciseTime() });
+                    const existingRequest = window.fbLeaveRequests.find(item => window.leaveRequestCoversDate(item, dateToManage));
+                    const leaveDates = existingRequest ? window.getLeaveRequestDates(existingRequest) : [dateToManage];
+                    leaveDates.forEach(leaveDate => {
+                        const recordRef = doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records', `${window.toDocId(leaveDate)}_${window.currentUser.studentId}`);
+                        batch.set(recordRef, { date: leaveDate, studentId: window.currentUser.studentId, signed: false, isLeave: false }, { merge: true });
+                    });
+                    if (existingRequest) batch.update(doc(db, 'artifacts', window.fbAppId, 'public', 'data', 'leave_requests', existingRequest.id), { status: 'cancelled', cancelledAt: window.getPreciseTime(), updatedAt: window.getPreciseTime() });
                 }
                 await batch.commit();
                 Swal.fire({ icon: 'success', title: shouldLeave ? '請假單已送出' : '已取消請假', showConfirmButton: false, timer: 1500 });
