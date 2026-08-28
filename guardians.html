@@ -1612,6 +1612,46 @@
 
         window.leaveDateInputValue = date => String(date || '').replaceAll('/', '-');
 
+        window.leaveInputDateToKey = value => {
+            const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (!match) return '';
+            const year = Number(match[1]);
+            const month = Number(match[2]);
+            const day = Number(match[3]);
+            const date = new Date(year, month - 1, day, 12);
+            if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return '';
+            return `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+        };
+
+        window.setupLeaveApplicationConstraints = () => {
+            const startDate = document.getElementById('leaveStartDateInput');
+            const endDate = document.getElementById('leaveEndDateInput');
+            const startPeriod = document.getElementById('leaveStartPeriodInput');
+            const endPeriod = document.getElementById('leaveEndPeriodInput');
+            if (!startDate || !endDate || !startPeriod || !endPeriod) return;
+
+            const syncDates = () => {
+                const minimumDate = startDate.value || window.leaveDateInputValue(window.todayStr);
+                endDate.min = minimumDate;
+                if (!endDate.value || endDate.value < minimumDate) endDate.value = minimumDate;
+            };
+            const syncPeriods = () => {
+                if (startPeriod.value === '全天') {
+                    endPeriod.value = '全天';
+                    return;
+                }
+                if (endPeriod.value === '全天' || Number(endPeriod.value) < Number(startPeriod.value)) {
+                    endPeriod.value = startPeriod.value;
+                }
+            };
+            startDate.addEventListener('change', syncDates);
+            endDate.addEventListener('change', syncDates);
+            startPeriod.addEventListener('change', syncPeriods);
+            endPeriod.addEventListener('change', syncPeriods);
+            syncDates();
+            syncPeriods();
+        };
+
         window.openLeaveApplication = async dateToManage => {
             const result = await Swal.fire({
                 title: '線上請假單',
@@ -1621,20 +1661,23 @@
                 cancelButtonText: '返回',
                 confirmButtonColor: '#2563eb',
                 focusConfirm: false,
-                didOpen: window.setupLeaveSignatureCanvas,
+                didOpen: () => {
+                    window.setupLeaveSignatureCanvas();
+                    window.setupLeaveApplicationConstraints();
+                },
                 preConfirm: () => {
                     const canvas = document.getElementById('leaveSignatureCanvas');
                     if (!canvas?.dataset.signed) {
                         Swal.showValidationMessage('請完成家長簽名。');
                         return false;
                     }
-                    const startDate = window.normalizeDate(document.getElementById('leaveStartDateInput')?.value || '');
-                    const endDate = window.normalizeDate(document.getElementById('leaveEndDateInput')?.value || '');
+                    const startDate = window.leaveInputDateToKey(document.getElementById('leaveStartDateInput')?.value || '');
+                    const endDate = window.leaveInputDateToKey(document.getElementById('leaveEndDateInput')?.value || '');
                     const leaveDates = window.getLeaveDates(startDate, endDate);
                     const startPeriod = String(document.getElementById('leaveStartPeriodInput')?.value || '全天');
                     const endPeriod = String(document.getElementById('leaveEndPeriodInput')?.value || '全天');
-                    if (!startDate || !endDate || !leaveDates.length) {
-                        Swal.showValidationMessage('請確認起訖日期。');
+                    if (!startDate || !endDate || !leaveDates.length || endDate < startDate) {
+                        Swal.showValidationMessage('請確認起訖日期；結束日期不可早於起始日期。');
                         return false;
                     }
                     if (startDate < window.todayStr || leaveDates.length > 31) {
@@ -1645,7 +1688,11 @@
                         Swal.showValidationMessage('請假期間請設定在同一學期內。');
                         return false;
                     }
-                    if (startDate === endDate && startPeriod !== '全天' && endPeriod !== '全天' && Number(startPeriod) > Number(endPeriod)) {
+                    if ((startPeriod === '全天') !== (endPeriod === '全天')) {
+                        Swal.showValidationMessage('起訖節次請同時選擇全天，或同時選擇節次。');
+                        return false;
+                    }
+                    if (startPeriod !== '全天' && Number(startPeriod) > Number(endPeriod)) {
                         Swal.showValidationMessage('結束節次不可早於起始節次。');
                         return false;
                     }
