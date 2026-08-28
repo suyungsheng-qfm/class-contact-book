@@ -106,7 +106,7 @@ Apps Script 的「指令碼屬性」至少需要設定：
 1. 在 Firebase Console 開啟 **專案設定 → Cloud Messaging → Web configuration → Web Push certificates**，按「Generate key pair」，複製顯示的**公開金鑰**。這不是服務帳戶私密金鑰，也可以安全地交給網頁使用。
 2. 在 Apps Script 的「專案設定 → 指令碼屬性」新增 `FCM_VAPID_KEY`，貼上第 1 步公開金鑰。
 3. 在 Firebase 專案的 Google Cloud Console 確認已啟用 **Firebase Cloud Messaging API** 與 **FCM Registration API**；新版專案通常已啟用，但舊專案可能需要手動啟用。
-4. 將本機 `統一後端.gs` 與 `appsscript.json` 完整更新到 Apps Script，儲存後以部署者帳號完成一次新的授權流程，再重新部署網頁應用程式。`appsscript.json` 要保留 `cloud-platform` 與 `firebase.messaging` scope。
+4. 將本機 `統一後端.gs` 與 `appsscript.json` 完整更新到 Apps Script，儲存後手動執行 `requestFirebaseMessagingAuthorization` 並以部署者帳號完成新的授權流程，再重新部署網頁應用程式。`appsscript.json` 要保留 `cloud-platform` 與 `firebase.messaging` scope。
 5. 前端推送至 GitHub Pages 後，在教師與家長手機各自登入，點右上角鈴鐺並允許通知。iPhone／iPad 必須以「加入主畫面」建立的捷徑開啟，才可使用網頁推播與捷徑徽章。
 6. 以另一個帳號傳送班群或私訊測試：App 開啟時會同步正確未讀數；關閉時的推播先以 `1` 作提醒，重新開啟後會依目前未讀狀態清除或更新徽章。
 
