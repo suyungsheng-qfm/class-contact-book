@@ -125,6 +125,11 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // B 表包含敏感輔導紀錄；所有讀寫都僅限教師身分，家長無法取得。
+    match /artifacts/contact-b-records/public/data/b_records/{recordId} {
+      allow read, write: if isTeacher();
+    }
+
     // 教師建立表單；家長只能透過已知連結讀取開放中的單一表單，不能列出全部表單。
     match /artifacts/contact-forms/public/data/forms/{formId} {
       allow get: if isTeacher() || (isParent() && (resource.data.status == 'published' || resource.data.status == 'open'));

@@ -331,6 +331,7 @@
 
         window.CHAT_APP_ID = (isCanvas && typeof __app_id !== 'undefined') ? __app_id : 'contact-chat'; 
         window.FORM_APP_ID = 'contact-forms';
+        window.B_RECORD_APP_ID = 'contact-b-records';
 
         window.unsubscribers = []; 
         window.globalUnsubscribers = []; 
@@ -424,6 +425,9 @@
         window.fbHolidays = [];
         window.fbRecords = [];
         window.fbLeaveRequests = [];
+        window.fbBRecords = [];
+        window.bRecordFilterStudentId = '';
+        window.bEditingRecordId = null;
         window.fbGroupChats = [];
         window.fbPrivateChats = [];
         window.teacherChatReadState = null;
@@ -602,6 +606,13 @@
                 window.lastPrivateChatCount = window.fbPrivateChats.length;
                 window.refreshUI();
             }, e => console.error(e)));
+
+            const pathBRecords = collection(db, 'artifacts', window.B_RECORD_APP_ID, 'public', 'data', 'b_records');
+            window.globalUnsubscribers.push(onSnapshot(pathBRecords, snap => {
+                window.fbBRecords = snap.docs.map(item => ({ id: item.id, ...item.data() }));
+                window.fbBRecords.sort((a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
+                window.renderBRecords?.();
+            }, error => console.error('Unable to load B records.', error)));
         }
 
         window.setupTeacherFormsListener = function() {
@@ -812,7 +823,7 @@
                 const photoTab = document.createElement('button');
                 photoTab.id = 'tabPhoto';
                 photoTab.type = 'button';
-                photoTab.innerHTML = '&#30456;&#31807;';
+                photoTab.innerHTML = '&#35352;&#37636;';
                 photoTab.className = 'px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap';
                 photoTab.onclick = () => window.switchTab('photo');
                 privateTab.parentElement.appendChild(photoTab);
@@ -865,7 +876,19 @@
                     </div>
                 </section>`;
             dashboard.appendChild(photoPage);
+            const albumPanel = photoPage.querySelector('section');
+            albumPanel.id = 'recordAlbumPanel';
+            const recordSwitch = document.createElement('div');
+            recordSwitch.className = 'sticky top-0 z-10 w-full bg-[#f2f2f7]/95 px-4 pt-4 pb-2 backdrop-blur sm:px-6';
+            recordSwitch.innerHTML = `<div class="mx-auto flex w-full max-w-2xl rounded-2xl bg-slate-200/80 p-1"><button id="recordAlbumTab" type="button" onclick="window.switchRecordSection('album')" class="min-h-11 flex-1 rounded-xl bg-white px-3 text-sm font-black text-blue-700 shadow-sm">相簿</button><button id="recordBTab" type="button" onclick="window.switchRecordSection('b')" class="min-h-11 flex-1 rounded-xl px-3 text-sm font-black text-slate-500">B表</button></div>`;
+            photoPage.insertBefore(recordSwitch, albumPanel);
+            const bPanel = document.createElement('section');
+            bPanel.id = 'recordBPanel';
+            bPanel.className = 'hidden w-full max-w-2xl mx-auto space-y-4 p-4 sm:p-6';
+            bPanel.innerHTML = `<article class="overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-sm"><header class="bg-gradient-to-br from-amber-500 to-orange-500 px-5 py-5 text-white"><div class="flex items-start gap-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl">&#128221;</span><div><h3 class="text-xl font-black">學生綜合資料 B表</h3><p class="mt-1 text-sm text-amber-50">輔導紀錄僅限教師登入後查看與管理。</p></div></div></header><div id="bRecordForm" class="p-4 sm:p-5"></div></article><article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-amber-600">B RECORDS</p><h3 class="mt-1 text-lg font-black text-slate-800">歷史紀錄</h3></div><select id="bRecordStudentFilter" onchange="window.filterBRecords(this.value)" class="min-h-11 max-w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold text-slate-700"><option value="">全班學生</option></select></div><div id="bRecordList" class="mt-4 space-y-3"></div></article>`;
+            photoPage.appendChild(bPanel);
             window.initTeacherPhotoUpload();
+            window.switchRecordSection('album');
         };
 
         window.ensureFormsTab = () => {
@@ -1380,6 +1403,134 @@
             today.addEventListener('click', () => { date.value = getLocalDateInputValue(); });
             submit.addEventListener('click', window.submitTeacherPhoto);
             retry.addEventListener('click', window.submitTeacherPhoto);
+        };
+
+        window.switchRecordSection = section => {
+            window.activeRecordSection = section === 'b' ? 'b' : 'album';
+            const album = document.getElementById('recordAlbumPanel');
+            const bPanel = document.getElementById('recordBPanel');
+            const albumTab = document.getElementById('recordAlbumTab');
+            const bTab = document.getElementById('recordBTab');
+            album?.classList.toggle('hidden', window.activeRecordSection !== 'album');
+            bPanel?.classList.toggle('hidden', window.activeRecordSection !== 'b');
+            albumTab?.classList.toggle('bg-white', window.activeRecordSection === 'album');
+            albumTab?.classList.toggle('text-blue-700', window.activeRecordSection === 'album');
+            albumTab?.classList.toggle('shadow-sm', window.activeRecordSection === 'album');
+            albumTab?.classList.toggle('text-slate-500', window.activeRecordSection !== 'album');
+            bTab?.classList.toggle('bg-white', window.activeRecordSection === 'b');
+            bTab?.classList.toggle('text-amber-700', window.activeRecordSection === 'b');
+            bTab?.classList.toggle('shadow-sm', window.activeRecordSection === 'b');
+            bTab?.classList.toggle('text-slate-500', window.activeRecordSection !== 'b');
+            if (window.activeRecordSection === 'b') {
+                window.renderBRecordForm();
+                window.renderBRecords();
+            }
+        };
+
+        window.bRecordLocalDate = () => {
+            const current = new Date();
+            return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+        };
+
+        window.bRecordEscapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+        window.getBRecordCollection = () => collection(db, 'artifacts', window.B_RECORD_APP_ID, 'public', 'data', 'b_records');
+
+        window.renderBRecordStudentOptions = selectedStudentId => (window.allStudents || []).map(student => {
+            const selected = String(student.studentId) === String(selectedStudentId || '') ? ' selected' : '';
+            return `<option value="${window.bRecordEscapeHtml(student.studentId)}"${selected}>${window.bRecordEscapeHtml(String(student.seatNo || '').padStart(2, '0'))} 號　${window.bRecordEscapeHtml(student.name)}</option>`;
+        }).join('');
+
+        window.renderBRecordForm = () => {
+            const root = document.getElementById('bRecordForm');
+            if (!root) return;
+            const record = (window.fbBRecords || []).find(item => item.id === window.bEditingRecordId) || {};
+            const periods = ['第 1 節', '第 2 節', '第 3 節', '第 4 節', '第 5 節', '第 6 節', '第 7 節', '第 8 節', '其他時間'];
+            const selectOptions = (values, selected) => values.map(value => `<option value="${window.bRecordEscapeHtml(value)}"${value === selected ? ' selected' : ''}>${window.bRecordEscapeHtml(value)}</option>`).join('');
+            root.innerHTML = `<form onsubmit="window.saveBRecord(event)" class="space-y-4"><div class="flex items-center justify-between gap-3"><div><h4 class="font-black text-slate-800">${record.id ? '修改輔導紀錄' : '新增輔導紀錄'}</h4><p class="mt-1 text-xs font-bold text-slate-400">請客觀記錄事實、處理方式與後續追蹤。</p></div>${record.id ? '<button type="button" onclick="window.cancelBRecordEdit()" class="min-h-10 rounded-xl px-3 text-sm font-black text-slate-500">取消修改</button>' : ''}</div><label class="block text-sm font-black text-slate-700">學生<select name="studentId" required class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold outline-none focus:border-amber-500"><option value="">請選擇學生</option>${window.renderBRecordStudentOptions(record.studentId)}</select></label><div class="grid grid-cols-2 gap-3"><label class="block text-sm font-black text-slate-700">日期<input name="date" type="date" required value="${window.bRecordEscapeHtml(record.date || window.bRecordLocalDate())}" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-amber-500"></label><label class="block text-sm font-black text-slate-700">時間<input name="time" type="time" required value="${window.bRecordEscapeHtml(record.time || '')}" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-amber-500"></label><label class="block text-sm font-black text-slate-700">節次<select name="period" required class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold outline-none focus:border-amber-500">${selectOptions(periods, record.period || '第 1 節')}</select></label><label class="block text-sm font-black text-slate-700">會談方式<select name="method" required class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold outline-none focus:border-amber-500">${selectOptions(['校內晤談', '電話', '家訪', '其他'], record.method || '校內晤談')}</select></label></div><div class="grid grid-cols-2 gap-3"><label class="block text-sm font-black text-slate-700">會談對象<select name="target" required class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-bold outline-none focus:border-amber-500">${selectOptions(['受輔學生', '案父', '案母', '其他相關人'], record.target || '受輔學生')}</select></label><label class="block text-sm font-black text-slate-700">內容來源<input name="source" required maxlength="100" value="${window.bRecordEscapeHtml(record.source || '')}" placeholder="例如：學生陳述、師長觀察" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-amber-500"></label></div><label class="block text-sm font-black text-slate-700">事件經過簡述<textarea name="eventSummary" required maxlength="2000" rows="4" placeholder="客觀敘述事件經過與相關事實。" class="mt-2 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium leading-relaxed outline-none focus:border-amber-500">${window.bRecordEscapeHtml(record.eventSummary || '')}</textarea></label><label class="block text-sm font-black text-slate-700">輔導／處理情形<textarea name="handling" required maxlength="2000" rows="4" placeholder="記錄已進行的處理、溝通或輔導。" class="mt-2 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium leading-relaxed outline-none focus:border-amber-500">${window.bRecordEscapeHtml(record.handling || '')}</textarea></label><label class="block text-sm font-black text-slate-700">後續追蹤<textarea name="followUp" required maxlength="1000" rows="3" placeholder="記錄後續觀察、聯繫或追蹤安排。" class="mt-2 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium leading-relaxed outline-none focus:border-amber-500">${window.bRecordEscapeHtml(record.followUp || '')}</textarea></label><label class="flex min-h-12 items-center gap-3 rounded-xl bg-rose-50 px-3 text-sm font-black text-rose-700"><input name="isImportant" type="checkbox" ${record.isImportant ? 'checked' : ''} class="h-5 w-5 accent-rose-600">重大／需校內通報或持續追蹤</label><button type="submit" class="min-h-12 w-full rounded-2xl bg-amber-500 px-4 text-[16px] font-black text-white shadow-lg shadow-amber-200 active:scale-[.98]">${record.id ? '儲存修改' : '儲存 B表紀錄'}</button></form>`;
+        };
+
+        window.saveBRecord = async event => {
+            event.preventDefault();
+            if (!fbUser) return;
+            const form = event.currentTarget;
+            const values = new FormData(form);
+            const studentId = String(values.get('studentId') || '');
+            const student = (window.allStudents || []).find(item => String(item.studentId) === studentId);
+            if (!student) return Swal.fire('請選擇學生', '找不到對應的學生資料。', 'warning');
+            const payload = {
+                studentId,
+                studentName: String(student.name || ''),
+                seatNo: String(student.seatNo || ''),
+                className: '807',
+                grade: '七年級',
+                date: String(values.get('date') || ''),
+                time: String(values.get('time') || ''),
+                period: String(values.get('period') || ''),
+                method: String(values.get('method') || ''),
+                target: String(values.get('target') || ''),
+                source: String(values.get('source') || '').trim(),
+                eventSummary: String(values.get('eventSummary') || '').trim(),
+                handling: String(values.get('handling') || '').trim(),
+                followUp: String(values.get('followUp') || '').trim(),
+                isImportant: values.get('isImportant') === 'on',
+                updatedAt: serverTimestamp()
+            };
+            if (!payload.date || !payload.time || !payload.source || !payload.eventSummary || !payload.handling || !payload.followUp) return;
+            const submit = form.querySelector('button[type="submit"]');
+            submit.disabled = true;
+            submit.textContent = '儲存中…';
+            try {
+                if (window.bEditingRecordId) {
+                    await updateDoc(doc(window.getBRecordCollection(), window.bEditingRecordId), payload);
+                } else {
+                    await addDoc(window.getBRecordCollection(), { ...payload, createdAt: serverTimestamp() });
+                }
+                window.bEditingRecordId = null;
+                window.renderBRecordForm();
+                Swal.fire({ icon: 'success', title: '已儲存 B表紀錄', timer: 1200, showConfirmButton: false });
+            } catch (error) {
+                Swal.fire('儲存失敗', error.message || '請確認 Firebase 權限後再試。', 'error');
+                submit.disabled = false;
+                submit.textContent = '重新儲存';
+            }
+        };
+
+        window.cancelBRecordEdit = () => {
+            window.bEditingRecordId = null;
+            window.renderBRecordForm();
+        };
+
+        window.filterBRecords = studentId => {
+            window.bRecordFilterStudentId = String(studentId || '');
+            window.renderBRecords();
+        };
+
+        window.editBRecord = recordId => {
+            window.bEditingRecordId = recordId;
+            window.renderBRecordForm();
+            document.getElementById('bRecordForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        window.deleteBRecord = async recordId => {
+            const confirmed = await Swal.fire({ icon: 'warning', title: '刪除這筆 B表紀錄？', text: '刪除後無法復原。', showCancelButton: true, confirmButtonText: '刪除', cancelButtonText: '取消', confirmButtonColor: '#e11d48' });
+            if (!confirmed.isConfirmed) return;
+            try {
+                await deleteDoc(doc(window.getBRecordCollection(), recordId));
+                if (window.bEditingRecordId === recordId) window.cancelBRecordEdit();
+            } catch (error) {
+                Swal.fire('刪除失敗', error.message || '請稍後再試。', 'error');
+            }
+        };
+
+        window.renderBRecords = () => {
+            const list = document.getElementById('bRecordList');
+            const filter = document.getElementById('bRecordStudentFilter');
+            if (!list || !filter) return;
+            const selected = window.bRecordFilterStudentId || '';
+            filter.innerHTML = '<option value="">全班學生</option>' + window.renderBRecordStudentOptions(selected);
+            filter.value = selected;
+            const records = (window.fbBRecords || []).filter(record => !selected || String(record.studentId) === selected);
+            list.innerHTML = records.length ? records.map(record => `<article class="rounded-2xl border ${record.isImportant ? 'border-rose-200 bg-rose-50/50' : 'border-slate-200 bg-slate-50/70'} p-4"><div class="flex items-start justify-between gap-3"><div><p class="font-black text-slate-800">${window.bRecordEscapeHtml(String(record.seatNo || '').padStart(2, '0'))} 號　${window.bRecordEscapeHtml(record.studentName || '')}</p><p class="mt-1 text-xs font-bold text-slate-400">${window.bRecordEscapeHtml(record.date || '')}　${window.bRecordEscapeHtml(record.time || '')}　${window.bRecordEscapeHtml(record.period || '')}</p></div>${record.isImportant ? '<span class="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700">持續追蹤</span>' : ''}</div><div class="mt-3 flex flex-wrap gap-2"><span class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800">${window.bRecordEscapeHtml(record.method || '')}</span><span class="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-black text-slate-600">${window.bRecordEscapeHtml(record.target || '')}</span></div><div class="mt-3 space-y-3 text-sm leading-relaxed"><div><p class="text-xs font-black text-slate-400">事件經過｜來源：${window.bRecordEscapeHtml(record.source || '')}</p><p class="mt-1 whitespace-pre-wrap font-medium text-slate-700">${window.bRecordEscapeHtml(record.eventSummary || '')}</p></div><div><p class="text-xs font-black text-slate-400">處理情形</p><p class="mt-1 whitespace-pre-wrap font-medium text-slate-700">${window.bRecordEscapeHtml(record.handling || '')}</p></div><div><p class="text-xs font-black text-slate-400">後續追蹤</p><p class="mt-1 whitespace-pre-wrap font-medium text-slate-700">${window.bRecordEscapeHtml(record.followUp || '')}</p></div></div><div class="mt-4 grid grid-cols-2 gap-2"><button type="button" onclick="window.editBRecord('${record.id}')" class="min-h-11 rounded-xl bg-white text-sm font-black text-amber-700 ring-1 ring-amber-200 active:scale-[.98]">修改</button><button type="button" onclick="window.deleteBRecord('${record.id}')" class="min-h-11 rounded-xl bg-white text-sm font-black text-rose-600 ring-1 ring-rose-200 active:scale-[.98]">刪除</button></div></article>`).join('') : '<div class="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-400">尚無符合條件的 B表紀錄。</div>';
         };
 
         window.onload = () => {
