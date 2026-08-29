@@ -1335,10 +1335,7 @@
             const pendingStudents = students.filter(student => !respondedIds.has(String(student.studentId)));
             const responseOverview = pendingStudents.length ? (() => {
                 const studentsBySeat = new Map(students.map(student => [Number.parseInt(student.seatNo, 10), student]).filter(([seatNo]) => Number.isInteger(seatNo) && seatNo >= 1 && seatNo <= 30));
-                const cells = Array.from({ length: 30 }, (_, index) => {
-                    const seatNo = index + 1;
-                    const student = studentsBySeat.get(seatNo);
-                    if (!student) return '<div class="min-h-11 rounded-xl bg-slate-50" aria-hidden="true"></div>';
+                const cells = Array.from(studentsBySeat.entries()).sort(([leftSeatNo], [rightSeatNo]) => leftSeatNo - rightSeatNo).map(([seatNo, student]) => {
                     const responded = respondedIds.has(String(student.studentId));
                     const style = responded
                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
