@@ -1937,11 +1937,40 @@
             document.getElementById('tHolidayToggle').checked = isHoliday;
             window.renderTeacherDayAgenda();
 
+            const signatureCard = document.getElementById('teacherSignatureCard');
+            const summary = document.getElementById('tSignSummary');
+            const holidayMessage = document.getElementById('teacherHolidayMessage');
+            const listBody = document.getElementById('tStudentList');
+            const listContainer = listBody?.closest('.p-2');
+            const signatureTitle = document.getElementById('teacherSignatureTitle');
+            const signatureHint = document.getElementById('teacherSignatureHint');
+            if (isHoliday) {
+                // 假日不屬於出缺席或簽閱流程，既有請假紀錄也不在此顯示。
+                window.signatureFilter = 'all';
+                if (bookDateLabel) bookDateLabel.innerText = `假日 ${window.selectedDateStr}`;
+                signatureCard?.querySelector('.bg-white')?.classList.remove('min-h-[500px]');
+                if (signatureTitle) signatureTitle.textContent = '假日狀態';
+                signatureHint?.classList.add('hidden');
+                summary?.classList.add('hidden');
+                listContainer?.classList.add('hidden');
+                if (holidayMessage) {
+                    holidayMessage.classList.remove('hidden');
+                    holidayMessage.innerHTML = `<div class="py-12 text-center"><div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-2xl text-rose-500">☂</div><h3 class="mt-4 text-lg font-black text-slate-800">本日為假日</h3><p class="mt-2 text-sm font-medium leading-relaxed text-slate-500">無須簽閱，也不進行出缺席或請假統計。</p></div>`;
+                }
+                return;
+            }
+
+            signatureCard?.querySelector('.bg-white')?.classList.add('min-h-[500px]');
+            if (signatureTitle) signatureTitle.textContent = '簽到與請假追蹤';
+            signatureHint?.classList.remove('hidden');
+            summary?.classList.remove('hidden');
+            listContainer?.classList.remove('hidden');
+            holidayMessage?.classList.add('hidden');
+
             let signedCount = 0;
             let leaveCount = 0;
             let unsignedCount = 0;
             
-            const listBody = document.getElementById('tStudentList');
             const total = window.allStudents.length;
 
             listBody.innerHTML = total === 0 
@@ -2000,7 +2029,6 @@
                 listBody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-slate-500 font-bold">目前沒有${emptyLabel}學生</td></tr>`;
             }
 
-            const summary = document.getElementById('tSignSummary');
             if (summary) {
                 const items = [
                     { key: 'unsigned', label: '待簽', count: unsignedCount, hint: '需要處理', color: 'rose', icon: 'clock-3' },
@@ -3475,10 +3503,11 @@
                             <div id="teacherSignatureCard" class="xl:col-span-6">
                                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full min-h-[500px]">
                                     <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                        <div class="flex items-center gap-2"><i data-lucide="users" class="w-5 h-5 text-emerald-500"></i><h3 class="font-bold text-slate-700">簽到與請假追蹤</h3></div>
-                                        <span class="text-[11px] text-slate-400 font-bold">點選分類篩選名單</span>
+                                        <div class="flex items-center gap-2"><i data-lucide="users" class="w-5 h-5 text-emerald-500"></i><h3 id="teacherSignatureTitle" class="font-bold text-slate-700">簽到與請假追蹤</h3></div>
+                                        <span id="teacherSignatureHint" class="text-[11px] text-slate-400 font-bold">點選分類篩選名單</span>
                                     </div>
                                     <div id="tSignSummary" class="grid grid-cols-3 gap-2 p-3 border-b border-slate-100 bg-slate-50/40"></div>
+                                    <div id="teacherHolidayMessage" class="hidden px-5"></div>
                                     <div class="p-2 flex-1 overflow-y-auto custom-scrollbar">
                                         <table class="w-full text-left border-separate border-spacing-0">
                                             <thead class="sticky top-0 bg-white shadow-sm z-10 text-[10px] font-black text-slate-400 uppercase tracking-widest">
