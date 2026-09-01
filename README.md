@@ -7,6 +7,7 @@
 | 用途 | 網址 |
 | --- | --- |
 | 使用中的班級聯絡簿 | [GitHub Pages](https://suyungsheng-qfm.github.io/class-contact-book/) |
+| 家長安裝與通知說明 | [操作說明頁](https://suyungsheng-qfm.github.io/class-contact-book/guide.html) |
 | 原始碼與版本紀錄 | [GitHub 儲存庫](https://github.com/suyungsheng-qfm/class-contact-book) |
 | 前端自動發布紀錄 | [GitHub Actions](https://github.com/suyungsheng-qfm/class-contact-book/actions) |
 | GitHub Pages 設定 | [Pages 設定](https://github.com/suyungsheng-qfm/class-contact-book/settings/pages) |
