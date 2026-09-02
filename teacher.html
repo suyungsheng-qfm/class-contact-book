@@ -1264,6 +1264,34 @@
                 window.setTeacherFormStatus(error.message || '再次發佈失敗，請再試一次。', 'error');
             }
         };
+        window.adjustTeacherFormDeadline = async formId => {
+            const form = window.fbForms.find(item => item.id === formId);
+            const isPublished = form && (form.status === 'published' || form.status === 'open');
+            if (!isPublished || !checkFbAuth()) return;
+            const confirmation = await Swal.fire({
+                icon: 'question',
+                title: '調整填寫期限',
+                html: '<p class="text-sm leading-relaxed text-slate-600">只會更新截止日期；表單會維持發佈中，既有回覆與班群公告都不會變更。</p>',
+                input: 'date',
+                inputLabel: '填寫期限（可留白）',
+                inputValue: form.deadline || '',
+                showCancelButton: true,
+                confirmButtonText: '儲存期限',
+                cancelButtonText: '取消',
+                confirmButtonColor: '#7c3aed'
+            });
+            if (!confirmation.isConfirmed) return;
+            const deadline = String(confirmation.value || '').trim();
+            try {
+                await updateDoc(doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', formId), {
+                    deadline,
+                    updatedAt: Date.now()
+                });
+                Swal.fire({ icon: 'success', title: '期限已更新', text: deadline ? `填寫期限：${deadline}` : '此表單目前不設定填寫期限。', timer: 1800, showConfirmButton: false });
+            } catch (error) {
+                Swal.fire('更新失敗', error.message || '請稍後再試。', 'error');
+            }
+        };
         window.deleteTeacherForm = async formId => {
             const form = window.fbForms.find(item => item.id === formId);
             if (!form || !checkFbAuth()) return;
@@ -1304,6 +1332,57 @@
             window.formResponsesUnsubscribe = null;
             window.renderTeacherForms();
         };
+        window.sendTeacherFormReminder = async formId => {
+            if (!checkFbAuth()) return;
+            const form = (window.fbForms || []).find(item => item.id === formId);
+            const isPublished = form && (form.status === 'published' || form.status === 'open');
+            if (!isPublished) return Swal.fire('表單目前未開放', '只有已發佈的表單可以私訊提醒。', 'info');
+            if (form.deadline && new Date(`${form.deadline}T23:59:59`).getTime() < Date.now()) {
+                return Swal.fire('表單已逾期', '請先再次發佈並調整期限，再傳送填寫提醒。', 'info');
+            }
+            const responses = (window.formResponses || []).filter(response => !window.isTestStudent(response));
+            const respondedIds = new Set(responses.map(response => String(response.studentId)));
+            const pendingStudents = (window.allStudents || [])
+                .filter(student => !window.isTestStudent(student) && !respondedIds.has(String(student.studentId)));
+            if (!pendingStudents.length) return Swal.fire('全部已回覆', '目前沒有需要私訊提醒的家長。', 'success');
+            const names = pendingStudents.map(student => `${String(student.seatNo).padStart(2, '0')} 號 ${window.formEscapeHtml(student.name)}`).join('、');
+            const confirmation = await Swal.fire({
+                icon: 'question',
+                title: `私訊提醒 ${pendingStudents.length} 位家長？`,
+                html: `<p class="text-sm leading-relaxed text-slate-600">會透過私訊傳送可直接開啟的表單卡片，只發給尚未回覆的家長。</p><p class="mt-3 rounded-xl bg-violet-50 p-3 text-left text-sm font-black leading-relaxed text-violet-800">${names}</p>`,
+                showCancelButton: true,
+                confirmButtonText: '發送表單提醒',
+                cancelButtonText: '取消',
+                confirmButtonColor: '#7c3aed'
+            });
+            if (!confirmation.isConfirmed) return;
+            Swal.fire({ title: '傳送私訊提醒…', text: `正在通知 ${pendingStudents.length} 位家長`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const batch = writeBatch(db);
+                pendingStudents.forEach(student => {
+                    const messageRef = doc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats'));
+                    batch.set(messageRef, {
+                        studentId: String(student.studentId),
+                        name: '蘇老師',
+                        seatNo: 'T',
+                        sender: 'teacher',
+                        text: `填寫提醒：${form.title}`,
+                        formId: form.id,
+                        formTitle: form.title,
+                        formReminder: true,
+                        messageType: 'form',
+                        timestamp: window.getPreciseTime()
+                    });
+                });
+                await batch.commit();
+                await Promise.allSettled(pendingStudents.map(student => window.callNotificationApi('notifyUnread', {
+                    channel: 'private', studentId: String(student.studentId), messageType: 'form'
+                })));
+                Swal.fire({ icon: 'success', title: '表單提醒已私訊', text: `已傳送給 ${pendingStudents.length} 位未回覆家長。`, timer: 1800, showConfirmButton: false });
+            } catch (error) {
+                Swal.fire('傳送失敗', error.message || '請稍後再試。', 'error');
+            }
+        };
         window.renderTeacherForms = () => {
             const list = document.getElementById('teacherFormsList');
             const count = document.getElementById('teacherFormCount');
@@ -1330,9 +1409,9 @@
                     ? `<button type="button" onclick="window.editTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">修改草稿</button><button type="button" onclick="window.publishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">發佈到班群</button>`
                     : form.status === 'retracted'
                         ? `${responseAction}<button type="button" onclick="window.republishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">再次發佈</button>`
-                    : `${responseAction}<button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-11 rounded-xl bg-slate-100 text-slate-600">複製連結</button>`;
+                    : `${responseAction}<button type="button" onclick="window.adjustTeacherFormDeadline('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">調整期限</button>`;
                 const secondaryActions = isPublished
-                    ? `<button type="button" onclick="window.retractTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">收回表單</button><button type="button" onclick="window.closeTeacherForm('${form.id}')" class="min-h-10 rounded-xl bg-slate-100 text-xs font-black text-slate-600">關閉表單</button><button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="col-span-2 min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`
+                    ? `<button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-10 rounded-xl bg-slate-100 text-xs font-black text-slate-600">複製連結</button><button type="button" onclick="window.retractTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">收回表單</button><button type="button" onclick="window.closeTeacherForm('${form.id}')" class="col-span-2 min-h-10 rounded-xl bg-slate-100 text-xs font-black text-slate-600">關閉表單</button><button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="col-span-2 min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`
                     : `<button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="min-h-10 w-full rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`;
                 return `<article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><h4 class="truncate font-black">${window.formEscapeHtml(form.title)}</h4><p class="mt-1 text-xs font-bold text-slate-400">${deadline}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${state.color}">${state.label}</span></div><div class="mt-4 grid grid-cols-2 gap-2 text-sm font-black">${primaryActions}</div><div class="mt-2 grid ${isPublished ? 'grid-cols-2' : 'grid-cols-1'} gap-2">${secondaryActions}</div></article>`;
             }).join('');
@@ -1344,6 +1423,11 @@
             const respondedIds = new Set(responses.map(response => String(response.studentId)));
             const students = (window.allStudents || []).filter(student => !window.isTestStudent(student));
             const pendingStudents = students.filter(student => !respondedIds.has(String(student.studentId)));
+            const canSendReminder = (activeForm.status === 'published' || activeForm.status === 'open')
+                && (!activeForm.deadline || new Date(`${activeForm.deadline}T23:59:59`).getTime() >= Date.now());
+            const reminderAction = pendingStudents.length && canSendReminder
+                ? `<button type="button" onclick="window.sendTeacherFormReminder('${activeForm.id}')" class="mt-2 min-h-11 rounded-xl bg-violet-600 px-3 text-sm font-black text-white shadow-sm shadow-violet-200 active:scale-[.98]">私訊未回覆（${pendingStudents.length}）</button>`
+                : '';
             const responseOverview = pendingStudents.length ? (() => {
                 const studentsBySeat = new Map(students.map(student => [Number.parseInt(student.seatNo, 10), student]).filter(([seatNo]) => Number.isInteger(seatNo) && seatNo >= 1 && seatNo <= 30));
                 const cells = Array.from(studentsBySeat.entries()).sort(([leftSeatNo], [rightSeatNo]) => leftSeatNo - rightSeatNo).map(([seatNo, student]) => {
@@ -1356,7 +1440,7 @@
                 }).join('');
                 return `<section class="mt-4 rounded-2xl border border-violet-100 bg-white p-4 shadow-sm"><div class="flex items-center justify-between gap-3"><div><p class="text-sm font-black text-slate-800">回覆一覽</p><p class="mt-1 text-xs font-medium text-slate-500">紅色座號尚未回覆</p></div><div class="flex items-center gap-2 text-[11px] font-black"><span class="inline-flex items-center gap-1 text-emerald-700"><i class="h-2.5 w-2.5 rounded-full bg-emerald-500"></i>已回覆</span><span class="inline-flex items-center gap-1 text-rose-700"><i class="h-2.5 w-2.5 rounded-full bg-rose-500"></i>未回覆</span></div></div><div class="mt-3 grid grid-cols-6 gap-1.5" role="grid" aria-label="表單回覆座號一覽">${cells}</div></section>`;
             })() : '';
-            responseBox.innerHTML = `<div class="flex items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-violet-600">RESPONSES</p><h3 class="mt-1 text-xl font-black">${window.formEscapeHtml(activeForm.title)}</h3></div><span class="rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700">${responses.length}／${students.length || '—'} 已回覆</span></div><div class="mt-4 grid grid-cols-2 gap-3"><div class="rounded-2xl bg-emerald-50 p-3"><p class="text-xs font-black text-emerald-700">已回覆</p><p class="mt-1 text-2xl font-black text-emerald-800">${responses.length}</p></div><div class="rounded-2xl bg-rose-50 p-3"><p class="text-xs font-black text-rose-700">未回覆</p><p class="mt-1 text-2xl font-black text-rose-800">${students.length ? pendingStudents.length : '—'}</p></div></div>${responseOverview}<div class="mt-4 space-y-3">${responses.length ? responses.map(response => `<article class="rounded-2xl bg-slate-50 p-4"><p class="font-black">${window.formEscapeHtml(response.seatNo)} 號　${window.formEscapeHtml(response.studentName)}</p>${fields.map(field => `<div class="mt-3"><p class="text-xs font-black text-slate-400">${window.formEscapeHtml(field.label)}</p><p class="mt-1 break-words text-sm font-medium text-slate-700">${window.formEscapeHtml(response.answers?.[field.id] || '—')}</p></div>`).join('')}<p class="mt-3 text-[11px] font-bold text-slate-400">${response.submittedAt ? new Date(response.submittedAt).toLocaleString('zh-TW') : ''}</p></article>`).join('') : '<p class="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">尚未收到回覆。</p>'}</div>`;
+            responseBox.innerHTML = `<div class="flex items-center justify-between gap-3"><div><p class="text-xs font-black tracking-widest text-violet-600">RESPONSES</p><h3 class="mt-1 text-xl font-black">${window.formEscapeHtml(activeForm.title)}</h3></div><span class="rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700">${responses.length}／${students.length || '—'} 已回覆</span></div>${reminderAction}<div class="mt-4 grid grid-cols-2 gap-3"><div class="rounded-2xl bg-emerald-50 p-3"><p class="text-xs font-black text-emerald-700">已回覆</p><p class="mt-1 text-2xl font-black text-emerald-800">${responses.length}</p></div><div class="rounded-2xl bg-rose-50 p-3"><p class="text-xs font-black text-rose-700">未回覆</p><p class="mt-1 text-2xl font-black text-rose-800">${students.length ? pendingStudents.length : '—'}</p></div></div>${responseOverview}<div class="mt-4 space-y-3">${responses.length ? responses.map(response => `<article class="rounded-2xl bg-slate-50 p-4"><p class="font-black">${window.formEscapeHtml(response.seatNo)} 號　${window.formEscapeHtml(response.studentName)}</p>${fields.map(field => `<div class="mt-3"><p class="text-xs font-black text-slate-400">${window.formEscapeHtml(field.label)}</p><p class="mt-1 break-words text-sm font-medium text-slate-700">${window.formEscapeHtml(response.answers?.[field.id] || '—')}</p></div>`).join('')}<p class="mt-3 text-[11px] font-bold text-slate-400">${response.submittedAt ? new Date(response.submittedAt).toLocaleString('zh-TW') : ''}</p></article>`).join('') : '<p class="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">尚未收到回覆。</p>'}</div>`;
             const closeButton = document.createElement('button');
             closeButton.type = 'button';
             closeButton.textContent = '收合';
@@ -2444,6 +2528,8 @@
                         const msgTime = msg.timestamp.split(' ')[1];
                         const isMe = msg.sender === 'teacher';
                         const isImage = msg.messageType === 'image';
+                        const isForm = msg.messageType === 'form' && msg.formId;
+                        const safeFormTitle = String(msg.formTitle || msg.text || '班級表單').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
                         const isWithdrawn = Boolean(msg.withdrawn) || msg.messageType === 'withdrawn';
                         const withdrawButton = isMe && !isWithdrawn
                             ? `<button type="button" onclick="window.withdrawChatMessage('private_chats', '${msg.id}')" class="mb-1 text-[10px] font-bold text-slate-400 underline underline-offset-2">收回</button>`
@@ -2456,7 +2542,9 @@
 
                         const bubbleContent = isImage 
                             ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-sm border border-slate-200" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
-                            : msg.text;
+                            : (isForm
+                                ? `<a href="./forms.html?id=${encodeURIComponent(String(msg.formId))}" class="block min-w-[190px] rounded-xl bg-violet-50 p-3 text-violet-800"><span class="block text-xs font-black tracking-widest text-violet-500">FORM REMINDER</span><span class="mt-1 block font-black">${safeFormTitle}</span><span class="mt-1 block text-xs font-bold text-violet-600">尚未填寫，請開啟完成表單</span><span class="mt-2 inline-flex rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white">開啟表單</span></a>`
+                                : msg.text);
 
                         if(isMe) {
                             html += `
@@ -2824,6 +2912,16 @@
             return result.events || [];
         };
 
+        window.classboardTomorrowApi = async () => {
+            const response = await fetch(GAS_API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'classboardTomorrowItems', sessionToken: window.sessionToken })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || '無法讀取班級看板的明日事項。');
+            return result;
+        };
+
         // 個人資料只在教師點選查詢時，由 GAS 的教師工作階段讀取；不寫入 Firebase。
         window.teacherDataApi = async (mode, payload = {}) => {
             const response = await fetch(GAS_API_URL, {
@@ -3061,6 +3159,113 @@
                     needsAuthorization ? 'info' : 'error'
                 );
             }
+        };
+
+        window.moveClassboardTomorrowPreviewItem = (button, direction) => {
+            const row = button?.closest('.classboard-tomorrow-preview-item');
+            const list = row?.parentElement;
+            if (!row || !list) return;
+            const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+            if (!sibling) return;
+            if (direction < 0) list.insertBefore(row, sibling);
+            else list.insertBefore(sibling, row);
+        };
+
+        window.openClassboardTomorrowImport = async () => {
+            if (!checkFbAuth()) return;
+            Swal.fire({ title: '讀取明日事項…', text: '正在確認下一個上課日', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const result = await window.classboardTomorrowApi();
+                const targetDate = String(result.targetDate || '').replaceAll('-', '/');
+                const items = Array.isArray(result.items) ? result.items : [];
+                if (!targetDate || !items.length) {
+                    Swal.fire('尚無明日事項', `${targetDate || '下一個上課日'}目前沒有可帶入的班級看板事項。`, 'info');
+                    return;
+                }
+                const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+                const rows = items.map((item, index) => `
+                    <article class="classboard-tomorrow-preview-item rounded-2xl border border-sky-100 bg-sky-50/60 p-3 text-left">
+                        <div class="flex items-start gap-2">
+                            <input type="checkbox" class="classboard-tomorrow-choice mt-1 h-5 w-5 shrink-0 accent-sky-600" value="${index}" checked>
+                            <div class="min-w-0 flex-1">
+                                <div class="mb-2 flex items-center justify-between gap-2">
+                                    <span class="rounded-full bg-white px-2 py-1 text-[10px] font-black text-sky-700">${escapeHtml(item.source || '明日事項')}</span>
+                                    <span class="flex shrink-0 gap-1">
+                                        <button type="button" onclick="window.moveClassboardTomorrowPreviewItem(this, -1)" class="min-h-8 rounded-lg border border-sky-100 bg-white px-2 text-xs font-black text-sky-700" aria-label="上移">↑</button>
+                                        <button type="button" onclick="window.moveClassboardTomorrowPreviewItem(this, 1)" class="min-h-8 rounded-lg border border-sky-100 bg-white px-2 text-xs font-black text-sky-700" aria-label="下移">↓</button>
+                                    </span>
+                                </div>
+                                <input type="text" data-classboard-subject value="${escapeHtml(item.subject || '其他')}" maxlength="40" aria-label="科目" class="mb-2 min-h-10 w-full rounded-xl border border-sky-100 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-sky-500">
+                                <textarea data-classboard-text maxlength="500" aria-label="事項內容" class="min-h-20 w-full rounded-xl border border-sky-100 bg-white p-3 text-sm leading-6 text-slate-700 outline-none focus:border-sky-500">${escapeHtml(item.text || '')}</textarea>
+                            </div>
+                        </div>
+                    </article>`).join('');
+                const choice = await Swal.fire({
+                    title: `${targetDate} 的明日事項`,
+                    html: `<p class="mb-3 text-sm leading-relaxed text-slate-500">可取消勾選、修改文字或科目，也可用箭頭調整順序。確認後只會帶入聯絡簿編輯區，不會直接發布。</p><div class="max-h-[52vh] space-y-2 overflow-y-auto pr-1">${rows}</div>`,
+                    showCancelButton: true,
+                    confirmButtonText: '帶入聯絡簿編輯區',
+                    cancelButtonText: '取消',
+                    confirmButtonColor: '#0284c7',
+                    preConfirm: () => {
+                        const selected = Array.from(document.querySelectorAll('.classboard-tomorrow-choice:checked')).map(input => {
+                            const row = input.closest('.classboard-tomorrow-preview-item');
+                            const original = items[Number(input.value)] || {};
+                            return {
+                                ...original,
+                                subject: String(row?.querySelector('[data-classboard-subject]')?.value || '').trim().slice(0, 40) || '其他',
+                                text: String(row?.querySelector('[data-classboard-text]')?.value || '').trim().slice(0, 500)
+                            };
+                        }).filter(item => item.text);
+                        if (!selected.length) {
+                            Swal.showValidationMessage('請至少保留一則有內容的事項。');
+                            return false;
+                        }
+                        return selected;
+                    }
+                });
+                if (!choice.isConfirmed) return;
+                await window.appendClassboardTomorrowItems(targetDate, choice.value || []);
+            } catch (error) {
+                Swal.fire('讀取失敗', error.message || '無法讀取班級看板的明日事項，請稍後再試。', 'error');
+            }
+        };
+
+        window.appendClassboardTomorrowItems = async (targetDate, items) => {
+            const input = document.getElementById('tNoteInput');
+            const currentDate = window.selectedDateStr;
+            const savedCurrent = String(window.fbNotes.find(note => note.date === currentDate)?.content || '').trim();
+            const unsavedCurrent = String(input?.value || '').trim();
+            if (currentDate !== targetDate && unsavedCurrent !== savedCurrent) {
+                const discard = await Swal.fire({
+                    icon: 'warning',
+                    title: '目前日期有未儲存內容',
+                    text: `帶入事項將切換到 ${targetDate}。目前編輯中的內容尚未儲存，是否繼續？`,
+                    showCancelButton: true,
+                    confirmButtonText: '繼續帶入',
+                    cancelButtonText: '返回編輯',
+                    confirmButtonColor: '#0284c7'
+                });
+                if (!discard.isConfirmed) return;
+            }
+            if (currentDate !== targetDate) {
+                window.selectTeacherDate(targetDate);
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            const targetInput = document.getElementById('tNoteInput');
+            const existing = String(targetInput?.value || '').trim();
+            const existingLines = new Set(existing.split('\n').map(line => line.trim()).filter(Boolean));
+            const importedLines = items
+                .map(item => `【${String(item.subject || '其他').trim() || '其他'}】${String(item.text || '').trim()}`)
+                .filter(line => line.length > 4 && !existingLines.has(line));
+            if (!importedLines.length) {
+                window.openTeacherNoteEditor();
+                Swal.fire('沒有新增事項', '勾選的內容已經在聯絡簿中。', 'info');
+                return;
+            }
+            targetInput.value = [existing, ...importedLines].filter(Boolean).join(existing ? '\n\n' : '\n');
+            window.openTeacherNoteEditor();
+            Swal.fire({ icon: 'success', title: '已帶入聯絡簿編輯區', text: `已附加 ${importedLines.length} 則事項，請確認後再儲存發布。`, timer: 1800, showConfirmButton: false });
         };
 
         window.importSchoolCalendarEvents = async (selectedEvents) => {
@@ -3523,6 +3728,10 @@
                                         </div>
                                     </div>
                                     <div class="p-5 flex flex-1 flex-col gap-4">
+                                        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
+                                            <div class="min-w-0"><p class="text-xs font-black text-sky-800">班級看板</p><p class="mt-0.5 text-[11px] font-medium leading-relaxed text-sky-700">帶入下一個上課日的明日事項；可先預覽與修改。</p></div>
+                                            <button type="button" onclick="window.openClassboardTomorrowImport()" class="min-h-11 shrink-0 rounded-xl bg-sky-600 px-3 text-sm font-black text-white shadow-sm shadow-sky-200 active:scale-[.98]"><i data-lucide="download" class="mr-1 inline-block h-4 w-4"></i>帶入明日事項</button>
+                                        </div>
                                         <textarea id="tNoteInput" class="w-full flex-1 min-h-[220px] resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 text-base font-medium outline-none transition-all focus:border-blue-500" placeholder="請輸入聯絡事項..."></textarea>
                                         <button type="button" onclick="window.handleSaveClassNote()" id="saveNoteBtn" class="min-h-12 w-full rounded-xl bg-blue-600 font-bold text-white shadow-sm transition-all active:scale-[.98]"><i data-lucide="save" class="mr-1 inline-block h-4 w-4"></i> 儲存班級事項</button>
                                     </div>
