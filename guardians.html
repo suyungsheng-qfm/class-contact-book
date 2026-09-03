@@ -315,6 +315,19 @@
                     foregroundMessageUnsubscribe = onMessage(messaging, payload => {
                         const count = Math.max(1, Number(payload?.data?.badgeCount) || 1);
                         window.setAppUnreadBadge(count);
+                        if (document.visibilityState === 'visible') {
+                            const data = payload?.data || {};
+                            Swal.fire({
+                                toast: true,
+                                position: 'top',
+                                icon: 'info',
+                                title: data.title || '班級聯絡簿(807)',
+                                text: data.body || '您有新的未讀訊息。',
+                                timer: 3500,
+                                timerProgressBar: true,
+                                showConfirmButton: false
+                            });
+                        }
                     });
                 }
                 if (Notification.permission === 'granted') await window.registerAppNotifications();
@@ -388,16 +401,17 @@
             tabBook.classList.toggle('has-attention', needsSignature);
         };
 
-        window.markChatRead = function(tab, timestamp) {
-            if (!window.currentUser || !timestamp) return;
+        window.markChatRead = function(tab, latestMessage) {
+            if (!window.currentUser) return;
+            const nextOrder = window.getChatEntryOrder(latestMessage);
+            if (!nextOrder) return;
             const field = tab === 'group' ? 'groupReadAt' : 'privateReadAt';
-            const nextTimestamp = String(timestamp);
-            const currentValue = String(window.chatReadState?.[field] || '');
-            if (currentValue >= nextTimestamp) return;
-            window.chatReadState = { ...(window.chatReadState || {}), [field]: nextTimestamp };
-            localStorage.setItem(`contact-book-read-${tab}-${window.currentUser.studentId}`, nextTimestamp);
+            const currentValue = window.getChatEntryOrder(window.chatReadState?.[field]);
+            if (currentValue >= nextOrder) return;
+            window.chatReadState = { ...(window.chatReadState || {}), [field]: nextOrder };
+            localStorage.setItem(`contact-book-read-${tab}-${window.currentUser.studentId}`, String(nextOrder));
             const readRef = doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'chat_read_states', String(window.currentUser.studentId));
-            setDoc(readRef, { studentId: String(window.currentUser.studentId), [field]: nextTimestamp }, { merge: true })
+            setDoc(readRef, { studentId: String(window.currentUser.studentId), [field]: nextOrder }, { merge: true })
                 .catch(error => console.error('Unable to save chat read status.', error));
         };
 
@@ -438,15 +452,15 @@
                 const badgeElement = document.getElementById(badge);
                 const latestMessage = messages[messages.length - 1];
                 if (!badgeElement || !latestMessage || !latestMessage.timestamp) return;
-                const lastReadAt = String(window.chatReadState[field] || '');
+                const lastReadAt = window.getChatEntryOrder(window.chatReadState[field]);
                 if (window.activeTab === tab || !lastReadAt) {
-                    window.markChatRead(tab, latestMessage.timestamp);
+                    window.markChatRead(tab, latestMessage);
                     badgeElement.classList.add('hidden');
                     return;
                 }
-                const hasUnread = String(latestMessage.timestamp) > lastReadAt;
+                const hasUnread = window.getChatEntryOrder(latestMessage) > lastReadAt;
                 badgeElement.classList.toggle('hidden', !hasUnread);
-                if (hasUnread) unreadCount += messages.filter(message => String(message.timestamp || '') > lastReadAt).length;
+                if (hasUnread) unreadCount += messages.filter(message => window.getChatEntryOrder(message) > lastReadAt).length;
             });
             window.setAppUnreadBadge(unreadCount);
         };
@@ -487,6 +501,17 @@
         window.getPreciseTime = function() {
             const now = new Date();
             return `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}點${String(now.getMinutes()).padStart(2,'0')}分`;
+        };
+
+        window.getChatEntryOrder = function(entry) {
+            const sentAt = Number(entry?.sentAt);
+            if (Number.isFinite(sentAt) && sentAt > 0) return sentAt;
+            const directOrder = Number(entry);
+            if (Number.isFinite(directOrder) && directOrder > 1000000000000) return directOrder;
+            const text = String(typeof entry === 'object' ? entry?.timestamp || '' : entry || '');
+            const match = text.match(/^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2})點(\d{2})分$/);
+            if (!match) return 0;
+            return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5])).getTime();
         };
 
         window.todayStr = window.normalizeDate(new Date());
@@ -555,7 +580,7 @@
             const pathGroupChat = collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat');
             window.globalUnsubscribers.push(onSnapshot(pathGroupChat, snap => {
                 window.fbGroupChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                window.fbGroupChats.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
+                window.fbGroupChats.sort((a, b) => window.getChatEntryOrder(a) - window.getChatEntryOrder(b) || String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
                 
                 window.lastGroupChatCount = window.fbGroupChats.length;
                 if (!window.isChatInitialized && window.currentUser) {
@@ -570,7 +595,7 @@
             );
             window.globalUnsubscribers.push(onSnapshot(pathPrivateChat, snap => {
                 window.fbPrivateChats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                window.fbPrivateChats.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
+                window.fbPrivateChats.sort((a, b) => window.getChatEntryOrder(a) - window.getChatEntryOrder(b) || String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
                 
                 if (window.currentUser) {
                     const myChats = window.fbPrivateChats.filter(c => c.studentId === window.currentUser.studentId);
@@ -1464,7 +1489,8 @@
                                 sender: 'parent',
                                 text: res.imageUrl, // 存放雲端公開外鏈 URL
                                 messageType: 'image', // 標註訊息型態
-                                timestamp: window.getPreciseTime()
+                                timestamp: window.getPreciseTime(),
+                                sentAt: Date.now()
                             });
                             window.sendMessageNotification({ channel: 'group', messageType: 'image' });
                             setTimeout(window.scrollToGroupChatBottom, 100);
@@ -1476,7 +1502,8 @@
                                 sender: 'parent',
                                 text: res.imageUrl,
                                 messageType: 'image',
-                                timestamp: window.getPreciseTime()
+                                timestamp: window.getPreciseTime(),
+                                sentAt: Date.now()
                             });
                             window.sendMessageNotification({ channel: 'private', messageType: 'image' });
                             setTimeout(window.scrollToPrivateChatBottom, 100);
@@ -1508,7 +1535,8 @@
                     sender: 'parent',
                     text: text,
                     messageType: 'text',
-                    timestamp: window.getPreciseTime()
+                    timestamp: window.getPreciseTime(),
+                    sentAt: Date.now()
                 });
                 window.sendMessageNotification({ channel: 'group', messageType: 'text' });
                 input.value = '';
@@ -1540,7 +1568,8 @@
                     sender: 'parent',
                     text: text,
                     messageType: 'text',
-                    timestamp: window.getPreciseTime()
+                    timestamp: window.getPreciseTime(),
+                    sentAt: Date.now()
                 });
                 window.sendMessageNotification({ channel: 'private', messageType: 'text' });
                 input.value = '';
@@ -1584,8 +1613,10 @@
                     text: '📞 申請語音通話',
                     messageType: 'call_request',
                     callRequestExpiresAt: Date.now() + (5 * 60 * 1000),
-                    timestamp: window.getPreciseTime()
+                    timestamp: window.getPreciseTime(),
+                    sentAt: Date.now()
                 });
+                window.sendMessageNotification({ channel: 'private', messageType: 'text' });
                 window.updateParentVoiceCallPolling && window.updateParentVoiceCallPolling();
                 setTimeout(() => window.refreshUI(), (5 * 60 * 1000) + 1000);
                 Swal.fire({ icon: 'success', title: '已通知老師', text: '請保持在私訊頁面，等待老師發起通話。', showConfirmButton: false, timer: 1800 });
