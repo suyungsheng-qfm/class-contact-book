@@ -146,7 +146,7 @@ Firebase Cloud Messaging 本身不收費；此版本直接由既有 Apps Script 
 這項更新會停止匿名 Firebase 存取。完成前端發布前，請依下列順序操作，以避免家長頁面無法載入。
 
 1. 在 Apps Script 的「專案設定 → Google Cloud Platform (GCP) 專案」改綁到 Firebase 專案的**專案編號**（不是 `classcontact-c148d` 這個專案 ID）。讓 Apps Script 與 Firebase 使用同一個 Google Cloud 專案，避免 API 啟用在不同專案而造成 403。
-2. 若系統要求設定 OAuth 同意畫面，選「外部」並維持「測試中」，將實際部署者帳號（目前為 `qfmstudy01@gmail.com`）加入「測試使用者」。不需送交 Google 驗證，也不需加入教師或家長帳號。
+2. 在 Google Cloud 的「Google Auth Platform」完成 OAuth 設定。於「品牌」填入應用程式名稱、支援信箱與開發人員聯絡信箱；若要避免「測試中」授權每 7 天失效，還需填入首頁 `https://suyungsheng-qfm.github.io/class-contact-book/`、隱私權政策 `https://suyungsheng-qfm.github.io/class-contact-book/privacy.html`，並在已授權網域填入 `suyungsheng-qfm.github.io`。接著在「目標對象」選「外部」並按「發布應用程式」。這只影響部署者的 Google 授權週期，家長不需加入測試使用者，也不會取得 Google 權限。
 3. 在這個 Google Cloud 專案的「API 和服務」啟用 **IAM Service Account Credentials API**。
 4. 選擇 Firebase 專案的服務帳號，記下其電子郵件（常見為 `firebase-adminsdk-…@classcontact-c148d.iam.gserviceaccount.com`）；不需建立或下載私密金鑰。
 5. 在該服務帳號的 IAM 權限中，授予實際部署 Apps Script 的 Google 帳號 **Service Account Token Creator** 角色。
@@ -158,6 +158,20 @@ Firebase Cloud Messaging 本身不收費；此版本直接由既有 Apps Script 
 11. 以教師、家長各測試一次後，在 Firebase Console 的「Authentication → Sign-in method」停用 Anonymous。
 
 若曾為本項目下載服務帳號 JSON 私密金鑰，請在 Google Cloud Console 將該金鑰撤銷，並自本機安全刪除；這個架構不會使用它。
+
+### 特別注意：OAuth 測試模式會每 7 天失效
+
+若 Google Cloud 的「Google Auth Platform → 目標對象」維持在「測試中」，部署 Apps Script 的 Google 帳號所使用的 OAuth 授權可能在 7 天後失效，造成家長與教師都無法登入，且必須回 Apps Script 重新授權。這不是家長驗證碼或 Firebase 資料庫過期。
+
+正式使用前，請將發布狀態改為「實際運作中／In production」。新版 Google Auth Platform 可能同時要求在「品牌」完成應用程式名稱、支援信箱、開發人員聯絡信箱、首頁、隱私權政策與已授權網域設定；本專案使用的網址為：
+
+- 首頁：`https://suyungsheng-qfm.github.io/class-contact-book/`
+- 隱私權政策：`https://suyungsheng-qfm.github.io/class-contact-book/privacy.html`
+- 已授權網域：`suyungsheng-qfm.github.io`
+
+改為正式環境後，請以 `qfmstudy01@gmail.com` 到 Google 帳戶的「第三方應用程式連線」撤銷本 Apps Script 專案的舊授權，再回 Apps Script 執行 `requestFirebaseMessagingAuthorization` 並重新允許，最後執行 `testFirebaseIamSigning` 確認顯示 `IAM signing succeeded.`。只有新授權完成後，才能確實解除既有測試授權的 7 天期限。撤銷與重新授權的短暫期間，使用者可能無法登入，請選擇無人使用的時段操作。
+
+即使已改為正式環境，系統仍會在 6 小時後要求重新輸入班級聯絡簿帳密；這是後端登入工作階段的正常安全設計，和 Google OAuth 重新授權不同。
 
 完成後的驗證重點：未登入直接開啟 `guardians.html` 或 `teacher.html` 應回到統一登入頁；家長僅能看到自己的簽閱／請假與私訊；教師仍可看到全班統計與全部私訊。登入後的 Firebase 憑證由 Apps Script 核發、有效期約一小時，瀏覽器關閉後也不會保留登入狀態。
 

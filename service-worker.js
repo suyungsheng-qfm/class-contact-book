@@ -1,4 +1,4 @@
-const CACHE_NAME = 'class-contact-book-v37';
+const CACHE_NAME = 'class-contact-book-v38';
 const APP_SHELL = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   './teacher.html',
   './forms.html',
   './guide.html',
+  './privacy.html',
   './manifest.webmanifest',
   './app-icon.svg',
   './app-icon-192.png',
