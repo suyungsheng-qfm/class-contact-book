@@ -919,10 +919,7 @@
                                 <h2 class="text-3xl font-black text-slate-900">&#32879;&#32097;&#31807;</h2>
                                 <p class="mt-1 text-sm text-slate-500">&#21482;&#39023;&#31034;&#31805;&#38321;&#29376;&#24907;&#33287;&#38656;&#35201;&#34389;&#29702;&#30340;&#23416;&#29983;&#12290;</p>
                             </div>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <button type="button" onclick="window.openStudentDataQuery()" class="min-h-11 rounded-xl bg-violet-600 px-3 text-sm font-black text-white shadow-sm active:scale-[.98]">資料查詢</button>
-                                <span id="tBookDateLabel" class="inline-flex w-fit items-center rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs font-black text-emerald-700">&#32113;&#35336;&#26085;&#26399; ----/--/--</span>
-                            </div>
+                            <span id="tBookDateLabel" class="inline-flex w-fit items-center rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs font-black text-emerald-700">&#32113;&#35336;&#26085;&#26399; ----/--/--</span>
                         </div>
                         <div id="contactBookContent"></div>
                     </section>`;
@@ -1016,7 +1013,7 @@
                 const formsTab = document.createElement('button');
                 formsTab.id = 'tabForms';
                 formsTab.type = 'button';
-                formsTab.textContent = '表單';
+                formsTab.textContent = '調查';
                 formsTab.className = 'px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap';
                 formsTab.onclick = () => window.switchTab('forms');
                 photoTab.parentElement.appendChild(formsTab);
@@ -1028,8 +1025,9 @@
             page.id = 'formsPage';
             page.className = 'hidden flex-1 w-full flex-col min-h-0 overflow-y-auto bg-slate-50';
             page.innerHTML = `
-                <section class="w-full max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
-                    <div><p class="text-xs font-black tracking-widest text-violet-600">CLASS FORM</p><h2 class="mt-1 text-3xl font-black text-slate-900">表單</h2><p class="mt-1 text-sm text-slate-500">先儲存草稿並修改，確認後再發佈到班群；家長開啟連結時會自動帶入登入身分。</p></div>
+                <div class="sticky top-0 z-10 w-full border-b border-slate-200 bg-slate-50/95 px-4 pt-4 pb-3 backdrop-blur sm:px-6"><div class="mx-auto flex w-full max-w-3xl rounded-2xl bg-slate-200/80 p-1"><button id="researchFormsTab" type="button" onclick="window.switchResearchSection('forms')" class="min-h-11 flex-1 rounded-xl bg-white px-3 text-sm font-black text-violet-700 shadow-sm">表單</button><button id="researchDataTab" type="button" onclick="window.switchResearchSection('data')" class="min-h-11 flex-1 rounded-xl px-3 text-sm font-black text-slate-500">資料</button></div></div>
+                <section id="teacherResearchFormsPanel" class="w-full max-w-3xl mx-auto p-4 sm:p-6 space-y-5">
+                    <div><p class="text-xs font-black tracking-widest text-violet-600">RESEARCH</p><h2 class="mt-1 text-3xl font-black text-slate-900">調查</h2><p class="mt-1 text-sm text-slate-500">建立表單後發佈到班群；家長開啟連結時會自動帶入登入身分。</p></div>
                     <section class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
                         <div class="flex items-center justify-between gap-3"><h3 id="teacherFormEditorTitle" class="text-lg font-black">建立新表單</h3><button id="cancelTeacherFormEdit" type="button" onclick="window.resetTeacherFormEditor()" class="hidden min-h-10 rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-600">取消編輯</button></div>
                         <div class="mt-4 space-y-4">
@@ -1047,6 +1045,15 @@
                     <section><div class="mb-3 flex items-center justify-between"><h3 class="text-lg font-black">已建立的表單</h3><span id="teacherFormCount" class="rounded-full bg-slate-200 px-3 py-1 text-xs font-black text-slate-600">0</span></div><div id="teacherFormsList" class="space-y-3"></div></section>
                     <section id="teacherFormResponses" class="hidden rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"></section>
                 </section>
+                <section id="teacherResearchDataPanel" class="hidden w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6">
+                    <div><p class="text-xs font-black tracking-widest text-violet-600">PARENT QUERY</p><h2 class="mt-1 text-3xl font-black text-slate-900">資料</h2><p class="mt-1 text-sm text-slate-500">建立要提供給家長查詢的資料；可設定為全班可查，或只允許本人查看。</p></div>
+                    <section class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div><h3 class="text-lg font-black text-slate-800">家長查詢資料</h3><p class="mt-1 text-sm leading-relaxed text-slate-500">個人資料會由伺服器依登入身分篩選，其他家長無法讀取。</p></div><button type="button" onclick="window.openParentQueryEditor()" class="shrink-0 min-h-11 rounded-xl bg-violet-600 px-3 text-sm font-black text-white shadow-sm active:scale-[.98]">新增</button></div><div id="teacherParentQueryList" class="mt-5 space-y-3"><div class="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">正在讀取資料…</div></div></section>
+                    <p class="px-1 text-xs font-bold leading-relaxed text-slate-400">批次建立個人資料時，每行貼上「學號」後按 Tab，再貼上內容；例如：<span class="font-mono">1410701[TAB]OPEDID-12345</span>。</p>
+                    <section class="border-t border-slate-200 pt-5"><div class="mb-3"><h3 class="text-base font-black text-slate-700">教師專用資料檢視</h3><p class="mt-1 text-sm text-slate-500">學生姓名旁的個人資料卡與此處資料分開，維持只有教師可讀取。</p></div>
+                    <article class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><div class="flex items-start gap-3"><span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-50 text-xl">&#128202;</span><div><h3 class="font-black text-slate-800">全班欄位查詢</h3><p class="mt-1 text-sm leading-relaxed text-slate-500">選擇一項欄位，例如緊急聯絡資訊，即可列出全班資料。</p></div></div><button type="button" onclick="window.openStudentDataQuery()" class="mt-5 min-h-12 w-full rounded-2xl bg-violet-600 px-4 text-[16px] font-black text-white shadow-lg shadow-violet-200 active:scale-[.98]">選擇欄位並查詢</button></article>
+                    <article class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><div class="flex items-start gap-3"><span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-50 text-xl">&#128100;</span><div><h3 class="font-black text-slate-800">學生個人資料卡</h3><p class="mt-1 text-sm leading-relaxed text-slate-500">選擇一位學生，查看目前已建立的個人資料與大頭照。</p></div></div><label class="mt-5 block text-sm font-black text-slate-700">學生<select id="teacherResearchStudentSelect" class="mt-2 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[16px] font-bold text-slate-800 outline-none focus:border-violet-500"><option value="">請選擇學生</option></select></label><button type="button" onclick="window.openResearchStudentProfile()" class="mt-3 min-h-12 w-full rounded-2xl bg-blue-600 px-4 text-[16px] font-black text-white shadow-lg shadow-blue-200 active:scale-[.98]">開啟個人資料卡</button></article>
+                    </section>
+                </section>
                 <div id="teacherFormPreview" class="hidden fixed inset-0 z-[100] bg-slate-950/40 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
                     <div class="mx-auto flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-[#f2f2f7] shadow-2xl">
                         <header class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3"><div><p class="text-xs font-black tracking-widest text-blue-600">PREVIEW</p><h3 class="text-lg font-black text-slate-900">家長填寫畫面預覽</h3></div><button type="button" onclick="window.closeTeacherFormPreview()" class="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-xl font-black text-slate-600" aria-label="關閉預覽">×</button></header>
@@ -1055,6 +1062,47 @@
                 </div>`;
             dashboard.appendChild(page);
             window.resetTeacherFormQuestions();
+            window.switchResearchSection('forms');
+        };
+
+        window.activeResearchSection = 'forms';
+        window.switchResearchSection = section => {
+            const activeSection = section === 'data' ? 'data' : 'forms';
+            window.activeResearchSection = activeSection;
+            const formsPanel = document.getElementById('teacherResearchFormsPanel');
+            const dataPanel = document.getElementById('teacherResearchDataPanel');
+            const formsTab = document.getElementById('researchFormsTab');
+            const dataTab = document.getElementById('researchDataTab');
+            formsPanel?.classList.toggle('hidden', activeSection !== 'forms');
+            dataPanel?.classList.toggle('hidden', activeSection !== 'data');
+            formsTab?.classList.toggle('bg-white', activeSection === 'forms');
+            formsTab?.classList.toggle('text-violet-700', activeSection === 'forms');
+            formsTab?.classList.toggle('shadow-sm', activeSection === 'forms');
+            formsTab?.classList.toggle('text-slate-500', activeSection !== 'forms');
+            dataTab?.classList.toggle('bg-white', activeSection === 'data');
+            dataTab?.classList.toggle('text-violet-700', activeSection === 'data');
+            dataTab?.classList.toggle('shadow-sm', activeSection === 'data');
+            dataTab?.classList.toggle('text-slate-500', activeSection !== 'data');
+            if (activeSection === 'data') {
+                window.populateResearchStudentSelect?.();
+                window.renderParentQueryManager?.();
+            }
+            if (activeSection === 'forms') window.renderTeacherForms?.();
+        };
+
+        window.populateResearchStudentSelect = () => {
+            const select = document.getElementById('teacherResearchStudentSelect');
+            if (!select) return;
+            const selectedValue = select.value;
+            const students = (window.allStudents || []).filter(student => !window.isTestStudent?.(student));
+            select.innerHTML = '<option value="">請選擇學生</option>' + students.map(student => `<option value="${window.studentDataEscapeHtml(String(student.studentId))}">${window.studentDataEscapeHtml(String(student.seatNo || '').padStart(2, '0'))} 號　${window.studentDataEscapeHtml(student.name || '')}</option>`).join('');
+            if (students.some(student => String(student.studentId) === selectedValue)) select.value = selectedValue;
+        };
+
+        window.openResearchStudentProfile = () => {
+            const studentId = String(document.getElementById('teacherResearchStudentSelect')?.value || '');
+            if (!studentId) return Swal.fire('請選擇學生', '請先選擇要查看個人資料的學生。', 'info');
+            window.openStudentProfile(studentId);
         };
 
         window.formEscapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
@@ -1939,6 +1987,7 @@
             } else if (tab === 'forms') {
                 formsPage.classList.remove('hidden');
                 formsPage.classList.add('flex');
+                window.switchResearchSection(window.activeResearchSection || 'forms');
                 if (tabForms) tabForms.className = "px-3 py-1.5 text-[13px] sm:text-sm font-bold rounded bg-white shadow-sm text-violet-600 transition-all whitespace-nowrap";
             }
             window.refreshUI();
@@ -2961,6 +3010,108 @@
             const result = await response.json();
             if (!result.success) throw new Error(result.message || '無法讀取學生資料。');
             return result;
+        };
+
+        // 家長查詢資料由 Apps Script 依登入身分回傳，個人資料不會放在
+        // 可被所有家長讀取的 Firestore 文件中。
+        window.parentQueryDataApi = async (mode, payload = {}) => {
+            const response = await fetch(GAS_API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'parentQueryData', mode, sessionToken: window.sessionToken, ...payload })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || '無法處理家長查詢資料。');
+            return result;
+        };
+
+        window.renderParentQueryManager = async () => {
+            const container = document.getElementById('teacherParentQueryList');
+            if (!container || !window.sessionToken) return;
+            container.innerHTML = '<div class="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">正在讀取資料…</div>';
+            try {
+                const result = await window.parentQueryDataApi('list');
+                const items = result.items || [];
+                if (!items.length) {
+                    container.innerHTML = '<div class="rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 p-5 text-center text-sm font-bold text-violet-400">尚未建立可供家長查詢的資料。</div>';
+                    return;
+                }
+                container.innerHTML = items.map(item => {
+                    const itemId = encodeURIComponent(String(item.itemId || ''));
+                    const title = window.studentDataEscapeHtml(item.title || '未命名資料');
+                    const isPersonal = item.access === 'personal';
+                    const scope = isPersonal ? '僅限本人' : '全班可查';
+                    const scopeClass = isPersonal ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700';
+                    const count = isPersonal ? `${Number(item.count || 0)} 位學生` : '全班共用';
+                    return `<article class="rounded-2xl border border-slate-100 bg-slate-50 p-4"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><div class="flex flex-wrap items-center gap-2"><h4 class="break-words font-black text-slate-800">${title}</h4><span class="rounded-full px-2 py-1 text-[11px] font-black ${scopeClass}">${scope}</span></div><p class="mt-2 text-xs font-bold text-slate-400">${window.studentDataEscapeHtml(count)}${item.updatedAt ? `　更新：${window.studentDataEscapeHtml(item.updatedAt)}` : ''}</p></div><div class="flex shrink-0 gap-2"><button type="button" onclick="window.openParentQueryEditor(decodeURIComponent('${window.studentDataEscapeHtml(itemId)}'))" class="min-h-10 rounded-xl bg-white px-3 text-xs font-black text-violet-700 ring-1 ring-violet-100 active:scale-[.98]">編輯</button><button type="button" onclick="window.deleteParentQueryItem(decodeURIComponent('${window.studentDataEscapeHtml(itemId)}'))" class="min-h-10 rounded-xl bg-rose-50 px-3 text-xs font-black text-rose-600 active:scale-[.98]">刪除</button></div></div></article>`;
+                }).join('');
+            } catch (error) {
+                container.innerHTML = `<div class="rounded-2xl bg-rose-50 p-5 text-center text-sm font-bold text-rose-700">${window.studentDataEscapeHtml(error.message || '讀取失敗，請稍後再試。')}</div>`;
+            }
+        };
+
+        window.openParentQueryEditor = async itemId => {
+            let item = { itemId: '', title: '', access: 'class', classValue: '', entries: [] };
+            if (itemId) {
+                try {
+                    const result = await window.parentQueryDataApi('detail', { itemId });
+                    item = result.item || item;
+                } catch (error) {
+                    Swal.fire('無法開啟資料', error.message || '請稍後再試。', 'error');
+                    return;
+                }
+            }
+            const escape = window.studentDataEscapeHtml;
+            const bulkRows = (item.entries || []).map(entry => `${entry.studentId}\t${String(entry.value || '').replace(/[\r\n]+/g, ' ')}`).join('\n');
+            const result = await Swal.fire({
+                title: itemId ? '編輯查詢資料' : '新增查詢資料',
+                html: `<div class="space-y-4 text-left"><label class="block text-sm font-black text-slate-700">資料名稱<input id="parentQueryTitle" value="${escape(item.title)}" maxlength="60" placeholder="例如：教師電話、OPEDID" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-medium outline-none focus:border-violet-500"></label><label class="block text-sm font-black text-slate-700">閱讀權限<select id="parentQueryAccess" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-medium outline-none focus:border-violet-500"><option value="class" ${item.access === 'class' ? 'selected' : ''}>全班可查</option><option value="personal" ${item.access === 'personal' ? 'selected' : ''}>僅限本人查詢</option></select></label><div id="parentQueryClassField"><label class="block text-sm font-black text-slate-700">提供內容<textarea id="parentQueryClassValue" maxlength="5000" placeholder="例如：導師電話、辦公室分機" class="mt-2 min-h-32 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium leading-relaxed outline-none focus:border-violet-500">${escape(item.classValue)}</textarea></label></div><div id="parentQueryPersonalField" class="hidden"><label class="block text-sm font-black text-slate-700">批次貼上資料<textarea id="parentQueryBulkValue" placeholder="學號[TAB]內容\n1410701[TAB]OPEDID-12345" class="mt-2 min-h-44 w-full rounded-xl border border-slate-200 p-3 font-mono text-sm leading-relaxed outline-none focus:border-violet-500">${escape(bulkRows)}</textarea></label><p class="mt-2 text-xs leading-relaxed text-slate-400">每行一位學生，第一欄為學號，第二欄為內容；從試算表複製後直接貼上即可。</p></div></div>`,
+                showCancelButton: true,
+                confirmButtonText: '儲存',
+                cancelButtonText: '取消',
+                confirmButtonColor: '#7c3aed',
+                showLoaderOnConfirm: true,
+                didOpen: () => {
+                    const access = document.getElementById('parentQueryAccess');
+                    const syncFields = () => {
+                        const isPersonal = access.value === 'personal';
+                        document.getElementById('parentQueryClassField').classList.toggle('hidden', isPersonal);
+                        document.getElementById('parentQueryPersonalField').classList.toggle('hidden', !isPersonal);
+                    };
+                    access.addEventListener('change', syncFields);
+                    syncFields();
+                },
+                preConfirm: async () => {
+                    const title = String(document.getElementById('parentQueryTitle').value || '').trim();
+                    const access = String(document.getElementById('parentQueryAccess').value || 'class');
+                    const classValue = String(document.getElementById('parentQueryClassValue').value || '').trim();
+                    const bulkValue = String(document.getElementById('parentQueryBulkValue').value || '').trim();
+                    const entries = bulkValue.split(/\r?\n/).map(line => line.trim()).filter(Boolean).filter(line => !/^學號(?:\t|\s|,)/.test(line)).map(line => {
+                        const cells = line.includes('\t') ? line.split('\t') : line.split(',');
+                        return { studentId: String(cells.shift() || '').trim(), value: cells.join(line.includes('\t') ? '\t' : ',').trim() };
+                    });
+                    try {
+                        return await window.parentQueryDataApi('save', { itemId: item.itemId || '', title, access, classValue, entries });
+                    } catch (error) {
+                        Swal.showValidationMessage(error.message || '儲存失敗，請稍後再試。');
+                    }
+                }
+            });
+            if (result.isConfirmed) {
+                await window.renderParentQueryManager();
+                Swal.fire({ icon: 'success', title: '已儲存', timer: 1200, showConfirmButton: false });
+            }
+        };
+
+        window.deleteParentQueryItem = async itemId => {
+            const confirm = await Swal.fire({ title: '刪除這項查詢資料？', text: '家長將無法再查看，這個動作無法復原。', icon: 'warning', showCancelButton: true, confirmButtonText: '刪除', cancelButtonText: '取消', confirmButtonColor: '#e11d48' });
+            if (!confirm.isConfirmed) return;
+            try {
+                await window.parentQueryDataApi('delete', { itemId });
+                await window.renderParentQueryManager();
+                Swal.fire({ icon: 'success', title: '已刪除', timer: 1200, showConfirmButton: false });
+            } catch (error) {
+                Swal.fire('刪除失敗', error.message || '請稍後再試。', 'error');
+            }
         };
 
         window.studentAlbumPhotosApi = async studentId => {

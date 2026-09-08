@@ -279,6 +279,42 @@
             return result;
         };
 
+        // 查詢內容由 Apps Script 依目前家長的登入身分篩選後才回傳；
+        // 「僅限本人」資料不會下載到其他家長的瀏覽器。
+        window.parentQueryDataApi = async () => {
+            const response = await fetch(GAS_API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'parentQueryData', mode: 'parent', sessionToken: window.sessionToken })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || '無法讀取查詢資料。');
+            return result;
+        };
+
+        window.parentQueryEscapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+
+        window.renderParentQueryPage = async () => {
+            const content = document.getElementById('parentQueryContent');
+            if (!content || !window.sessionToken) return;
+            content.innerHTML = '<div class="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-400">正在讀取資料…</div>';
+            try {
+                const result = await window.parentQueryDataApi();
+                const items = result.items || [];
+                if (!items.length) {
+                    content.innerHTML = '<div class="rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 p-6 text-center text-sm font-bold text-violet-400">老師尚未提供可查詢的資料。</div>';
+                    return;
+                }
+                content.innerHTML = items.map(item => {
+                    const personal = item.access === 'personal';
+                    const badge = personal ? '僅限本人' : '全班可查';
+                    const badgeClass = personal ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700';
+                    return `<article class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-[#e5e5ea]"><div class="flex flex-wrap items-center gap-2"><h3 class="text-lg font-black text-slate-800">${window.parentQueryEscapeHtml(item.title || '資料')}</h3><span class="rounded-full px-2.5 py-1 text-[11px] font-black ${badgeClass}">${badge}</span></div><p class="mt-4 whitespace-pre-wrap break-words text-[16px] font-medium leading-7 text-slate-700">${window.parentQueryEscapeHtml(item.value || '')}</p>${item.updatedAt ? `<p class="mt-4 text-right text-[11px] font-bold text-slate-300">更新：${window.parentQueryEscapeHtml(item.updatedAt)}</p>` : ''}</article>`;
+                }).join('');
+            } catch (error) {
+                content.innerHTML = `<div class="rounded-2xl bg-rose-50 p-6 text-center text-sm font-bold text-rose-700">${window.parentQueryEscapeHtml(error.message || '讀取失敗，請稍後再試。')}</div>`;
+            }
+        };
+
         window.updateNotificationButton = () => {
             const button = document.getElementById('notificationButton');
             if (!button) return;
@@ -853,11 +889,13 @@
             window.activeTab = tab;
             const calendarPage = document.getElementById('bookPage');
             const contactBookPage = document.getElementById('parentContactBookPage');
+            const queryPage = document.getElementById('parentQueryPage');
             const groupChatPage = document.getElementById('groupChatPage');
             const privateChatPage = document.getElementById('privateChatPage');
             
             const tabCalendar = document.getElementById('tabCalendar');
             const tabBook = document.getElementById('tabContactBook');
+            const tabQuery = document.getElementById('tabQuery');
             const tabGroup = document.getElementById('tabGroup');
             const tabPrivate = document.getElementById('tabPrivate');
             
@@ -866,14 +904,17 @@
 
             calendarPage.classList.add('hidden');
             contactBookPage.classList.add('hidden');
+            queryPage.classList.add('hidden');
             groupChatPage.classList.add('hidden');
             privateChatPage.classList.add('hidden');
+            queryPage.classList.remove('flex');
             groupChatPage.classList.remove('flex');
             privateChatPage.classList.remove('flex');
 
             const inactiveClass = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all relative whitespace-nowrap";
             tabCalendar.className = inactiveClass;
             tabBook.className = inactiveClass;
+            tabQuery.className = inactiveClass;
             tabGroup.className = inactiveClass;
             tabPrivate.className = inactiveClass;
 
@@ -883,6 +924,11 @@
             } else if (tab === 'book') {
                 contactBookPage.classList.remove('hidden');
                 tabBook.className = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#d97706] transition-all whitespace-nowrap";
+            } else if (tab === 'query') {
+                queryPage.classList.remove('hidden');
+                queryPage.classList.add('flex');
+                tabQuery.className = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#8e5ad9] transition-all whitespace-nowrap";
+                window.renderParentQueryPage();
             } else if (tab === 'group') {
                 groupChatPage.classList.remove('hidden');
                 groupChatPage.classList.add('flex');
@@ -1956,6 +2002,7 @@
                 <div class="flex items-center gap-1 bg-[#e5e5ea]/80 p-1 rounded-xl w-full max-w-[400px] justify-between">
                     <button onclick="window.switchTab('calendar')" id="tabCalendar" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#d97706] transition-all whitespace-nowrap">行事曆</button>
                     <button onclick="window.switchTab('book')" id="tabContactBook" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all whitespace-nowrap">聯絡簿</button>
+                    <button onclick="window.switchTab('query')" id="tabQuery" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all whitespace-nowrap">查詢</button>
                     <button onclick="window.switchTab('group')" id="tabGroup" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all relative whitespace-nowrap">
                         班群
                         <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#ff3b30] hidden shadow-sm" id="groupUnreadBadge"></span>
@@ -2004,6 +2051,23 @@
                 <div id="contentContainer" class="flex-1 overflow-y-auto custom-scrollbar p-5 lg:p-12 fade-in"></div>
                 <div id="footerAction" class="shrink-0 bg-white border-t border-[#e5e5ea] p-4 lg:p-6 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-20 pb-[max(1rem,env(safe-area-inset-bottom))]"></div>
             </div>
+        </main>
+
+        <!-- [分頁 2]：查詢 -->
+        <main id="parentQueryPage" class="hidden flex-1 w-full max-w-2xl mx-auto flex-col overflow-y-auto min-h-0 bg-[#f2f2f7]">
+            <section class="w-full p-4 sm:p-6">
+                <article class="mb-4 rounded-[1.75rem] bg-white p-6 shadow-sm ring-1 ring-[#e5e5ea]">
+                    <div class="flex items-start gap-4">
+                        <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-50 text-2xl" aria-hidden="true">&#128269;</span>
+                        <div>
+                            <p class="text-xs font-black tracking-widest text-violet-600">QUERY</p>
+                            <h2 class="mt-1 text-2xl font-black text-slate-800">查詢</h2>
+                            <p class="mt-3 text-sm leading-relaxed text-slate-500">可查看老師提供給全班，或只提供給您的資料。</p>
+                        </div>
+                    </div>
+                </article>
+                <div id="parentQueryContent" class="space-y-4"><div class="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-400">正在讀取資料…</div></div>
+            </section>
         </main>
 
         <!-- [分頁 2]：班級群聊 (支援傳送圖片) -->
