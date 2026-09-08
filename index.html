@@ -83,6 +83,19 @@
             return /(^|\.)script\.google\.com$|(^|\.)googleusercontent\.com$/.test(window.location.hostname);
         }
 
+        function getSafeNextPage(next) {
+            if (!next) return '';
+            try {
+                const target = new URL(next, window.location.href);
+                const allowed = target.origin === window.location.origin
+                    && /\/forms\.html$/.test(target.pathname)
+                    && Boolean(target.searchParams.get('id'));
+                return allowed ? target.href : '';
+            } catch (_) {
+                return '';
+            }
+        }
+
         function navigateToAppPage(page) {
             if (!isAppsScriptHost()) {
                 window.location.assign(page === 'index' ? './index.html' : `./${page}.html`);
@@ -107,6 +120,7 @@
         const installGuideTitle = document.getElementById('installGuideTitle');
         const installGuideContent = document.getElementById('installGuideContent');
         const pendingLoginError = sessionStorage.getItem('contact-book-login-error');
+        const requestedNext = new URLSearchParams(window.location.search).get('next');
         let deferredInstallPrompt = null;
         const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const isAndroid = /Android/i.test(navigator.userAgent);
@@ -189,6 +203,11 @@
                 if (!result.success || !result.sessionToken || !result.role) throw new Error(result.message || '登入失敗，請稍後再試。');
 
                 sessionStorage.setItem('contact-book-session', result.sessionToken);
+                const nextPage = result.role === 'parent' ? getSafeNextPage(requestedNext) : '';
+                if (nextPage) {
+                    window.location.assign(nextPage);
+                    return;
+                }
                 navigateToAppPage(result.role === 'teacher' ? 'teacher' : 'guardians');
             } catch (err) {
                 error.textContent = err.message || '無法登入，請檢查網路後重試。';

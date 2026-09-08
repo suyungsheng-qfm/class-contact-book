@@ -1485,7 +1485,7 @@
                         ? `${responseAction}<button type="button" onclick="window.republishTeacherForm('${form.id}')" class="min-h-11 rounded-xl bg-violet-600 text-white">再次發佈</button>`
                     : `${responseAction}<button type="button" onclick="window.adjustTeacherFormDeadline('${form.id}')" class="min-h-11 rounded-xl bg-violet-50 text-violet-700">調整期限</button>`;
                 const secondaryActions = isPublished
-                    ? `<button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-10 rounded-xl bg-slate-100 text-xs font-black text-slate-600">複製連結</button><button type="button" onclick="window.retractTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">收回表單</button><button type="button" onclick="window.closeTeacherForm('${form.id}')" class="col-span-2 min-h-10 rounded-xl bg-slate-100 text-xs font-black text-slate-600">關閉表單</button><button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="col-span-2 min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`
+                    ? `<button type="button" onclick="window.copyTeacherFormLink('${form.id}')" class="min-h-10 rounded-xl bg-slate-100 text-xs font-black text-slate-600">產生連結</button><button type="button" onclick="window.retractTeacherForm('${form.id}')" class="min-h-10 rounded-xl text-xs font-black text-rose-600">收回表單</button><button type="button" onclick="window.closeTeacherForm('${form.id}')" class="col-span-2 min-h-10 rounded-xl bg-slate-100 text-xs font-black text-slate-600">關閉表單</button><button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="col-span-2 min-h-10 rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`
                     : `<button type="button" onclick="window.deleteTeacherForm('${form.id}')" class="min-h-10 w-full rounded-xl bg-rose-50 text-xs font-black text-rose-700 ring-1 ring-rose-100">刪除表單</button>`;
                 return `<article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><h4 class="truncate font-black">${window.formEscapeHtml(form.title)}</h4><p class="mt-1 text-xs font-bold text-slate-400">${deadline}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${state.color}">${state.label}</span></div><div class="mt-4 grid grid-cols-2 gap-2 text-sm font-black">${primaryActions}</div><div class="mt-2 grid ${isPublished ? 'grid-cols-2' : 'grid-cols-1'} gap-2">${secondaryActions}</div></article>`;
             }).join('');
@@ -3126,6 +3126,15 @@
 
         window.studentDataEscapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
+        window.formatStudentDataValue = (label, value) => {
+            const text = String(value ?? '').trim();
+            if (!/(出生.*(?:年月日|日期)|生日)/.test(String(label || ''))) return text;
+            const digits = text.replace(/\D/g, '');
+            if (/^\d{7}$/.test(digits)) return `${digits.slice(0, 3)}.${digits.slice(3, 5)}.${digits.slice(5, 7)}`;
+            if (/^\d{6}$/.test(digits)) return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4, 6)}`;
+            return text;
+        };
+
         window.closeStudentDataQuery = () => {
             const modal = document.getElementById('studentDataQueryModal');
             if (!modal) return;
@@ -3187,7 +3196,7 @@
                 const result = await window.teacherDataApi('column', { fieldIndex });
                 const fieldLabel = window.studentDataEscapeHtml(result.field?.label || '資料');
                 const rows = result.rows || [];
-                results.innerHTML = `<div class="mb-3 flex items-center justify-between gap-3"><h3 class="font-black text-slate-800">${fieldLabel}</h3><span class="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-black text-violet-700">${rows.length} 人</span></div><div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">${rows.map(row => `<div class="flex items-start gap-3 border-b border-slate-100 p-3 last:border-b-0"><span class="w-8 shrink-0 pt-0.5 text-center text-xs font-black text-slate-400">${window.studentDataEscapeHtml(row.seatNo ? String(row.seatNo).padStart(2, '0') : '—')}</span><div class="min-w-0 flex-1"><p class="font-black text-slate-800">${window.studentDataEscapeHtml(row.name || '未設定姓名')}</p><p class="mt-1 break-words text-sm font-medium ${row.value ? 'text-slate-600' : 'text-slate-300'}">${window.studentDataEscapeHtml(row.value || '未填寫')}</p></div></div>`).join('')}</div>`;
+                results.innerHTML = `<div class="mb-3 flex items-center justify-between gap-3"><h3 class="font-black text-slate-800">${fieldLabel}</h3><span class="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-black text-violet-700">${rows.length} 人</span></div><div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">${rows.map(row => { const value = window.formatStudentDataValue(result.field?.label, row.value); return `<div class="flex items-start gap-3 border-b border-slate-100 p-3 last:border-b-0"><span class="w-8 shrink-0 pt-0.5 text-center text-xs font-black text-slate-400">${window.studentDataEscapeHtml(row.seatNo ? String(row.seatNo).padStart(2, '0') : '—')}</span><div class="min-w-0 flex-1"><p class="font-black text-slate-800">${window.studentDataEscapeHtml(row.name || '未設定姓名')}</p><p class="mt-1 break-words text-sm font-medium ${value ? 'text-slate-600' : 'text-slate-300'}">${window.studentDataEscapeHtml(value || '未填寫')}</p></div></div>`; }).join('')}</div>`;
                 status.textContent = '僅顯示本次選擇的欄位。';
                 status.className = 'mt-3 text-center text-xs font-bold text-slate-400';
             } catch (error) {
@@ -3275,7 +3284,7 @@
                 const profileFields = fields.filter(field => !['學號', '座號', '姓名'].includes(String(field.label || '').trim()));
                 const identitySection = `<section class="mb-4 grid grid-cols-[minmax(0,1fr)_7rem] gap-4 rounded-2xl border border-violet-100 bg-violet-50/70 p-4"><div class="space-y-2">${identityFields.map(field => `<div class="flex items-baseline gap-3"><span class="w-10 shrink-0 text-xs font-black tracking-wide text-violet-500">${field.label}</span><span class="min-w-0 break-words text-[16px] font-black text-slate-800">${window.studentDataEscapeHtml(field.value || '—')}</span></div>`).join('')}</div>${profilePhoto ? `<button type="button" onclick="window.openStudentProfilePhoto()" class="aspect-square overflow-hidden rounded-2xl border-2 border-white bg-white shadow-sm active:scale-95" aria-label="放大學生大頭照"><img src="${profilePhoto.thumbnailDataUrl}" alt="學生大頭照" class="h-full w-full object-cover"></button>` : '<div class="flex aspect-square items-center justify-center rounded-2xl bg-white text-4xl shadow-sm" aria-label="尚未設定大頭照">&#128100;</div>'}</section>`;
                 const dataSection = profileFields.length
-                    ? `<div class="grid grid-cols-1 gap-3">${profileFields.map(field => `<article class="rounded-2xl bg-slate-50 px-4 py-3"><p class="text-xs font-black tracking-wide text-slate-400">${window.studentDataEscapeHtml(field.label)}</p><p class="mt-1 break-words text-[16px] font-bold ${field.value ? 'text-slate-800' : 'text-slate-300'}">${window.studentDataEscapeHtml(field.value || '未填寫')}</p></article>`).join('')}</div>`
+                    ? `<div class="grid grid-cols-1 gap-3">${profileFields.map(field => { const value = window.formatStudentDataValue(field.label, field.value); return `<article class="rounded-2xl bg-slate-50 px-4 py-3"><p class="text-xs font-black tracking-wide text-slate-400">${window.studentDataEscapeHtml(field.label)}</p><p class="mt-1 break-words text-[16px] font-bold ${value ? 'text-slate-800' : 'text-slate-300'}">${window.studentDataEscapeHtml(value || '未填寫')}</p></article>`; }).join('')}</div>`
                     : '<div class="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-400">「資料」分頁目前沒有可顯示的欄位。</div>';
                 content.innerHTML = identitySection + dataSection;
             } catch (error) {

@@ -293,6 +293,15 @@
 
         window.parentQueryEscapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
+        window.formatParentQueryValue = (title, value) => {
+            const text = String(value ?? '').trim();
+            if (!/(出生.*(?:年月日|日期)|生日)/.test(String(title || ''))) return text;
+            const digits = text.replace(/\D/g, '');
+            if (/^\d{7}$/.test(digits)) return `${digits.slice(0, 3)}.${digits.slice(3, 5)}.${digits.slice(5, 7)}`;
+            if (/^\d{6}$/.test(digits)) return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4, 6)}`;
+            return text;
+        };
+
         window.renderParentQueryPage = async () => {
             const content = document.getElementById('parentQueryContent');
             if (!content || !window.sessionToken) return;
@@ -308,7 +317,8 @@
                     const personal = item.access === 'personal';
                     const badge = personal ? '僅限本人' : '全班可查';
                     const badgeClass = personal ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700';
-                    return `<article class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-[#e5e5ea]"><div class="flex flex-wrap items-center gap-2"><h3 class="text-lg font-black text-slate-800">${window.parentQueryEscapeHtml(item.title || '資料')}</h3><span class="rounded-full px-2.5 py-1 text-[11px] font-black ${badgeClass}">${badge}</span></div><p class="mt-4 whitespace-pre-wrap break-words text-[16px] font-medium leading-7 text-slate-700">${window.parentQueryEscapeHtml(item.value || '')}</p>${item.updatedAt ? `<p class="mt-4 text-right text-[11px] font-bold text-slate-300">更新：${window.parentQueryEscapeHtml(item.updatedAt)}</p>` : ''}</article>`;
+                    const value = window.formatParentQueryValue(item.title, item.value);
+                    return `<article class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-[#e5e5ea]"><div class="flex flex-wrap items-center gap-2"><h3 class="text-lg font-black text-slate-800">${window.parentQueryEscapeHtml(item.title || '資料')}</h3><span class="rounded-full px-2.5 py-1 text-[11px] font-black ${badgeClass}">${badge}</span></div><p class="mt-4 whitespace-pre-wrap break-words text-[16px] font-medium leading-7 text-slate-700">${window.parentQueryEscapeHtml(value)}</p>${item.updatedAt ? `<p class="mt-4 text-right text-[11px] font-bold text-slate-300">更新：${window.parentQueryEscapeHtml(item.updatedAt)}</p>` : ''}</article>`;
                 }).join('');
             } catch (error) {
                 content.innerHTML = `<div class="rounded-2xl bg-rose-50 p-6 text-center text-sm font-bold text-rose-700">${window.parentQueryEscapeHtml(error.message || '讀取失敗，請稍後再試。')}</div>`;
