@@ -3363,7 +3363,7 @@
 
         window.openClassboardTomorrowImport = async () => {
             if (!checkFbAuth()) return;
-            Swal.fire({ title: '讀取明日事項…', text: '正在確認下一個上課日', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            Swal.fire({ title: '讀取明日事項…', text: '正在確認班級看板標示日期', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             try {
                 const result = await window.classboardTomorrowApi();
                 const targetDate = String(result.targetDate || '').replaceAll('-', '/');
