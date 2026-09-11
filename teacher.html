@@ -1010,7 +1010,7 @@
             const homeworkPanel = document.createElement('section');
             homeworkPanel.id = 'recordHomeworkPanel';
             homeworkPanel.className = 'hidden w-full max-w-2xl mx-auto space-y-4 p-4 sm:p-6';
-            homeworkPanel.innerHTML = `<article class="overflow-hidden rounded-3xl border border-violet-100 bg-white shadow-sm"><header class="bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-5 text-white"><div class="flex items-start gap-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl">📚</span><div><h3 class="text-xl font-black">作業資料</h3><p class="mt-1 text-sm text-violet-100">多張圖片整理為一份作業，班群只會發出一張入口卡片。</p></div></div></header><form id="homeworkForm" class="space-y-4 p-4 sm:p-5"><div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><label class="block text-sm font-black text-slate-700">作業標題<input id="homeworkTitle" required maxlength="80" placeholder="例如：國文第 3 課練習" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-violet-500"></label><label class="block text-sm font-black text-slate-700">科目（選填）<input id="homeworkSubject" maxlength="30" placeholder="例如：國文" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-violet-500"></label></div><label class="block text-sm font-black text-slate-700">截止日期（選填）<input id="homeworkDeadline" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-violet-500"></label><label class="block text-sm font-black text-slate-700">說明（選填）<textarea id="homeworkDescription" rows="3" maxlength="1000" placeholder="可補充繳交方式或提醒事項" class="mt-2 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium leading-relaxed outline-none focus:border-violet-500"></textarea></label><input id="homeworkImageInput" type="file" accept="image/*,.heic,.heif,image/heic,image/heif" multiple class="hidden"><button id="homeworkImagePick" type="button" class="flex min-h-24 w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 text-violet-700 active:bg-violet-100"><span class="text-2xl">🖼️</span><span class="mt-1 font-black">選擇作業圖片</span><span class="mt-1 text-xs font-bold text-violet-500">可一次選擇多張，將集中在同一份作業頁</span></button><div id="homeworkImagePreview" class="hidden rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-600"></div><p id="homeworkStatus" class="hidden rounded-xl px-3 py-2 text-center text-sm font-bold"></p><p class="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-relaxed text-amber-800">請勿上傳含學生個資的圖片。作業圖片會以知道連結即可查看的方式，供已登入的家長作業頁載入。</p><button id="homeworkPublishButton" type="submit" class="min-h-12 w-full rounded-2xl bg-violet-600 px-4 text-[16px] font-black text-white shadow-lg shadow-violet-200 active:scale-[.98]">建立並發佈到班群</button></form></article><article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div><p class="text-xs font-black tracking-widest text-violet-600">HOMEWORK</p><h3 class="mt-1 text-lg font-black text-slate-800">已建立的作業</h3></div><div id="homeworkList" class="mt-4 space-y-3"></div></article>`;
+            homeworkPanel.innerHTML = `<article class="overflow-hidden rounded-3xl border border-violet-100 bg-white shadow-sm"><header class="bg-gradient-to-br from-violet-600 to-indigo-600 px-5 py-5 text-white"><div class="flex items-start gap-3"><span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-2xl">📚</span><div><h3 class="text-xl font-black">作業資料</h3><p class="mt-1 text-sm text-violet-100">多張圖片整理為一份作業，班群只會發出一張入口卡片。</p></div></div></header><form id="homeworkForm" class="space-y-4 p-4 sm:p-5"><div id="homeworkEditBar" class="hidden items-center justify-between gap-3 rounded-2xl bg-violet-50 px-3 py-3"><div><p class="font-black text-violet-800">正在修改已發佈作業</p><p id="homeworkExistingImageHint" class="mt-0.5 text-xs font-bold text-violet-600"></p></div><button type="button" onclick="window.cancelHomeworkEdit()" class="min-h-10 shrink-0 rounded-xl bg-white px-3 text-sm font-black text-slate-600 ring-1 ring-violet-100">取消</button></div><div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><label class="block text-sm font-black text-slate-700">作業標題<input id="homeworkTitle" required maxlength="80" placeholder="例如：國文第 3 課練習" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-violet-500"></label><label class="block text-sm font-black text-slate-700">科目（選填）<input id="homeworkSubject" maxlength="30" placeholder="例如：國文" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-violet-500"></label></div><label class="block text-sm font-black text-slate-700">截止日期（選填）<input id="homeworkDeadline" type="date" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-violet-500"></label><label class="block text-sm font-black text-slate-700">說明（選填）<textarea id="homeworkDescription" rows="3" maxlength="1000" placeholder="可補充繳交方式或提醒事項" class="mt-2 w-full rounded-xl border border-slate-200 p-3 text-[16px] font-medium leading-relaxed outline-none focus:border-violet-500"></textarea></label><input id="homeworkImageInput" type="file" accept="image/*,.heic,.heif,image/heic,image/heif" multiple class="hidden"><button id="homeworkImagePick" type="button" class="flex min-h-24 w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50/50 px-4 text-violet-700 active:bg-violet-100"><span class="text-2xl">🖼️</span><span id="homeworkImagePickLabel" class="mt-1 font-black">選擇作業圖片</span><span id="homeworkImagePickHint" class="mt-1 text-xs font-bold text-violet-500">可一次選擇多張，將集中在同一份作業頁</span></button><div id="homeworkImagePreview" class="hidden rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-600"></div><p id="homeworkStatus" class="hidden rounded-xl px-3 py-2 text-center text-sm font-bold"></p><p class="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-relaxed text-amber-800">請勿上傳含學生個資的圖片。作業圖片會以知道連結即可查看的方式，供已登入的家長作業頁載入。</p><button id="homeworkPublishButton" type="submit" class="min-h-12 w-full rounded-2xl bg-violet-600 px-4 text-[16px] font-black text-white shadow-lg shadow-violet-200 active:scale-[.98]">建立並發佈到班群</button></form></article><article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div><p class="text-xs font-black tracking-widest text-violet-600">HOMEWORK</p><h3 class="mt-1 text-lg font-black text-slate-800">已建立的作業</h3></div><div id="homeworkList" class="mt-4 space-y-3"></div></article>`;
             photoPage.appendChild(homeworkPanel);
             const bPanel = document.createElement('section');
             bPanel.id = 'recordBPanel';
@@ -1762,6 +1762,39 @@
             if (input) input.value = '';
             window.renderHomeworkImageSelection();
         };
+        window.resetHomeworkEditor = () => {
+            window.editingHomeworkId = null;
+            document.getElementById('homeworkForm')?.reset();
+            window.clearHomeworkImages();
+            document.getElementById('homeworkEditBar')?.classList.add('hidden');
+            document.getElementById('homeworkEditBar')?.classList.remove('flex');
+            document.getElementById('homeworkImagePickLabel').textContent = '選擇作業圖片';
+            document.getElementById('homeworkImagePickHint').textContent = '可一次選擇多張，將集中在同一份作業頁';
+            document.getElementById('homeworkPublishButton').textContent = '建立並發佈到班群';
+        };
+        window.editHomework = id => {
+            const homework = (window.fbHomework || []).find(item => item.id === id);
+            if (!homework || homework.status !== 'published') return;
+            window.editingHomeworkId = id;
+            document.getElementById('homeworkTitle').value = homework.title || '';
+            document.getElementById('homeworkSubject').value = homework.subject || '';
+            document.getElementById('homeworkDeadline').value = homework.deadline || '';
+            document.getElementById('homeworkDescription').value = homework.description || '';
+            window.clearHomeworkImages();
+            const bar = document.getElementById('homeworkEditBar');
+            bar.classList.remove('hidden');
+            bar.classList.add('flex');
+            document.getElementById('homeworkExistingImageHint').textContent = `目前已有 ${(homework.images || []).length} 張圖片；下方可追加新圖片。`;
+            document.getElementById('homeworkImagePickLabel').textContent = '追加作業圖片';
+            document.getElementById('homeworkImagePickHint').textContent = '新選擇的圖片會加在原有圖片後方';
+            document.getElementById('homeworkPublishButton').textContent = '儲存修改';
+            window.switchRecordSection('homework');
+            document.getElementById('photoPage')?.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+        window.cancelHomeworkEdit = () => {
+            window.resetHomeworkEditor();
+            document.getElementById('homeworkStatus')?.classList.add('hidden');
+        };
         window.initHomeworkUpload = () => {
             const form = document.getElementById('homeworkForm');
             if (!form || form.dataset.ready) return;
@@ -1783,15 +1816,16 @@
             const deadline = document.getElementById('homeworkDeadline').value;
             const description = document.getElementById('homeworkDescription').value.trim();
             const files = window.homeworkFiles || [];
+            const editingHomework = window.editingHomeworkId ? (window.fbHomework || []).find(item => item.id === window.editingHomeworkId) : null;
             if (!title) return window.setHomeworkStatus('請填寫作業標題。', 'error');
-            if (!files.length) return window.setHomeworkStatus('請至少選擇一張作業圖片。', 'error');
+            if (!editingHomework && !files.length) return window.setHomeworkStatus('請至少選擇一張作業圖片。', 'error');
             if (files.some(file => file.size > 8 * 1024 * 1024)) return window.setHomeworkStatus('單張圖片請勿超過 8MB。', 'error');
             const button = document.getElementById('homeworkPublishButton');
             button.disabled = true;
             try {
-                const homeworkRef = doc(window.getHomeworkCollection());
+                const homeworkRef = editingHomework ? doc(window.getHomeworkCollection(), editingHomework.id) : doc(window.getHomeworkCollection());
                 const homeworkId = homeworkRef.id;
-                const images = [];
+                const images = [...(editingHomework?.images || [])];
                 for (let index = 0; index < files.length; index += 1) {
                     const file = files[index];
                     window.setHomeworkStatus(`圖片上傳中…（${index + 1}／${files.length}）`, 'progress');
@@ -1803,16 +1837,20 @@
                     if (!result.success) throw new Error(result.message || '圖片上傳失敗。');
                     images.push({ fileId: result.fileId, name: result.fileName || file.name, url: result.imageUrl });
                 }
-                const messageRef = doc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat'));
                 const now = Date.now();
                 const batch = writeBatch(db);
-                batch.set(homeworkRef, { title, subject, deadline, description, images, status: 'published', createdAt: now, updatedAt: now, publishedAt: now, publishedMessageId: messageRef.id });
-                batch.set(messageRef, { studentId: 'teacher', name: '蘇老師', seatNo: 'T', sender: 'teacher', text: `作業資料：${title}`, homeworkId, homeworkTitle: title, homeworkSubject: subject, homeworkDeadline: deadline, messageType: 'homework', timestamp: window.getPreciseTime(), sentAt: now });
+                if (editingHomework) {
+                    batch.update(homeworkRef, { title, subject, deadline, description, images, updatedAt: now });
+                    if (editingHomework.publishedMessageId) batch.update(doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat', editingHomework.publishedMessageId), { text: `作業資料：${title}`, homeworkTitle: title, homeworkSubject: subject, homeworkDeadline: deadline, updatedAt: now });
+                } else {
+                    const messageRef = doc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat'));
+                    batch.set(homeworkRef, { title, subject, deadline, description, images, status: 'published', createdAt: now, updatedAt: now, publishedAt: now, publishedMessageId: messageRef.id });
+                    batch.set(messageRef, { studentId: 'teacher', name: '蘇老師', seatNo: 'T', sender: 'teacher', text: `作業資料：${title}`, homeworkId, homeworkTitle: title, homeworkSubject: subject, homeworkDeadline: deadline, messageType: 'homework', timestamp: window.getPreciseTime(), sentAt: now });
+                }
                 await batch.commit();
-                window.sendMessageNotification({ channel: 'group', messageType: 'homework' });
-                document.getElementById('homeworkForm').reset();
-                window.clearHomeworkImages();
-                window.setHomeworkStatus('已建立作業頁，並發佈一張入口卡片到班群。');
+                if (!editingHomework) window.sendMessageNotification({ channel: 'group', messageType: 'homework' });
+                window.resetHomeworkEditor();
+                window.setHomeworkStatus(editingHomework ? '已更新作業內容；班群入口卡維持原本一張。' : '已建立作業頁，並發佈一張入口卡片到班群。');
             } catch (error) {
                 console.error(error);
                 window.setHomeworkStatus(error.message || '建立作業失敗，請檢查網路後再試。已上傳的圖片不會重複發佈。', 'error');
@@ -1841,7 +1879,7 @@
             if (!root) return;
             const list = window.fbHomework || [];
             if (!list.length) { root.innerHTML = '<p class="rounded-2xl bg-slate-50 p-4 text-center text-sm font-bold text-slate-400">尚未建立作業資料。</p>'; return; }
-            root.innerHTML = list.map(item => { const published = item.status === 'published'; return `<article class="rounded-2xl border ${published ? 'border-violet-100 bg-violet-50/40' : 'border-slate-200 bg-slate-50'} p-4"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="font-black text-slate-800">${window.homeworkEscapeHtml(item.title || '未命名作業')}</p><p class="mt-1 text-xs font-bold text-slate-500">${window.homeworkEscapeHtml(item.subject || '未分類')} ・ ${Array.isArray(item.images) ? item.images.length : 0} 張圖片${item.deadline ? ` ・ 截止 ${window.homeworkEscapeHtml(item.deadline)}` : ''}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${published ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}">${published ? '已發佈' : '已收回'}</span></div><div class="mt-3 flex flex-wrap gap-2">${published ? `<button type="button" onclick="window.copyHomeworkLink('${item.id}')" class="min-h-10 rounded-xl bg-white px-3 text-sm font-black text-violet-700 ring-1 ring-violet-200">複製連結</button><button type="button" onclick="window.retractHomework('${item.id}')" class="min-h-10 rounded-xl bg-rose-50 px-3 text-sm font-black text-rose-600">收回</button>` : ''}</div></article>`; }).join('');
+            root.innerHTML = list.map(item => { const published = item.status === 'published'; return `<article class="rounded-2xl border ${published ? 'border-violet-100 bg-violet-50/40' : 'border-slate-200 bg-slate-50'} p-4"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="font-black text-slate-800">${window.homeworkEscapeHtml(item.title || '未命名作業')}</p><p class="mt-1 text-xs font-bold text-slate-500">${window.homeworkEscapeHtml(item.subject || '未分類')} ・ ${Array.isArray(item.images) ? item.images.length : 0} 張圖片${item.deadline ? ` ・ 截止 ${window.homeworkEscapeHtml(item.deadline)}` : ''}</p></div><span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${published ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}">${published ? '已發佈' : '已收回'}</span></div><div class="mt-3 flex flex-wrap gap-2">${published ? `<button type="button" onclick="window.editHomework('${item.id}')" class="min-h-10 rounded-xl bg-violet-600 px-3 text-sm font-black text-white">編輯</button><button type="button" onclick="window.copyHomeworkLink('${item.id}')" class="min-h-10 rounded-xl bg-white px-3 text-sm font-black text-violet-700 ring-1 ring-violet-200">複製連結</button><button type="button" onclick="window.retractHomework('${item.id}')" class="min-h-10 rounded-xl bg-rose-50 px-3 text-sm font-black text-rose-600">收回</button>` : ''}</div></article>`; }).join('');
         };
 
         window.bRecordLocalDate = () => {
