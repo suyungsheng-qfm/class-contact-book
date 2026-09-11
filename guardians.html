@@ -477,7 +477,15 @@
                             .catch(error => console.error('Unable to migrate chat read status.', error));
                     }
                 }
-                window.chatReadState = savedState;
+                // 即使資料庫的即時回傳比本機剛寫入的已讀狀態慢，也保留較新的值，
+                // 避免家長明明已讀，紅點又被舊快照顯示回來。
+                const currentState = window.chatReadState || {};
+                const newest = (saved, current) => window.getChatEntryOrder(current) > window.getChatEntryOrder(saved) ? current : saved;
+                window.chatReadState = {
+                    ...savedState,
+                    groupReadAt: newest(savedState.groupReadAt, currentState.groupReadAt),
+                    privateReadAt: newest(savedState.privateReadAt, currentState.privateReadAt)
+                };
                 window.refreshUI();
             }, error => {
                 console.error('Unable to load chat read status.', error);
@@ -497,7 +505,11 @@
             chatTypes.forEach(({ tab, badge, field, messages }) => {
                 const badgeElement = document.getElementById(badge);
                 const latestMessage = messages[messages.length - 1];
-                if (!badgeElement || !latestMessage || !latestMessage.timestamp) return;
+                if (!badgeElement) return;
+                if (!latestMessage || !latestMessage.timestamp) {
+                    badgeElement.classList.add('hidden');
+                    return;
+                }
                 const lastReadAt = window.getChatEntryOrder(window.chatReadState[field]);
                 if (window.activeTab === tab || !lastReadAt) {
                     window.markChatRead(tab, latestMessage);
@@ -2019,11 +2031,11 @@
                     <button onclick="window.switchTab('query')" id="tabQuery" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all whitespace-nowrap">查詢</button>
                     <button onclick="window.switchTab('group')" id="tabGroup" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all relative whitespace-nowrap">
                         班群
-                        <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#ff3b30] hidden shadow-sm" id="groupUnreadBadge"></span>
+                        <span class="pointer-events-none absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#ff3b30] hidden shadow-sm" id="groupUnreadBadge"></span>
                     </button>
                     <button onclick="window.switchTab('private')" id="tabPrivate" class="px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg text-[#8e8e93] hover:text-[#1c1c1e] transition-all relative whitespace-nowrap">
                         私訊
-                        <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#ff3b30] hidden shadow-sm" id="privateUnreadBadge"></span>
+                        <span class="pointer-events-none absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#ff3b30] hidden shadow-sm" id="privateUnreadBadge"></span>
                     </button>
                 </div>
                 
