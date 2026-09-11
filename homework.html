@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>807 班級聯絡簿｜作業資料</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>:root { --app-height: 100dvh; } html, body { min-height: var(--app-height); background: #f2f2f7; } body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif; }</style>
+</head>
+<body class="min-h-screen text-slate-800">
+  <main class="mx-auto flex min-h-screen w-full max-w-2xl flex-col">
+    <header class="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+      <button type="button" onclick="window.backToGroup()" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-lg font-black text-slate-600" aria-label="返回">‹</button>
+      <div class="min-w-0"><p class="text-xs font-black tracking-widest text-violet-600">HOMEWORK</p><h1 class="truncate text-lg font-black">作業資料</h1></div>
+    </header>
+    <section id="loading" class="m-auto w-full px-5 text-center"><div class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-violet-100 border-t-violet-600"></div><p class="mt-4 font-bold text-slate-500">正在開啟作業資料…</p></section>
+    <section id="error" class="hidden m-auto w-full px-5 text-center"></section>
+    <section id="homeworkPage" class="hidden flex-1 px-4 py-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <article class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div class="flex flex-wrap items-start justify-between gap-3"><div class="min-w-0"><p id="subject" class="hidden w-fit rounded-full bg-violet-50 px-3 py-1 text-xs font-black text-violet-700"></p><h2 id="title" class="mt-2 text-2xl font-black leading-tight"></h2></div><p id="deadline" class="hidden shrink-0 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700"></p></div>
+        <p id="description" class="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-slate-600"></p>
+        <div id="images" class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3"></div>
+      </article>
+    </section>
+  </main>
+  <div id="imageModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/90 p-4" role="dialog" aria-modal="true"><button type="button" onclick="window.closeImage()" class="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full bg-white/15 text-2xl text-white" aria-label="關閉">×</button><img id="modalImage" alt="作業圖片放大檢視" class="max-h-[90dvh] max-w-full rounded-xl object-contain"></div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+    import { getAuth, setPersistence, browserSessionPersistence, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+    import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+    const firebaseConfig = { apiKey: 'AIzaSyD_IvR1rEMxDSw3Fv_3zkM1mGetMQv8gg8', authDomain: 'classcontact-c148d.firebaseapp.com', projectId: 'classcontact-c148d', storageBucket: 'classcontact-c148d.firebasestorage.app', messagingSenderId: '559132828543', appId: '1:559132828543:web:a47598010956175eda304a' };
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzQBi-uoqSy73_VUD2xCpXqx2qPfARxvXxUFJwsd8wf_FcVkehubPpaDA0RQVgI11ky/exec';
+    const HOMEWORK_APP_ID = 'contact-homework';
+    const homeworkId = new URLSearchParams(location.search).get('id');
+    const sessionToken = sessionStorage.getItem('contact-book-session');
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.backToGroup = () => { if (history.length > 1) history.back(); else location.assign('./guardians.html'); };
+    window.goToHomeworkLogin = () => { const target = `./homework.html?id=${encodeURIComponent(String(homeworkId || ''))}`; location.replace(`./index.html?next=${encodeURIComponent(target)}`); };
+    window.closeImage = () => { const modal = document.getElementById('imageModal'); modal.classList.add('hidden'); modal.classList.remove('flex'); };
+    window.openHomeworkImage = url => { document.getElementById('modalImage').src = url; document.getElementById('imageModal').classList.remove('hidden'); document.getElementById('imageModal').classList.add('flex'); };
+    document.getElementById('imageModal').addEventListener('click', event => { if (event.target.id === 'imageModal') window.closeImage(); });
+    const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+    const showError = message => {
+      document.getElementById('loading').classList.add('hidden');
+      const box = document.getElementById('error');
+      box.innerHTML = `<div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-2xl font-black text-red-500">!</div><h2 class="mt-4 text-xl font-black">無法開啟作業資料</h2><p class="mt-2 text-sm leading-relaxed text-slate-500"></p><button type="button" onclick="window.goToHomeworkLogin()" class="mt-6 min-h-12 w-full rounded-2xl bg-violet-600 font-black text-white">前往登入</button><button type="button" onclick="window.backToGroup()" class="mt-3 min-h-11 w-full rounded-2xl bg-slate-100 font-black text-slate-600">返回班群</button></div>`;
+      box.querySelector('p').textContent = message;
+      box.classList.remove('hidden');
+    };
+    const renderHomework = homework => {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('homeworkPage').classList.remove('hidden');
+      document.getElementById('title').textContent = homework.title || '作業資料';
+      const subject = document.getElementById('subject'); subject.textContent = homework.subject || ''; subject.classList.toggle('hidden', !homework.subject);
+      const deadline = document.getElementById('deadline'); deadline.textContent = homework.deadline ? `截止：${homework.deadline}` : ''; deadline.classList.toggle('hidden', !homework.deadline);
+      const description = document.getElementById('description'); description.textContent = homework.description || ''; description.classList.toggle('hidden', !homework.description);
+      const images = Array.isArray(homework.images) ? homework.images : [];
+      const root = document.getElementById('images');
+      root.innerHTML = images.map((image, index) => `<button type="button" data-image-index="${index}" class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-left active:scale-[.98]"><img src="${escapeHtml(image.url)}" alt="作業圖片 ${index + 1}" loading="lazy" class="aspect-square w-full object-cover" onerror="this.parentElement.classList.add('hidden')"><span class="block truncate px-2 py-2 text-xs font-bold text-slate-500">圖片 ${index + 1}</span></button>`).join('') || '<p class="col-span-full rounded-2xl bg-slate-50 p-4 text-center text-sm font-bold text-slate-400">這份作業沒有可顯示的圖片。</p>';
+      root.querySelectorAll('[data-image-index]').forEach(button => button.addEventListener('click', () => window.openHomeworkImage(images[Number(button.dataset.imageIndex)].url)));
+    };
+    async function openHomework() {
+      if (!homeworkId) return showError('找不到作業連結，請向老師確認後再試一次。');
+      if (!sessionToken) return window.goToHomeworkLogin();
+      try {
+        const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'validateSession', sessionToken }) });
+        const session = await response.json();
+        if (!session.success || !session.user || !session.firebaseToken) return window.goToHomeworkLogin();
+        if (session.role !== 'parent') return showError('這份作業資料僅限家長登入後查看。');
+        await setPersistence(auth, browserSessionPersistence);
+        await signInWithCustomToken(auth, session.firebaseToken);
+        const snapshot = await getDoc(doc(db, 'artifacts', HOMEWORK_APP_ID, 'public', 'data', 'homework', homeworkId));
+        if (!snapshot.exists()) throw new Error('此作業已不存在或已被老師收回。');
+        const homework = { id: snapshot.id, ...snapshot.data() };
+        if (homework.status !== 'published') throw new Error('此作業已被老師收回。');
+        renderHomework(homework);
+      } catch (error) { console.error(error); showError(error.message || '請稍後再試。'); }
+    }
+    openHomework();
+  </script>
+  <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));</script>
+</body>
+</html>

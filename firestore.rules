@@ -130,6 +130,13 @@ service cloud.firestore {
       allow read, write: if isTeacher();
     }
 
+    // 作業資料只允許家長讀取已知連結的單一已發布項目；家長不能列出全班作業。
+    match /artifacts/contact-homework/public/data/homework/{homeworkId} {
+      allow get: if isTeacher() || (isParent() && resource.data.status == 'published');
+      allow list: if isTeacher();
+      allow create, update, delete: if isTeacher();
+    }
+
     // 教師建立表單；家長只能透過已知連結讀取開放中的單一表單，不能列出全部表單。
     match /artifacts/contact-forms/public/data/forms/{formId} {
       allow get: if isTeacher() || (isParent() && (resource.data.status == 'published' || resource.data.status == 'open'));

@@ -88,7 +88,7 @@
             try {
                 const target = new URL(next, window.location.href);
                 const allowed = target.origin === window.location.origin
-                    && /\/forms\.html$/.test(target.pathname)
+                    && /\/(?:forms|homework)\.html$/.test(target.pathname)
                     && Boolean(target.searchParams.get('id'));
                 return allowed ? target.href : '';
             } catch (_) {
