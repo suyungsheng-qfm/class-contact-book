@@ -21,7 +21,7 @@
     <section id="error" class="hidden mt-6"></section>
     <section id="gallery" class="hidden mt-6">
       <div class="flex flex-col gap-3 rounded-3xl bg-white p-4 shadow-sm sm:flex-row sm:items-end sm:justify-between sm:p-5">
-        <label class="block min-w-0 sm:w-64"><span class="text-xs font-black tracking-widest text-slate-400">相簿日期</span><select id="folderSelect" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-black outline-none focus:border-blue-500"></select></label>
+        <div class="min-w-0 sm:w-72"><span class="text-xs font-black tracking-widest text-slate-400">相簿日期</span><button id="datePickerButton" type="button" onclick="window.openDatePicker()" class="mt-2 flex min-h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 text-left text-[16px] font-black text-slate-700 outline-none hover:border-blue-400"><span id="datePickerLabel">選擇日期</span><span class="text-blue-600">⌄</span></button></div>
         <label class="block min-w-0 sm:w-72"><span class="text-xs font-black tracking-widest text-slate-400">搜尋</span><input id="photoSearch" type="search" placeholder="座號或檔名" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-blue-500"></label>
         <p id="photoCount" class="min-h-12 pt-4 text-sm font-bold text-slate-500 sm:pb-2"></p>
       </div>
@@ -29,10 +29,16 @@
       <div id="photoGrid" class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"></div>
     </section>
   </main>
+  <div id="datePickerModal" class="hidden fixed inset-0 z-50 items-end justify-center bg-slate-950/40 p-3 sm:items-center" role="dialog" aria-modal="true"><section class="flex max-h-[82dvh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"><header class="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><p class="text-xs font-black tracking-widest text-blue-600">DATE FILTER</p><h2 class="mt-1 text-lg font-black">選擇相簿日期</h2></div><button type="button" onclick="window.closeDatePicker()" class="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-xl font-black text-slate-600">×</button></header><div class="min-h-0 flex-1 overflow-y-auto p-5"><div class="grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 p-2"><label class="flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200"><input type="radio" name="dateFilterMode" value="include" checked class="accent-blue-600">只顯示勾選日期</label><label class="flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-rose-700 ring-1 ring-rose-100"><input type="radio" name="dateFilterMode" value="exclude" class="accent-rose-600">排除勾選日期</label></div><div class="mt-3 flex gap-2"><button type="button" onclick="window.selectAllDates()" class="min-h-10 rounded-xl bg-blue-50 px-3 text-sm font-black text-blue-700">全選</button><button type="button" onclick="window.clearDateSelection()" class="min-h-10 rounded-xl bg-slate-100 px-3 text-sm font-black text-slate-600">清除</button><p class="ml-auto self-center text-xs font-bold text-slate-400">最多顯示 12 個日期</p></div><div id="datePickerList" class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3"></div></div><footer class="flex gap-3 border-t border-slate-100 bg-white p-4"><button type="button" onclick="window.closeDatePicker()" class="min-h-12 flex-1 rounded-2xl bg-slate-100 font-black text-slate-600">取消</button><button type="button" onclick="window.applyDateSelection()" class="min-h-12 flex-1 rounded-2xl bg-blue-600 font-black text-white">套用日期</button></footer></section></div>
   <script>
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzQBi-uoqSy73_VUD2xCpXqx2qPfARxvXxUFJwsd8wf_FcVkehubPpaDA0RQVgI11ky/exec';
     const sessionToken = sessionStorage.getItem('contact-book-session');
     let galleryPhotos = [];
+    let galleryFolders = [];
+    let selectedFolders = [];
+    let datePickerDraft = [];
+    let dateFilterMode = 'include';
+    const MAX_VISIBLE_DATES = 12;
 
     window.signOutGallery = () => { sessionStorage.removeItem('contact-book-session'); location.replace('./index.html'); };
     window.goToGalleryLogin = () => location.replace(`./index.html?next=${encodeURIComponent('./gallery.html')}`);
@@ -45,18 +51,46 @@
       root.classList.remove('hidden');
     };
     const folderLabel = name => /^\d{4}_\d{2}_\d{2}$/.test(name) ? `${name.slice(0, 4)}/${name.slice(5, 7)}/${name.slice(8, 10)}` : name;
+    window.openDatePicker = () => {
+      const modal = document.getElementById('datePickerModal');
+      datePickerDraft = [...selectedFolders];
+      document.querySelector(`input[name="dateFilterMode"][value="${dateFilterMode}"]`).checked = true;
+      window.renderDatePickerList();
+      modal.classList.remove('hidden'); modal.classList.add('flex');
+    };
+    window.closeDatePicker = () => { const modal = document.getElementById('datePickerModal'); modal.classList.add('hidden'); modal.classList.remove('flex'); };
+    window.renderDatePickerList = () => {
+      document.getElementById('datePickerList').innerHTML = galleryFolders.map(folder => `<label class="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-700"><input type="checkbox" value="${escapeHtml(folder)}" ${datePickerDraft.includes(folder) ? 'checked' : ''} class="date-picker-check h-4 w-4 accent-blue-600"><span>${escapeHtml(folderLabel(folder))}</span></label>`).join('') || '<p class="col-span-full py-5 text-center text-sm font-bold text-slate-400">尚無相簿日期。</p>';
+    };
+    window.selectAllDates = () => { datePickerDraft = [...galleryFolders]; window.renderDatePickerList(); };
+    window.clearDateSelection = () => { datePickerDraft = []; window.renderDatePickerList(); };
+    window.applyDateSelection = async () => {
+      dateFilterMode = document.querySelector('input[name="dateFilterMode"]:checked')?.value || 'include';
+      datePickerDraft = Array.from(document.querySelectorAll('.date-picker-check:checked')).map(input => input.value);
+      const visibleFolders = dateFilterMode === 'exclude' ? galleryFolders.filter(folder => !datePickerDraft.includes(folder)) : datePickerDraft;
+      if (!visibleFolders.length) return alert('請至少保留一個要顯示的日期。');
+      if (visibleFolders.length > MAX_VISIBLE_DATES) return alert(`一次最多顯示 ${MAX_VISIBLE_DATES} 個日期；請多勾選一些日期排除，或改為只顯示需要的日期。`);
+      selectedFolders = [...datePickerDraft];
+      window.closeDatePicker();
+      await loadFolders(visibleFolders);
+    };
+    const updateDatePickerLabel = folders => {
+      const label = document.getElementById('datePickerLabel');
+      label.textContent = folders.length === 1 ? folderLabel(folders[0]) : `已選 ${folders.length} 個日期${dateFilterMode === 'exclude' ? '（排除模式）' : ''}`;
+    };
     window.renderPhotos = () => {
       const keyword = document.getElementById('photoSearch').value.trim().toLowerCase();
       const photos = galleryPhotos.filter(photo => !keyword || `${photo.seatNo} ${photo.name}`.toLowerCase().includes(keyword));
       document.getElementById('photoCount').textContent = `顯示 ${photos.length} 張照片`;
-      document.getElementById('photoGrid').innerHTML = photos.map(photo => `<article class="photo-card overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"><a href="${escapeHtml(photo.driveUrl)}" target="_blank" rel="noopener" class="block overflow-hidden bg-slate-100"><img src="${escapeHtml(photo.thumbnailDataUrl)}" alt="${escapeHtml(photo.name)}" loading="lazy" class="aspect-square w-full object-cover" onerror="this.parentElement.innerHTML='<span class=&quot;grid aspect-square place-items-center text-sm font-bold text-slate-400&quot;>無法載入縮圖</span>'"></a><div class="p-3"><p class="truncate text-sm font-black text-slate-700">${photo.seatNo ? `${escapeHtml(photo.seatNo)} 號` : '未分類'}</p><p class="mt-1 truncate text-xs font-medium text-slate-400" title="${escapeHtml(photo.name)}">${escapeHtml(photo.name)}</p><div class="mt-3 grid grid-cols-2 gap-2"><a href="${escapeHtml(photo.driveUrl)}" target="_blank" rel="noopener" class="min-h-10 rounded-xl bg-slate-100 px-2 text-center text-xs font-black leading-10 text-slate-700">開啟</a><a href="${escapeHtml(photo.downloadUrl)}" target="_blank" rel="noopener" class="min-h-10 rounded-xl bg-blue-600 px-2 text-center text-xs font-black leading-10 text-white">下載</a></div></div></article>`).join('') || '<div class="col-span-full rounded-3xl bg-white p-10 text-center text-sm font-bold text-slate-400">此日期沒有相片。</div>';
+      document.getElementById('photoGrid').innerHTML = photos.map(photo => `<article class="photo-card overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"><a href="${escapeHtml(photo.driveUrl)}" target="_blank" rel="noopener" class="block overflow-hidden bg-slate-100"><img src="${escapeHtml(photo.thumbnailDataUrl)}" alt="${escapeHtml(photo.name)}" loading="lazy" class="aspect-square w-full object-cover" onerror="this.parentElement.innerHTML='<span class=&quot;grid aspect-square place-items-center text-sm font-bold text-slate-400&quot;>無法載入縮圖</span>'"></a><div class="p-3"><p class="text-[11px] font-black text-blue-600">${escapeHtml(folderLabel(photo.folderName || ''))}</p><p class="mt-1 truncate text-sm font-black text-slate-700">${photo.seatNo ? `${escapeHtml(photo.seatNo)} 號` : '未分類'}</p><p class="mt-1 truncate text-xs font-medium text-slate-400" title="${escapeHtml(photo.name)}">${escapeHtml(photo.name)}</p><div class="mt-3 grid grid-cols-2 gap-2"><a href="${escapeHtml(photo.driveUrl)}" target="_blank" rel="noopener" class="min-h-10 rounded-xl bg-slate-100 px-2 text-center text-xs font-black leading-10 text-slate-700">開啟</a><a href="${escapeHtml(photo.downloadUrl)}" target="_blank" rel="noopener" class="min-h-10 rounded-xl bg-blue-600 px-2 text-center text-xs font-black leading-10 text-white">下載</a></div></div></article>`).join('') || '<div class="col-span-full rounded-3xl bg-white p-10 text-center text-sm font-bold text-slate-400">所選日期沒有相片。</div>';
     };
-    async function loadFolder(folderName) {
+    async function loadFolders(folderNames) {
       document.getElementById('photoGrid').innerHTML = '<div class="col-span-full py-12 text-center font-bold text-slate-400">讀取相片中…</div>';
-      const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'classPhotoGallery', sessionToken, folderName }) });
+      const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'classPhotoGallery', sessionToken, folderNames }) });
       const result = await response.json();
       if (!result.success) throw new Error(result.message || '無法讀取相簿。');
       galleryPhotos = Array.isArray(result.photos) ? result.photos : [];
+      updateDatePickerLabel(folderNames);
       window.renderPhotos();
     }
     async function openGallery() {
@@ -69,14 +103,12 @@
         const folderResponse = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'classPhotoGallery', sessionToken }) });
         const folderResult = await folderResponse.json();
         if (!folderResult.success) throw new Error(folderResult.message || '無法讀取相簿資料夾。');
-        const folders = Array.isArray(folderResult.folders) ? folderResult.folders : [];
-        const select = document.getElementById('folderSelect');
-        select.innerHTML = folders.map(folder => `<option value="${escapeHtml(folder)}">${escapeHtml(folderLabel(folder))}</option>`).join('') || '<option value="">尚無相簿資料夾</option>';
-        select.addEventListener('change', () => loadFolder(select.value).catch(error => showError(error.message || '讀取失敗。')));
+        galleryFolders = Array.isArray(folderResult.folders) ? folderResult.folders : [];
+        selectedFolders = galleryFolders.length ? [galleryFolders[0]] : [];
         document.getElementById('photoSearch').addEventListener('input', window.renderPhotos);
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('gallery').classList.remove('hidden');
-        if (folders.length) await loadFolder(folders[0]); else window.renderPhotos();
+        if (galleryFolders.length) await loadFolders(selectedFolders); else window.renderPhotos();
       } catch (error) { console.error(error); showError(error.message || '請稍後再試。'); }
     }
     openGallery();
