@@ -3208,10 +3208,10 @@
             return result.events || [];
         };
 
-        window.classboardTomorrowApi = async () => {
+        window.classboardTomorrowApi = async targetDate => {
             const response = await fetch(GAS_API_URL, {
                 method: 'POST',
-                body: JSON.stringify({ action: 'classboardTomorrowItems', sessionToken: window.sessionToken })
+                body: JSON.stringify({ action: 'classboardTomorrowItems', sessionToken: window.sessionToken, targetDate })
             });
             const result = await response.json();
             if (!result.success) throw new Error(result.message || '無法讀取班級看板的明日事項。');
@@ -3580,13 +3580,15 @@
 
         window.openClassboardTomorrowImport = async () => {
             if (!checkFbAuth()) return;
-            Swal.fire({ title: '讀取明日事項…', text: '正在確認班級看板標示日期', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            const selectedDate = String(window.selectedDateStr || '').replaceAll('/', '-');
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) return Swal.fire('請先選擇日期', '請先在行事曆點選要帶入事項的日期。', 'info');
+            Swal.fire({ title: '讀取班級看板事項…', text: `正在讀取 ${selectedDate} 的資料`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             try {
-                const result = await window.classboardTomorrowApi();
+                const result = await window.classboardTomorrowApi(selectedDate);
                 const targetDate = String(result.targetDate || '').replaceAll('-', '/');
                 const items = Array.isArray(result.items) ? result.items : [];
                 if (!targetDate || !items.length) {
-                    Swal.fire('尚無明日事項', `${targetDate || '下一個上課日'}目前沒有可帶入的班級看板事項。`, 'info');
+                    Swal.fire('尚無班級看板事項', `${targetDate || selectedDate.replaceAll('-', '/')} 目前沒有可帶入的資料。`, 'info');
                     return;
                 }
                 const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
@@ -3608,8 +3610,8 @@
                         </div>
                     </article>`).join('');
                 const choice = await Swal.fire({
-                    title: `${targetDate} 的明日事項`,
-                    html: `<p class="mb-3 text-sm leading-relaxed text-slate-500">可取消勾選、修改文字或科目，也可用箭頭調整順序。確認後只會帶入聯絡簿編輯區，不會直接發布。</p><div class="max-h-[52vh] space-y-2 overflow-y-auto pr-1">${rows}</div>`,
+                    title: `${targetDate} 的班級看板事項`,
+                    html: `<p class="mb-3 text-sm leading-relaxed text-slate-500">可取消勾選、修改文字或科目，也可用箭頭調整順序。確認後只會帶入聯絡簿編輯區，不會直接發布。</p><div class="mb-3 grid grid-cols-1 gap-2 rounded-2xl bg-slate-50 p-3 text-left"><label class="flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200"><input type="radio" name="classboardImportMode" value="merge" checked class="h-4 w-4 accent-sky-600">附加整合：保留目前班級事項</label><label class="flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-rose-700 ring-1 ring-rose-100"><input type="radio" name="classboardImportMode" value="replace" class="h-4 w-4 accent-rose-600">取代目前內容：改為本次帶入事項</label></div><div class="max-h-[52vh] space-y-2 overflow-y-auto pr-1">${rows}</div>`,
                     showCancelButton: true,
                     confirmButtonText: '帶入聯絡簿編輯區',
                     cancelButtonText: '取消',
@@ -3628,17 +3630,17 @@
                             Swal.showValidationMessage('請至少保留一則有內容的事項。');
                             return false;
                         }
-                        return selected;
+                        return { items: selected, mode: document.querySelector('input[name="classboardImportMode"]:checked')?.value || 'merge' };
                     }
                 });
                 if (!choice.isConfirmed) return;
-                await window.appendClassboardTomorrowItems(targetDate, choice.value || []);
+                await window.appendClassboardTomorrowItems(targetDate, choice.value?.items || [], choice.value?.mode || 'merge');
             } catch (error) {
                 Swal.fire('讀取失敗', error.message || '無法讀取班級看板的明日事項，請稍後再試。', 'error');
             }
         };
 
-        window.appendClassboardTomorrowItems = async (targetDate, items) => {
+        window.appendClassboardTomorrowItems = async (targetDate, items, mode = 'merge') => {
             const input = document.getElementById('tNoteInput');
             const currentDate = window.selectedDateStr;
             const savedCurrent = String(window.fbNotes.find(note => note.date === currentDate)?.content || '').trim();
@@ -3661,18 +3663,22 @@
             }
             const targetInput = document.getElementById('tNoteInput');
             const existing = String(targetInput?.value || '').trim();
-            const existingLines = new Set(existing.split('\n').map(line => line.trim()).filter(Boolean));
             const importedLines = items
                 .map(item => `【${String(item.subject || '其他').trim() || '其他'}】${String(item.text || '').trim()}`)
-                .filter(line => line.length > 4 && !existingLines.has(line));
-            if (!importedLines.length) {
+                .filter(line => line.length > 4);
+            const existingLines = new Set(existing.split('\n').map(line => line.trim()).filter(Boolean));
+            const linesToAdd = mode === 'replace' ? importedLines : importedLines.filter(line => !existingLines.has(line));
+            if (!linesToAdd.length) {
                 window.openTeacherNoteEditor();
-                Swal.fire('沒有新增事項', '勾選的內容已經在聯絡簿中。', 'info');
+                Swal.fire(mode === 'replace' ? '沒有可取代事項' : '沒有新增事項', mode === 'replace' ? '請至少保留一則有內容的事項。' : '勾選的內容已經在聯絡簿中。', 'info');
                 return;
             }
-            targetInput.value = [existing, ...importedLines].filter(Boolean).join(existing ? '\n\n' : '\n');
+            targetInput.value = mode === 'replace'
+                ? linesToAdd.join('\n\n')
+                : [existing, ...linesToAdd].filter(Boolean).join(existing ? '\n\n' : '\n');
             window.openTeacherNoteEditor();
-            Swal.fire({ icon: 'success', title: '已帶入聯絡簿編輯區', text: `已附加 ${importedLines.length} 則事項，請確認後再儲存發布。`, timer: 1800, showConfirmButton: false });
+            const actionText = mode === 'replace' ? '已取代為' : '已附加';
+            Swal.fire({ icon: 'success', title: '已帶入聯絡簿編輯區', text: `${actionText} ${linesToAdd.length} 則事項，請確認後再儲存發布。`, timer: 1800, showConfirmButton: false });
         };
 
         window.importSchoolCalendarEvents = async (selectedEvents) => {
@@ -4159,8 +4165,8 @@
                                     </div>
                                     <div class="p-5 flex flex-1 flex-col gap-4">
                                         <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
-                                            <div class="min-w-0"><p class="text-xs font-black text-sky-800">班級看板</p><p class="mt-0.5 text-[11px] font-medium leading-relaxed text-sky-700">帶入下一個上課日的明日事項；可先預覽與修改。</p></div>
-                                            <button type="button" onclick="window.openClassboardTomorrowImport()" class="min-h-11 shrink-0 rounded-xl bg-sky-600 px-3 text-sm font-black text-white shadow-sm shadow-sky-200 active:scale-[.98]"><i data-lucide="download" class="mr-1 inline-block h-4 w-4"></i>帶入明日事項</button>
+                                            <div class="min-w-0"><p class="text-xs font-black text-sky-800">班級看板</p><p class="mt-0.5 text-[11px] font-medium leading-relaxed text-sky-700">依目前選取日期讀取事項；可預覽、調整後附加或取代。</p></div>
+                                            <button type="button" onclick="window.openClassboardTomorrowImport()" class="min-h-11 shrink-0 rounded-xl bg-sky-600 px-3 text-sm font-black text-white shadow-sm shadow-sky-200 active:scale-[.98]"><i data-lucide="download" class="mr-1 inline-block h-4 w-4"></i>帶入看板事項</button>
                                         </div>
                                         <textarea id="tNoteInput" class="w-full flex-1 min-h-[220px] resize-none rounded-xl border border-slate-200 bg-slate-50 p-4 text-base font-medium outline-none transition-all focus:border-blue-500" placeholder="請輸入聯絡事項..."></textarea>
                                         <button type="button" onclick="window.handleSaveClassNote()" id="saveNoteBtn" class="min-h-12 w-full rounded-xl bg-blue-600 font-bold text-white shadow-sm transition-all active:scale-[.98]"><i data-lucide="save" class="mr-1 inline-block h-4 w-4"></i> 儲存班級事項</button>
