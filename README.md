@@ -8,6 +8,7 @@
 | --- | --- |
 | 使用中的班級聯絡簿 | [GitHub Pages](https://suyungsheng-qfm.github.io/class-contact-book/) |
 | 家長安裝與通知說明 | [操作說明頁](https://suyungsheng-qfm.github.io/class-contact-book/guide.html) |
+| 教師相簿牆（電腦瀏覽／下載） | [教師相簿牆](https://suyungsheng-qfm.github.io/class-contact-book/gallery.html) |
 | 原始碼與版本紀錄 | [GitHub 儲存庫](https://github.com/suyungsheng-qfm/class-contact-book) |
 | 前端自動發布紀錄 | [GitHub Actions](https://github.com/suyungsheng-qfm/class-contact-book/actions) |
 | GitHub Pages 設定 | [Pages 設定](https://github.com/suyungsheng-qfm/class-contact-book/settings/pages) |
@@ -44,6 +45,7 @@
 - 可從請假名單開啟含家長簽名的假單並列印；導師簽名欄保留給紙本手寫。
 - 班群與個別家長私訊支援圖片、未讀提醒、失敗重試及軟收回；可由右上角鈴鐺主動開啟背景通知。
 - 相簿支援教師以 iPhone 等手機單張上傳；上傳成功後會回到可再次上傳的初始狀態。
+- 提供獨立的「教師相簿牆」網址：可在電腦依日期瀏覽相片、搜尋座號／檔名、開啟 Google Drive 原始檔或下載；不會出現在教師端功能列，且只限教師登入。
 - 教師端「聯絡簿」整合簽閱統計與作業資料：作業可一次上傳多張圖片，系統會整理為單一作業頁並只在班群發出一張入口卡片，避免大量圖片洗版。「記錄」保留「相簿」與「B表」；B表以日期時間、節次、方式、對象、資料來源、事件經過、處理情形與後續追蹤建立學生輔導紀錄，可篩選、修改、刪除，並能依學生與日期範圍輸出 A4 B表列印版或另存 PDF。
 - 可從家長的通話申請發起一對一網頁語音通話。
 - 可建立並修改表單草稿、以家長視角預覽、發佈到班群、查看家長回覆、關閉或完整刪除表單；查看回覆時可將表單卡片私訊給未回覆的家長。
@@ -71,6 +73,7 @@
 | `teacher.html` | 教師端介面與日常管理功能。 |
 | `forms.html` | 家長由班群連結開啟的表單回覆頁。 |
 | `homework.html` | 家長由班群入口卡開啟的作業圖片頁。 |
+| `gallery.html` | 教師專用的獨立電腦相簿牆，可瀏覽與下載既有相簿照片。 |
 | `manifest.webmanifest`、`service-worker.js` | 安裝為手機桌面捷徑、基本離線快取、背景推播與捷徑徽章。 |
 | `app-icon-*`、`apple-touch-icon.png`、`807.png` | 網站與桌面捷徑圖示資源。 |
 | `yssu.png` | 教師專用頭像，用於家長端的班群與私訊教師訊息。 |
@@ -100,6 +103,12 @@ Apps Script 的「指令碼屬性」至少需要設定：
 - `FCM_VAPID_KEY`（Firebase Cloud Messaging 的 Web Push 公開金鑰）
 
 請只在 Apps Script 指令碼屬性設定實際帳密與 TURN 憑證，勿將它們寫入 HTML、README 或 GitHub。
+
+### 教師相簿牆（需手動發布後端）
+
+電腦可直接開啟 [教師相簿牆](https://suyungsheng-qfm.github.io/class-contact-book/gallery.html)。首次開啟會要求教師透過統一登入頁驗證；登入完成後，頁面會依既有相簿日期資料夾顯示照片牆，並提供座號／檔名搜尋、「開啟」Google Drive 原始檔與「下載」連結。這個網址不放在教師端的功能列，方便在電腦另開分頁使用。
+
+相簿資料夾維持私有，不需要設定公開分享。縮圖由 Apps Script 以教師工作階段讀取，只有已驗證的教師瀏覽器會收到資料。請將本機 `統一後端.gs` 完整貼入 Apps Script、儲存並重新部署既有網頁應用程式，才能啟用相簿牆讀取功能；既有 Google Drive 權限已足夠，不需要新增 API 或指令碼屬性。
 
 ### 作業資料（需手動發布後端與規則）
 

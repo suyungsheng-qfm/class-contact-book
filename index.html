@@ -83,13 +83,14 @@
             return /(^|\.)script\.google\.com$|(^|\.)googleusercontent\.com$/.test(window.location.hostname);
         }
 
-        function getSafeNextPage(next) {
+        function getSafeNextPage(next, role) {
             if (!next) return '';
             try {
                 const target = new URL(next, window.location.href);
+                const isParentPage = /\/(?:forms|homework)\.html$/.test(target.pathname) && Boolean(target.searchParams.get('id'));
+                const isTeacherGallery = /\/gallery\.html$/.test(target.pathname);
                 const allowed = target.origin === window.location.origin
-                    && /\/(?:forms|homework)\.html$/.test(target.pathname)
-                    && Boolean(target.searchParams.get('id'));
+                    && ((role === 'parent' && isParentPage) || (role === 'teacher' && isTeacherGallery));
                 return allowed ? target.href : '';
             } catch (_) {
                 return '';
@@ -203,7 +204,7 @@
                 if (!result.success || !result.sessionToken || !result.role) throw new Error(result.message || '登入失敗，請稍後再試。');
 
                 sessionStorage.setItem('contact-book-session', result.sessionToken);
-                const nextPage = result.role === 'parent' ? getSafeNextPage(requestedNext) : '';
+                const nextPage = getSafeNextPage(requestedNext, result.role);
                 if (nextPage) {
                     window.location.assign(nextPage);
                     return;

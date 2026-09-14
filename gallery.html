@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>807 班級相簿牆</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif; background: #f4f7fb; }
+    .photo-card img { transition: transform .2s ease; }
+    .photo-card:hover img { transform: scale(1.03); }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800">
+  <main class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <header class="flex flex-col gap-4 rounded-3xl bg-gradient-to-br from-blue-700 to-indigo-700 px-6 py-6 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between">
+      <div><p class="text-xs font-black tracking-[.2em] text-blue-100">TEACHER PHOTO WALL</p><h1 class="mt-1 text-2xl font-black">807 班級相簿牆</h1><p id="teacherName" class="mt-2 text-sm font-bold text-blue-100"></p></div>
+      <div class="flex gap-2"><a href="./teacher.html" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-white/15 px-4 text-sm font-black hover:bg-white/25">返回教師端</a><button type="button" onclick="window.signOutGallery()" class="min-h-11 rounded-xl bg-white px-4 text-sm font-black text-blue-700">登出</button></div>
+    </header>
+    <section id="loading" class="mt-6 rounded-3xl bg-white p-10 text-center shadow-sm"><div class="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"></div><p class="mt-4 font-bold text-slate-500">正在確認教師身分…</p></section>
+    <section id="error" class="hidden mt-6"></section>
+    <section id="gallery" class="hidden mt-6">
+      <div class="flex flex-col gap-3 rounded-3xl bg-white p-4 shadow-sm sm:flex-row sm:items-end sm:justify-between sm:p-5">
+        <label class="block min-w-0 sm:w-64"><span class="text-xs font-black tracking-widest text-slate-400">相簿日期</span><select id="folderSelect" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px] font-black outline-none focus:border-blue-500"></select></label>
+        <label class="block min-w-0 sm:w-72"><span class="text-xs font-black tracking-widest text-slate-400">搜尋</span><input id="photoSearch" type="search" placeholder="座號或檔名" class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px] font-bold outline-none focus:border-blue-500"></label>
+        <p id="photoCount" class="min-h-12 pt-4 text-sm font-bold text-slate-500 sm:pb-2"></p>
+      </div>
+      <p class="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-bold leading-relaxed text-amber-800">此頁僅限教師帳號。相簿維持私有，縮圖只會在已驗證的教師瀏覽器中載入。</p>
+      <div id="photoGrid" class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"></div>
+    </section>
+  </main>
+  <script>
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzQBi-uoqSy73_VUD2xCpXqx2qPfARxvXxUFJwsd8wf_FcVkehubPpaDA0RQVgI11ky/exec';
+    const sessionToken = sessionStorage.getItem('contact-book-session');
+    let galleryPhotos = [];
+
+    window.signOutGallery = () => { sessionStorage.removeItem('contact-book-session'); location.replace('./index.html'); };
+    window.goToGalleryLogin = () => location.replace(`./index.html?next=${encodeURIComponent('./gallery.html')}`);
+    const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+    const showError = message => {
+      document.getElementById('loading').classList.add('hidden');
+      const root = document.getElementById('error');
+      root.innerHTML = `<article class="rounded-3xl bg-white p-7 text-center shadow-sm"><div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-red-50 text-2xl font-black text-red-500">!</div><h2 class="mt-4 text-xl font-black">無法開啟相簿牆</h2><p class="mt-2 text-sm leading-relaxed text-slate-500"></p><button type="button" onclick="window.goToGalleryLogin()" class="mt-6 min-h-12 rounded-2xl bg-blue-600 px-6 font-black text-white">教師登入</button></article>`;
+      root.querySelector('p').textContent = message;
+      root.classList.remove('hidden');
+    };
+    const folderLabel = name => /^\d{4}_\d{2}_\d{2}$/.test(name) ? `${name.slice(0, 4)}/${name.slice(5, 7)}/${name.slice(8, 10)}` : name;
+    window.renderPhotos = () => {
+      const keyword = document.getElementById('photoSearch').value.trim().toLowerCase();
+      const photos = galleryPhotos.filter(photo => !keyword || `${photo.seatNo} ${photo.name}`.toLowerCase().includes(keyword));
+      document.getElementById('photoCount').textContent = `顯示 ${photos.length} 張照片`;
+      document.getElementById('photoGrid').innerHTML = photos.map(photo => `<article class="photo-card overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200"><a href="${escapeHtml(photo.driveUrl)}" target="_blank" rel="noopener" class="block overflow-hidden bg-slate-100"><img src="${escapeHtml(photo.thumbnailDataUrl)}" alt="${escapeHtml(photo.name)}" loading="lazy" class="aspect-square w-full object-cover" onerror="this.parentElement.innerHTML='<span class=&quot;grid aspect-square place-items-center text-sm font-bold text-slate-400&quot;>無法載入縮圖</span>'"></a><div class="p-3"><p class="truncate text-sm font-black text-slate-700">${photo.seatNo ? `${escapeHtml(photo.seatNo)} 號` : '未分類'}</p><p class="mt-1 truncate text-xs font-medium text-slate-400" title="${escapeHtml(photo.name)}">${escapeHtml(photo.name)}</p><div class="mt-3 grid grid-cols-2 gap-2"><a href="${escapeHtml(photo.driveUrl)}" target="_blank" rel="noopener" class="min-h-10 rounded-xl bg-slate-100 px-2 text-center text-xs font-black leading-10 text-slate-700">開啟</a><a href="${escapeHtml(photo.downloadUrl)}" target="_blank" rel="noopener" class="min-h-10 rounded-xl bg-blue-600 px-2 text-center text-xs font-black leading-10 text-white">下載</a></div></div></article>`).join('') || '<div class="col-span-full rounded-3xl bg-white p-10 text-center text-sm font-bold text-slate-400">此日期沒有相片。</div>';
+    };
+    async function loadFolder(folderName) {
+      document.getElementById('photoGrid').innerHTML = '<div class="col-span-full py-12 text-center font-bold text-slate-400">讀取相片中…</div>';
+      const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'classPhotoGallery', sessionToken, folderName }) });
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message || '無法讀取相簿。');
+      galleryPhotos = Array.isArray(result.photos) ? result.photos : [];
+      window.renderPhotos();
+    }
+    async function openGallery() {
+      if (!sessionToken) return window.goToGalleryLogin();
+      try {
+        const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'validateSession', sessionToken }) });
+        const session = await response.json();
+        if (!session.success || session.role !== 'teacher') return showError('請使用教師帳號登入後再開啟相簿牆。');
+        document.getElementById('teacherName').textContent = `${session.user?.name || '教師'}｜電腦照片瀏覽與下載`;
+        const folderResponse = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'classPhotoGallery', sessionToken }) });
+        const folderResult = await folderResponse.json();
+        if (!folderResult.success) throw new Error(folderResult.message || '無法讀取相簿資料夾。');
+        const folders = Array.isArray(folderResult.folders) ? folderResult.folders : [];
+        const select = document.getElementById('folderSelect');
+        select.innerHTML = folders.map(folder => `<option value="${escapeHtml(folder)}">${escapeHtml(folderLabel(folder))}</option>`).join('') || '<option value="">尚無相簿資料夾</option>';
+        select.addEventListener('change', () => loadFolder(select.value).catch(error => showError(error.message || '讀取失敗。')));
+        document.getElementById('photoSearch').addEventListener('input', window.renderPhotos);
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('gallery').classList.remove('hidden');
+        if (folders.length) await loadFolder(folders[0]); else window.renderPhotos();
+      } catch (error) { console.error(error); showError(error.message || '請稍後再試。'); }
+    }
+    openGallery();
+  </script>
+</body>
+</html>
