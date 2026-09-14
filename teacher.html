@@ -1129,8 +1129,12 @@
             const select = document.getElementById('examScoreStudentSelect');
             if (!select) return;
             const selectedValue = select.value;
-            const students = (window.allStudents || []).filter(student => !window.isTestStudent?.(student));
-            select.innerHTML = '<option value="">請選擇學生</option>' + students.map(student => `<option value="${window.studentDataEscapeHtml(String(student.studentId))}">${window.studentDataEscapeHtml(String(student.seatNo || '').padStart(2, '0'))} 號　${window.studentDataEscapeHtml(student.name || '')}</option>`).join('');
+            const students = window.allStudents || [];
+            select.innerHTML = '<option value="">請選擇學生</option>' + students.map(student => {
+                const isTest = window.isTestStudent?.(student);
+                const suffix = isTest ? '（測試帳號）' : '';
+                return `<option value="${window.studentDataEscapeHtml(String(student.studentId))}">${window.studentDataEscapeHtml(String(student.seatNo || '').padStart(2, '0'))} 號　${window.studentDataEscapeHtml(student.name || '')}${suffix}</option>`;
+            }).join('');
             if (students.some(student => String(student.studentId) === selectedValue)) select.value = selectedValue;
         };
 
@@ -1161,7 +1165,10 @@
                     status.textContent = '「段考」分頁目前沒有可顯示的考試代碼。';
                     return;
                 }
-                select.innerHTML = '<option value="">請選擇段考</option>' + exams.map(exam => `<option value="${window.studentDataEscapeHtml(String(exam.code))}">${window.studentDataEscapeHtml(String(exam.code))}　${Number(exam.count || 0)} 人</option>`).join('');
+                select.innerHTML = '<option value="">請選擇段考</option>' + exams.map(exam => {
+                    const countLabel = Number(exam.count || 0) ? `${Number(exam.count || 0)} 人` : (exam.hasTestData ? '測試資料' : '尚無資料');
+                    return `<option value="${window.studentDataEscapeHtml(String(exam.code))}">${window.studentDataEscapeHtml(String(exam.code))}　${countLabel}</option>`;
+                }).join('');
                 if (exams.some(exam => String(exam.code) === selectedValue)) select.value = selectedValue;
                 status.textContent = '僅顯示已有學生段考成績的代碼。';
             } catch (error) {
