@@ -291,6 +291,18 @@
             return result;
         };
 
+        // 成績一樣由 Apps Script 依登入工作階段的學號篩選；前端不會傳送、
+        // 也不能指定其他學生的學號。
+        window.parentExamScoresApi = async (mode, payload = {}) => {
+            const response = await fetch(GAS_API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'examScores', mode, sessionToken: window.sessionToken, ...payload })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || '無法讀取段考成績。');
+            return result;
+        };
+
         window.parentQueryEscapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
         window.formatParentQueryValue = (title, value) => {
@@ -302,24 +314,57 @@
             return text;
         };
 
+        window.formatParentExamScore = value => {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return '—';
+            return Number.isInteger(number) ? String(number) : number.toFixed(1).replace(/\.0$/, '');
+        };
+
+        window.showParentExamScoreReport = async () => {
+            const examCode = String(document.getElementById('parentExamScoreSelect')?.value || '');
+            const report = document.getElementById('parentExamScoreReport');
+            const status = document.getElementById('parentExamScoreStatus');
+            if (!examCode || !report || !status) return;
+            report.classList.add('hidden');
+            status.textContent = '正在整理成績單…';
+            status.className = 'mt-3 text-center text-xs font-bold text-slate-400';
+            try {
+                const result = await window.parentExamScoresApi('report', { examCode });
+                const metrics = result.metrics || [];
+                if (!metrics.length) throw new Error('目前沒有可顯示的成績。');
+                report.innerHTML = `<article class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-indigo-100"><header class="flex items-center justify-between gap-3 bg-indigo-50 px-5 py-4"><div><p class="text-xs font-black tracking-widest text-indigo-500">${window.parentQueryEscapeHtml(result.examCode || examCode)}</p><h3 class="mt-1 text-lg font-black text-slate-800">我的段考成績</h3></div><span class="rounded-full bg-white px-3 py-1.5 text-xs font-black text-indigo-600 shadow-sm">本人／班平均</span></header><div class="grid grid-cols-2 divide-x divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-3">${metrics.map(metric => `<section class="min-w-0 p-3.5 sm:p-4"><p class="text-sm font-black text-slate-500">${window.parentQueryEscapeHtml(metric.label || '')}</p><p class="mt-2 whitespace-nowrap font-black tracking-tight text-slate-900"><span class="text-3xl sm:text-4xl">${window.formatParentExamScore(metric.score)}</span><span class="ml-1 text-base text-slate-500 sm:text-lg">(${window.formatParentExamScore(metric.classAverage)})</span></p></section>`).join('')}</div></article>`;
+                report.classList.remove('hidden');
+                status.textContent = '括號內為班平均，不會顯示其他學生的個人成績。';
+            } catch (error) {
+                status.textContent = error.message || '無法顯示成績單。';
+                status.className = 'mt-3 text-center text-sm font-bold text-rose-600';
+            }
+        };
+
         window.renderParentQueryPage = async () => {
             const content = document.getElementById('parentQueryContent');
             if (!content || !window.sessionToken) return;
             content.innerHTML = '<div class="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-400">正在讀取資料…</div>';
             try {
-                const result = await window.parentQueryDataApi();
+                const [result, examResult] = await Promise.all([
+                    window.parentQueryDataApi(),
+                    window.parentExamScoresApi('list').catch(() => ({ exams: [] }))
+                ]);
                 const items = result.items || [];
-                if (!items.length) {
+                const exams = examResult.exams || [];
+                const examCard = exams.length ? `<article class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-indigo-100"><header class="bg-gradient-to-br from-indigo-600 to-violet-600 px-5 py-5 text-white"><p class="text-xs font-black tracking-widest text-indigo-100">EXAM REPORT</p><h3 class="mt-1 text-xl font-black">段考成績單</h3><p class="mt-1 text-sm font-medium text-indigo-100">可切換查看已有資料的段考；括號為班平均。</p></header><div class="p-4 sm:p-5"><label class="block text-sm font-black text-slate-700">選擇段考<select id="parentExamScoreSelect" onchange="window.showParentExamScoreReport()" class="mt-2 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[16px] font-bold text-slate-800 outline-none focus:border-indigo-500"><option value="">請選擇段考</option>${exams.map(exam => `<option value="${window.parentQueryEscapeHtml(String(exam.code))}">${window.parentQueryEscapeHtml(String(exam.code))}</option>`).join('')}</select></label><p id="parentExamScoreStatus" class="mt-3 text-center text-xs font-bold text-slate-400">只會列出您已有成績的段考。</p><div id="parentExamScoreReport" class="hidden mt-4"></div></div></article>` : '';
+                if (!items.length && !examCard) {
                     content.innerHTML = '<div class="rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 p-6 text-center text-sm font-bold text-violet-400">老師尚未提供可查詢的資料。</div>';
                     return;
                 }
-                content.innerHTML = items.map(item => {
+                const queryCards = items.map(item => {
                     const personal = item.access === 'personal';
                     const badge = personal ? '僅限本人' : '全班可查';
                     const badgeClass = personal ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700';
                     const value = window.formatParentQueryValue(item.title, item.value);
                     return `<article class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-[#e5e5ea]"><div class="flex flex-wrap items-center gap-2"><h3 class="text-lg font-black text-slate-800">${window.parentQueryEscapeHtml(item.title || '資料')}</h3><span class="rounded-full px-2.5 py-1 text-[11px] font-black ${badgeClass}">${badge}</span></div><p class="mt-4 whitespace-pre-wrap break-words text-[16px] font-medium leading-7 text-slate-700">${window.parentQueryEscapeHtml(value)}</p>${item.updatedAt ? `<p class="mt-4 text-right text-[11px] font-bold text-slate-300">更新：${window.parentQueryEscapeHtml(item.updatedAt)}</p>` : ''}</article>`;
                 }).join('');
+                content.innerHTML = examCard + queryCards;
             } catch (error) {
                 content.innerHTML = `<div class="rounded-2xl bg-rose-50 p-6 text-center text-sm font-bold text-rose-700">${window.parentQueryEscapeHtml(error.message || '讀取失敗，請稍後再試。')}</div>`;
             }
