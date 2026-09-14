@@ -1064,7 +1064,7 @@
                 </section>
                 <section id="teacherResearchDataPanel" class="hidden w-full max-w-3xl mx-auto space-y-4 p-4 sm:p-6">
                     <div><p class="text-xs font-black tracking-widest text-violet-600">PARENT QUERY</p><h2 class="mt-1 text-3xl font-black text-slate-900">資料</h2><p class="mt-1 text-sm text-slate-500">建立要提供給家長查詢的資料；可設定為全班可查，或只允許本人查看。</p></div>
-                    <section class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-indigo-100"><header class="bg-gradient-to-br from-indigo-600 to-violet-600 px-5 py-5 text-white"><p class="text-xs font-black tracking-widest text-indigo-100">EXAM REPORT</p><h3 class="mt-1 text-xl font-black">段考成績單</h3><p class="mt-1 text-sm font-medium text-indigo-100">個人成績後方括號為該科班平均。</p></header><div class="p-4 sm:p-5"><div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><label class="block text-sm font-black text-slate-700">段考<select id="examScoreExamSelect" class="mt-2 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[16px] font-bold text-slate-800 outline-none focus:border-indigo-500"><option value="">正在讀取段考資料…</option></select></label><label class="block text-sm font-black text-slate-700">學生<select id="examScoreStudentSelect" class="mt-2 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[16px] font-bold text-slate-800 outline-none focus:border-indigo-500"><option value="">請選擇學生</option></select></label></div><button type="button" onclick="window.showExamScoreReport()" class="mt-4 min-h-12 w-full rounded-2xl bg-indigo-600 px-4 text-[16px] font-black text-white shadow-lg shadow-indigo-200 active:scale-[.98]">查看成績單</button><p id="examScoreStatus" class="mt-3 text-center text-xs font-bold text-slate-400"></p><div id="examScoreReport" class="hidden mt-4"></div><details class="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500"><summary class="cursor-pointer font-black text-slate-700">段考分頁欄位說明</summary><p class="mt-2 leading-relaxed">第一列請使用「考試代碼、學號、國文、英文、數學、理化、歷史、地理、公民」。總分與平均不必填寫，系統會依國文×5、英文×3、數學×4、理化×3、歷史／地理／公民各×1 自動加權計算。</p></details></div></section>
+                    <section class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-indigo-100"><header class="bg-gradient-to-br from-indigo-600 to-violet-600 px-5 py-5 text-white"><p class="text-xs font-black tracking-widest text-indigo-100">EXAM REPORT</p><h3 class="mt-1 text-xl font-black">段考成績單</h3><p class="mt-1 text-sm font-medium text-indigo-100">個人成績後方括號為該科班平均。</p></header><div class="p-4 sm:p-5"><div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><div><p class="text-sm font-black text-slate-700">學期</p><div id="examScoreSemesterTabs" class="mt-2 grid grid-cols-2 gap-2"></div></div><label class="block text-sm font-black text-slate-700">學生<select id="examScoreStudentSelect" class="mt-2 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[16px] font-bold text-slate-800 outline-none focus:border-indigo-500"><option value="">請選擇學生</option></select></label></div><div class="mt-4"><p class="text-sm font-black text-slate-700">段考次別</p><div id="examScoreAttemptTabs" class="mt-2 flex gap-2 overflow-x-auto pb-1"></div><select id="examScoreExamSelect" class="hidden"><option value="">請選擇段考</option></select></div><button type="button" onclick="window.showExamScoreReport()" class="mt-4 min-h-12 w-full rounded-2xl bg-indigo-600 px-4 text-[16px] font-black text-white shadow-lg shadow-indigo-200 active:scale-[.98]">查看成績單</button><p id="examScoreStatus" class="mt-3 text-center text-xs font-bold text-slate-400"></p><div id="examScoreReport" class="hidden mt-4"></div><details class="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500"><summary class="cursor-pointer font-black text-slate-700">段考分頁欄位說明</summary><p class="mt-2 leading-relaxed">第一列請使用「考試代碼、學號、國文、英文、數學、理化、歷史、地理、公民」。總分與平均不必填寫，系統會依國文×5、英文×3、數學×4、理化×3、歷史／地理／公民各×1 自動加權計算。</p></details></div></section>
                     <section class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200"><div class="flex items-start justify-between gap-3"><div><h3 class="text-lg font-black text-slate-800">家長查詢資料</h3><p class="mt-1 text-sm leading-relaxed text-slate-500">個人資料會由伺服器依登入身分篩選，其他家長無法讀取。</p></div><button type="button" onclick="window.openParentQueryEditor()" class="shrink-0 min-h-11 rounded-xl bg-violet-600 px-3 text-sm font-black text-white shadow-sm active:scale-[.98]">新增</button></div><div id="teacherParentQueryList" class="mt-5 space-y-3"><div class="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">正在讀取資料…</div></div></section>
                     <p class="px-1 text-xs font-bold leading-relaxed text-slate-400">批次建立個人資料時，每行貼上「學號」後按 Tab，再貼上內容；例如：<span class="font-mono">1410701[TAB]OPEDID-12345</span>。</p>
                     <section class="border-t border-slate-200 pt-5"><div class="mb-3"><h3 class="text-base font-black text-slate-700">教師專用資料檢視</h3><p class="mt-1 text-sm text-slate-500">學生姓名旁的個人資料卡與此處資料分開，維持只有教師可讀取。</p></div>
@@ -1148,35 +1148,74 @@
             return result;
         };
 
+        window.examScoreExams = [];
+        window.activeExamSemester = 1;
+
+        window.renderExamScoreTabs = () => {
+            const semesterTabs = document.getElementById('examScoreSemesterTabs');
+            const attemptTabs = document.getElementById('examScoreAttemptTabs');
+            const select = document.getElementById('examScoreExamSelect');
+            const status = document.getElementById('examScoreStatus');
+            if (!semesterTabs || !attemptTabs || !select || !status) return;
+            const exams = window.examScoreExams || [];
+            const semesters = [1, 2].filter(semester => exams.some(exam => Number(exam.semester) === semester));
+            if (!semesters.length) {
+                semesterTabs.innerHTML = '';
+                attemptTabs.innerHTML = '';
+                select.innerHTML = '<option value="">目前尚無段考資料</option>';
+                status.textContent = '「段考」分頁目前沒有可顯示的考試代碼。';
+                return;
+            }
+            if (!semesters.includes(Number(window.activeExamSemester))) window.activeExamSemester = semesters[0];
+            const buttonClass = active => active
+                ? 'min-h-11 rounded-xl bg-indigo-600 px-3 text-sm font-black text-white shadow-sm'
+                : 'min-h-11 rounded-xl bg-indigo-50 px-3 text-sm font-black text-indigo-700';
+            semesterTabs.innerHTML = semesters.map(semester => `<button type="button" onclick="window.setExamScoreSemester(${semester})" class="${buttonClass(Number(window.activeExamSemester) === semester)}">第${semester === 1 ? '一' : '二'}學期</button>`).join('');
+            const semesterExams = exams.filter(exam => Number(exam.semester) === Number(window.activeExamSemester)).sort((a, b) => Number(a.attempt) - Number(b.attempt));
+            const previousCode = select.value;
+            const selectedCode = semesterExams.some(exam => String(exam.code) === previousCode) ? previousCode : String(semesterExams[0].code);
+            attemptTabs.innerHTML = semesterExams.map(exam => {
+                const active = String(exam.code) === selectedCode;
+                const countLabel = Number(exam.count || 0) ? `${Number(exam.count || 0)} 人` : (exam.hasTestData ? '測試' : '');
+                return `<button type="button" onclick="window.selectExamScoreAttempt('${window.studentDataEscapeHtml(String(exam.code))}')" class="${buttonClass(active)} shrink-0">第${['零', '一', '二', '三'][Number(exam.attempt)] || Number(exam.attempt)}次${countLabel ? `<span class="ml-1 text-[11px] opacity-80">${countLabel}</span>` : ''}</button>`;
+            }).join('');
+            select.innerHTML = semesterExams.map(exam => `<option value="${window.studentDataEscapeHtml(String(exam.code))}">${window.studentDataEscapeHtml(String(exam.code))}</option>`).join('');
+            select.value = selectedCode;
+            status.textContent = `第${window.activeExamSemester === 1 ? '一' : '二'}學期已有資料的段考次別。`;
+        };
+
+        window.setExamScoreSemester = semester => {
+            window.activeExamSemester = Number(semester) === 2 ? 2 : 1;
+            document.getElementById('examScoreReport')?.classList.add('hidden');
+            window.renderExamScoreTabs();
+            if (document.getElementById('examScoreStudentSelect')?.value) window.showExamScoreReport();
+        };
+
+        window.selectExamScoreAttempt = examCode => {
+            const select = document.getElementById('examScoreExamSelect');
+            if (!select) return;
+            select.value = String(examCode);
+            document.getElementById('examScoreReport')?.classList.add('hidden');
+            window.renderExamScoreTabs();
+            if (document.getElementById('examScoreStudentSelect')?.value) window.showExamScoreReport();
+        };
+
         window.loadExamScoreChoices = async () => {
             const select = document.getElementById('examScoreExamSelect');
             const status = document.getElementById('examScoreStatus');
             if (!select || !status || !window.sessionToken || select.dataset.loading === 'true') return;
-            const selectedValue = select.value;
             select.dataset.loading = 'true';
-            select.disabled = true;
             status.textContent = '正在讀取段考資料…';
             status.className = 'mt-3 text-center text-xs font-bold text-slate-400';
             try {
                 const result = await window.examScoresApi('list');
-                const exams = result.exams || [];
-                if (!exams.length) {
-                    select.innerHTML = '<option value="">目前尚無段考資料</option>';
-                    status.textContent = '「段考」分頁目前沒有可顯示的考試代碼。';
-                    return;
-                }
-                select.innerHTML = '<option value="">請選擇段考</option>' + exams.map(exam => {
-                    const countLabel = Number(exam.count || 0) ? `${Number(exam.count || 0)} 人` : (exam.hasTestData ? '測試資料' : '尚無資料');
-                    return `<option value="${window.studentDataEscapeHtml(String(exam.code))}">${window.studentDataEscapeHtml(String(exam.code))}　${countLabel}</option>`;
-                }).join('');
-                if (exams.some(exam => String(exam.code) === selectedValue)) select.value = selectedValue;
-                status.textContent = '僅顯示已有學生段考成績的代碼。';
+                window.examScoreExams = result.exams || [];
+                window.renderExamScoreTabs();
             } catch (error) {
-                select.innerHTML = '<option value="">無法讀取段考資料</option>';
+                window.examScoreExams = [];
                 status.textContent = error.message || '請稍後再試。';
                 status.className = 'mt-3 text-center text-sm font-bold text-rose-600';
             } finally {
-                select.disabled = false;
                 delete select.dataset.loading;
             }
         };
@@ -1205,7 +1244,10 @@
                 if (!metrics.length) throw new Error('這位學生尚未填入可顯示的成績。');
                 const studentName = window.studentDataEscapeHtml(student.name || '學生');
                 const seatNo = student.seatNo ? `${window.studentDataEscapeHtml(String(student.seatNo).padStart(2, '0'))} 號　` : '';
-                report.innerHTML = `<article class="overflow-hidden rounded-2xl border border-indigo-100 bg-white"><header class="flex items-center justify-between gap-3 bg-indigo-50 px-4 py-3"><div><p class="text-xs font-black tracking-widest text-indigo-500">${window.studentDataEscapeHtml(result.examCode || examCode)}</p><h4 class="mt-1 text-lg font-black text-slate-800">${seatNo}${studentName}</h4></div><span class="rounded-full bg-white px-3 py-1.5 text-xs font-black text-indigo-600 shadow-sm">個人／班平均</span></header><div class="grid grid-cols-2 divide-x divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-3">${metrics.map(metric => `<section class="min-w-0 p-3.5 sm:p-4"><p class="text-sm font-black text-slate-500">${window.studentDataEscapeHtml(metric.label || '')}</p><p class="mt-2 whitespace-nowrap font-black tracking-tight text-slate-900"><span class="text-3xl sm:text-4xl">${window.formatExamScore(metric.score)}</span><span class="ml-1 text-base text-slate-500 sm:text-lg">(${window.formatExamScore(metric.classAverage)})</span></p></section>`).join('')}</div></article>`;
+                const subjectMetrics = metrics.filter(metric => !['total', 'average'].includes(metric.key));
+                const summaryMetrics = metrics.filter(metric => ['total', 'average'].includes(metric.key));
+                const metricCard = metric => `<section class="min-w-0 p-3.5 sm:p-4"><p class="text-sm font-black text-slate-500">${window.studentDataEscapeHtml(metric.label || '')}</p><p class="mt-2 whitespace-nowrap font-black tracking-tight text-slate-900"><span class="text-3xl sm:text-4xl">${window.formatExamScore(metric.score)}</span><span class="ml-1 text-base text-slate-500 sm:text-lg">(${window.formatExamScore(metric.classAverage)})</span></p></section>`;
+                report.innerHTML = `<article class="overflow-hidden rounded-2xl border border-indigo-100 bg-white"><header class="flex items-center justify-between gap-3 bg-indigo-50 px-4 py-3"><div><p class="text-xs font-black tracking-widest text-indigo-500">${window.studentDataEscapeHtml(result.examCode || examCode)}</p><h4 class="mt-1 text-lg font-black text-slate-800">${seatNo}${studentName}</h4></div><span class="rounded-full bg-white px-3 py-1.5 text-xs font-black text-indigo-600 shadow-sm">個人／班平均</span></header><div class="grid grid-cols-2 divide-x divide-y divide-slate-100 border-t border-slate-100">${subjectMetrics.map(metricCard).join('')}</div>${summaryMetrics.length ? `<div class="grid grid-cols-2 divide-x divide-slate-100 border-t-2 border-indigo-100 bg-indigo-50/40">${summaryMetrics.map(metricCard).join('')}</div>` : ''}</article>`;
                 report.classList.remove('hidden');
                 status.textContent = '括號內為排除測試帳號後的班平均。';
             } catch (error) {

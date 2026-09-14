@@ -320,6 +320,44 @@
             return Number.isInteger(number) ? String(number) : number.toFixed(1).replace(/\.0$/, '');
         };
 
+        window.parentExamScoreExams = [];
+        window.parentActiveExamSemester = 1;
+
+        window.renderParentExamScoreTabs = () => {
+            const semesterTabs = document.getElementById('parentExamSemesterTabs');
+            const attemptTabs = document.getElementById('parentExamAttemptTabs');
+            const select = document.getElementById('parentExamScoreSelect');
+            if (!semesterTabs || !attemptTabs || !select) return;
+            const exams = window.parentExamScoreExams || [];
+            const semesters = [1, 2].filter(semester => exams.some(exam => Number(exam.semester) === semester));
+            if (!semesters.includes(Number(window.parentActiveExamSemester))) window.parentActiveExamSemester = semesters[0] || 1;
+            const buttonClass = active => active
+                ? 'min-h-11 rounded-xl bg-indigo-600 px-3 text-sm font-black text-white shadow-sm'
+                : 'min-h-11 rounded-xl bg-indigo-50 px-3 text-sm font-black text-indigo-700';
+            semesterTabs.innerHTML = semesters.map(semester => `<button type="button" onclick="window.setParentExamSemester(${semester})" class="${buttonClass(Number(window.parentActiveExamSemester) === semester)}">第${semester === 1 ? '一' : '二'}學期</button>`).join('');
+            const semesterExams = exams.filter(exam => Number(exam.semester) === Number(window.parentActiveExamSemester)).sort((a, b) => Number(a.attempt) - Number(b.attempt));
+            const previousCode = select.value;
+            const selectedCode = semesterExams.some(exam => String(exam.code) === previousCode) ? previousCode : String(semesterExams[0]?.code || '');
+            attemptTabs.innerHTML = semesterExams.map(exam => `<button type="button" onclick="window.selectParentExamAttempt('${window.parentQueryEscapeHtml(String(exam.code))}')" class="${buttonClass(String(exam.code) === selectedCode)} shrink-0">第${['零', '一', '二', '三'][Number(exam.attempt)] || Number(exam.attempt)}次</button>`).join('');
+            select.innerHTML = semesterExams.map(exam => `<option value="${window.parentQueryEscapeHtml(String(exam.code))}">${window.parentQueryEscapeHtml(String(exam.code))}</option>`).join('');
+            select.value = selectedCode;
+        };
+
+        window.setParentExamSemester = semester => {
+            window.parentActiveExamSemester = Number(semester) === 2 ? 2 : 1;
+            document.getElementById('parentExamScoreReport')?.classList.add('hidden');
+            window.renderParentExamScoreTabs();
+        };
+
+        window.selectParentExamAttempt = examCode => {
+            const select = document.getElementById('parentExamScoreSelect');
+            if (!select) return;
+            select.value = String(examCode);
+            document.getElementById('parentExamScoreReport')?.classList.add('hidden');
+            window.renderParentExamScoreTabs();
+            window.showParentExamScoreReport();
+        };
+
         window.showParentExamScoreReport = async () => {
             const examCode = String(document.getElementById('parentExamScoreSelect')?.value || '');
             const report = document.getElementById('parentExamScoreReport');
@@ -332,7 +370,10 @@
                 const result = await window.parentExamScoresApi('report', { examCode });
                 const metrics = result.metrics || [];
                 if (!metrics.length) throw new Error('目前沒有可顯示的成績。');
-                report.innerHTML = `<article class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-indigo-100"><header class="flex items-center justify-between gap-3 bg-indigo-50 px-5 py-4"><div><p class="text-xs font-black tracking-widest text-indigo-500">${window.parentQueryEscapeHtml(result.examCode || examCode)}</p><h3 class="mt-1 text-lg font-black text-slate-800">我的段考成績</h3></div><span class="rounded-full bg-white px-3 py-1.5 text-xs font-black text-indigo-600 shadow-sm">本人／班平均</span></header><div class="grid grid-cols-2 divide-x divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-3">${metrics.map(metric => `<section class="min-w-0 p-3.5 sm:p-4"><p class="text-sm font-black text-slate-500">${window.parentQueryEscapeHtml(metric.label || '')}</p><p class="mt-2 whitespace-nowrap font-black tracking-tight text-slate-900"><span class="text-3xl sm:text-4xl">${window.formatParentExamScore(metric.score)}</span><span class="ml-1 text-base text-slate-500 sm:text-lg">(${window.formatParentExamScore(metric.classAverage)})</span></p></section>`).join('')}</div></article>`;
+                const subjectMetrics = metrics.filter(metric => !['total', 'average'].includes(metric.key));
+                const summaryMetrics = metrics.filter(metric => ['total', 'average'].includes(metric.key));
+                const metricCard = metric => `<section class="min-w-0 p-3.5 sm:p-4"><p class="text-sm font-black text-slate-500">${window.parentQueryEscapeHtml(metric.label || '')}</p><p class="mt-2 whitespace-nowrap font-black tracking-tight text-slate-900"><span class="text-3xl sm:text-4xl">${window.formatParentExamScore(metric.score)}</span><span class="ml-1 text-base text-slate-500 sm:text-lg">(${window.formatParentExamScore(metric.classAverage)})</span></p></section>`;
+                report.innerHTML = `<article class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-indigo-100"><header class="flex items-center justify-between gap-3 bg-indigo-50 px-5 py-4"><div><p class="text-xs font-black tracking-widest text-indigo-500">${window.parentQueryEscapeHtml(result.examCode || examCode)}</p><h3 class="mt-1 text-lg font-black text-slate-800">我的段考成績</h3></div><span class="rounded-full bg-white px-3 py-1.5 text-xs font-black text-indigo-600 shadow-sm">本人／班平均</span></header><div class="grid grid-cols-2 divide-x divide-y divide-slate-100 border-t border-slate-100">${subjectMetrics.map(metricCard).join('')}</div>${summaryMetrics.length ? `<div class="grid grid-cols-2 divide-x divide-slate-100 border-t-2 border-indigo-100 bg-indigo-50/40">${summaryMetrics.map(metricCard).join('')}</div>` : ''}</article>`;
                 report.classList.remove('hidden');
                 status.textContent = '括號內為班平均，不會顯示其他學生的個人成績。';
             } catch (error) {
@@ -352,7 +393,7 @@
                 ]);
                 const items = result.items || [];
                 const exams = examResult.exams || [];
-                const examCard = exams.length ? `<article class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-indigo-100"><header class="bg-gradient-to-br from-indigo-600 to-violet-600 px-5 py-5 text-white"><p class="text-xs font-black tracking-widest text-indigo-100">EXAM REPORT</p><h3 class="mt-1 text-xl font-black">段考成績單</h3><p class="mt-1 text-sm font-medium text-indigo-100">可切換查看已有資料的段考；括號為班平均。</p></header><div class="p-4 sm:p-5"><label class="block text-sm font-black text-slate-700">選擇段考<select id="parentExamScoreSelect" onchange="window.showParentExamScoreReport()" class="mt-2 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[16px] font-bold text-slate-800 outline-none focus:border-indigo-500"><option value="">請選擇段考</option>${exams.map(exam => `<option value="${window.parentQueryEscapeHtml(String(exam.code))}">${window.parentQueryEscapeHtml(String(exam.code))}</option>`).join('')}</select></label><p id="parentExamScoreStatus" class="mt-3 text-center text-xs font-bold text-slate-400">只會列出您已有成績的段考。</p><div id="parentExamScoreReport" class="hidden mt-4"></div></div></article>` : '';
+                const examCard = exams.length ? `<article class="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-indigo-100"><header class="bg-gradient-to-br from-indigo-600 to-violet-600 px-5 py-5 text-white"><p class="text-xs font-black tracking-widest text-indigo-100">EXAM REPORT</p><h3 class="mt-1 text-xl font-black">段考成績單</h3><p class="mt-1 text-sm font-medium text-indigo-100">切換學期與段考次別；括號為班平均。</p></header><div class="p-4 sm:p-5"><p class="text-sm font-black text-slate-700">學期</p><div id="parentExamSemesterTabs" class="mt-2 grid grid-cols-2 gap-2"></div><p class="mt-4 text-sm font-black text-slate-700">段考次別</p><div id="parentExamAttemptTabs" class="mt-2 flex gap-2 overflow-x-auto pb-1"></div><select id="parentExamScoreSelect" class="hidden"></select><p id="parentExamScoreStatus" class="mt-3 text-center text-xs font-bold text-slate-400">只會列出您已有成績的段考。</p><div id="parentExamScoreReport" class="hidden mt-4"></div></div></article>` : '';
                 if (!items.length && !examCard) {
                     content.innerHTML = '<div class="rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 p-6 text-center text-sm font-bold text-violet-400">老師尚未提供可查詢的資料。</div>';
                     return;
@@ -364,7 +405,12 @@
                     const value = window.formatParentQueryValue(item.title, item.value);
                     return `<article class="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-[#e5e5ea]"><div class="flex flex-wrap items-center gap-2"><h3 class="text-lg font-black text-slate-800">${window.parentQueryEscapeHtml(item.title || '資料')}</h3><span class="rounded-full px-2.5 py-1 text-[11px] font-black ${badgeClass}">${badge}</span></div><p class="mt-4 whitespace-pre-wrap break-words text-[16px] font-medium leading-7 text-slate-700">${window.parentQueryEscapeHtml(value)}</p>${item.updatedAt ? `<p class="mt-4 text-right text-[11px] font-bold text-slate-300">更新：${window.parentQueryEscapeHtml(item.updatedAt)}</p>` : ''}</article>`;
                 }).join('');
+                window.parentExamScoreExams = exams;
                 content.innerHTML = examCard + queryCards;
+                if (exams.length) {
+                    window.renderParentExamScoreTabs();
+                    window.showParentExamScoreReport();
+                }
             } catch (error) {
                 content.innerHTML = `<div class="rounded-2xl bg-rose-50 p-6 text-center text-sm font-bold text-rose-700">${window.parentQueryEscapeHtml(error.message || '讀取失敗，請稍後再試。')}</div>`;
             }
