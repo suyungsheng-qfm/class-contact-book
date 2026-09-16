@@ -3738,14 +3738,13 @@
                                         <button type="button" onclick="window.moveClassboardTomorrowPreviewItem(this, 1)" class="min-h-8 rounded-lg border border-sky-100 bg-white px-2 text-xs font-black text-sky-700" aria-label="下移">↓</button>
                                     </span>
                                 </div>
-                                <input type="text" data-classboard-subject value="${escapeHtml(item.subject || '其他')}" maxlength="40" aria-label="科目" class="mb-2 min-h-10 w-full rounded-xl border border-sky-100 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-sky-500">
                                 <textarea data-classboard-text maxlength="500" aria-label="事項內容" class="min-h-20 w-full rounded-xl border border-sky-100 bg-white p-3 text-sm leading-6 text-slate-700 outline-none focus:border-sky-500">${escapeHtml(item.text || '')}</textarea>
                             </div>
                         </div>
                     </article>`).join('');
                 const choice = await Swal.fire({
                     title: `${targetDate} 的班級看板事項`,
-                    html: `<p class="mb-3 text-sm leading-relaxed text-slate-500">可取消勾選、修改文字或科目，也可用箭頭調整順序。確認後只會帶入聯絡簿編輯區，不會直接發布。</p><div class="mb-3 grid grid-cols-1 gap-2 rounded-2xl bg-slate-50 p-3 text-left"><label class="flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200"><input type="radio" name="classboardImportMode" value="merge" checked class="h-4 w-4 accent-sky-600">附加整合：保留目前班級事項</label><label class="flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-rose-700 ring-1 ring-rose-100"><input type="radio" name="classboardImportMode" value="replace" class="h-4 w-4 accent-rose-600">取代目前內容：改為本次帶入事項</label></div><div class="max-h-[52vh] space-y-2 overflow-y-auto pr-1">${rows}</div>`,
+                    html: `<p class="mb-3 text-sm leading-relaxed text-slate-500">可取消勾選、修改文字，也可用箭頭調整順序。確認後只會帶入聯絡簿編輯區，不會直接發布。</p><div class="mb-3 grid grid-cols-1 gap-2 rounded-2xl bg-slate-50 p-3 text-left"><label class="flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-slate-700 ring-1 ring-slate-200"><input type="radio" name="classboardImportMode" value="merge" checked class="h-4 w-4 accent-sky-600">附加整合：保留目前班級事項</label><label class="flex min-h-11 items-center gap-2 rounded-xl bg-white px-3 text-sm font-black text-rose-700 ring-1 ring-rose-100"><input type="radio" name="classboardImportMode" value="replace" class="h-4 w-4 accent-rose-600">取代目前內容：改為本次帶入事項</label></div><div class="max-h-[52vh] space-y-2 overflow-y-auto pr-1">${rows}</div>`,
                     showCancelButton: true,
                     confirmButtonText: '帶入聯絡簿編輯區',
                     cancelButtonText: '取消',
@@ -3756,7 +3755,6 @@
                             const original = items[Number(input.value)] || {};
                             return {
                                 ...original,
-                                subject: String(row?.querySelector('[data-classboard-subject]')?.value || '').trim().slice(0, 40) || '其他',
                                 text: String(row?.querySelector('[data-classboard-text]')?.value || '').trim().slice(0, 500)
                             };
                         }).filter(item => item.text);
@@ -3798,8 +3796,8 @@
             const targetInput = document.getElementById('tNoteInput');
             const existing = String(targetInput?.value || '').trim();
             const importedLines = items
-                .map(item => `【${String(item.subject || '其他').trim() || '其他'}】${String(item.text || '').trim()}`)
-                .filter(line => line.length > 4);
+                .map(item => String(item.text || '').trim())
+                .filter(Boolean);
             const existingLines = new Set(existing.split('\n').map(line => line.trim()).filter(Boolean));
             const linesToAdd = mode === 'replace' ? importedLines : importedLines.filter(line => !existingLines.has(line));
             if (!linesToAdd.length) {
