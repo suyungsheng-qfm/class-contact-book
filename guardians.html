@@ -23,6 +23,36 @@
             touch-action: pan-y;
         }
         #groupChatMessageList, #privateChatMessageList { flex-shrink: 0; }
+        /* 聊天圖片預覽：關閉鍵固定在手機安全區內，不隨圖片高度跑出畫面。 */
+        .swal2-popup.image-preview-popup {
+            width: auto !important;
+            max-width: calc(100vw - 1.25rem) !important;
+            padding: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        .swal2-popup.image-preview-popup .swal2-image {
+            max-width: calc(100vw - 1.25rem) !important;
+            max-height: calc(100dvh - 6.5rem) !important;
+            margin: 0 !important;
+        }
+        .swal2-popup.image-preview-popup .swal2-close {
+            position: fixed !important;
+            top: max(0.75rem, env(safe-area-inset-top)) !important;
+            right: max(0.75rem, env(safe-area-inset-right)) !important;
+            z-index: 10000 !important;
+            display: flex !important;
+            width: 2.75rem !important;
+            height: 2.75rem !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border-radius: 9999px !important;
+            background: rgba(255, 255, 255, .96) !important;
+            color: #1e293b !important;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, .3) !important;
+            font-size: 2rem !important;
+            line-height: 1 !important;
+        }
         
         .calendar-day { aspect-ratio: 1/1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; border-radius: 50%; transition: all 0.2s; font-weight: 500; font-size: 0.875rem; position: relative; color: #1c1c1e; }
         .calendar-day:hover { background-color: #e5e5ea; transform: scale(1.05); }
@@ -1535,9 +1565,12 @@
                 imageUrl: url,
                 imageAlt: '圖片載入中',
                 showConfirmButton: false,
+                showCloseButton: true,
+                closeButtonAriaLabel: '關閉圖片',
                 background: 'transparent',
                 backdrop: 'rgba(0,0,0,0.85)',
                 customClass: {
+                    popup: 'image-preview-popup',
                     image: 'max-h-[85vh] object-contain rounded-xl'
                 }
             });
