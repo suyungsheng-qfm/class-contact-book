@@ -564,6 +564,7 @@
         window.fbHomework = [];
         window.bRecordFilterStudentId = '';
         window.bEditingRecordId = null;
+        window.B_RECORD_GRADE = '八年級';
         window.fbGroupChats = [];
         window.fbPrivateChats = [];
         window.teacherChatReadState = null;
@@ -2170,7 +2171,7 @@
                 studentName: String(student.name || ''),
                 seatNo: String(student.seatNo || ''),
                 className: '807',
-                grade: '七年級',
+                grade: window.B_RECORD_GRADE,
                 date: String(values.get('date') || ''),
                 time: String(values.get('time') || ''),
                 period: String(values.get('period') || ''),
@@ -2283,7 +2284,7 @@
                 const [year = '', month = '', day = ''] = String(record.date || '').split('-');
                 const rocYear = Number(year) >= 1912 ? String(Number(year) - 1911) : year;
                 const summary = `時間：${periodText(record)}\n內容來源：${record.source || '—'}\n\n（一）事件經過\n${record.eventSummary || '—'}\n\n（二）輔導／處理情形\n${record.handling || '—'}\n\n（三）後續追蹤\n${record.followUp || '—'}${record.isImportant ? '\n\n【重大／持續追蹤】' : ''}`;
-                return `<tr><td>${escape(String(record.grade || '七').replace('年級', ''))}</td><td>${escape(rocYear)}</td><td>${escape(month)}</td><td>${escape(day)}</td><td>${escape(record.target || '')}</td><td class="summary">${escape(summary)}</td></tr>`;
+                return `<tr><td>${escape(window.B_RECORD_GRADE.replace('年級', ''))}</td><td>${escape(rocYear)}</td><td>${escape(month)}</td><td>${escape(day)}</td><td>${escape(record.target || '')}</td><td class="summary">${escape(summary)}</td></tr>`;
             }).join('');
             const range = [startDate || '全部', endDate || '全部'].join(' 至 ');
             let preview = document.getElementById('bPrintPreviewModal');
