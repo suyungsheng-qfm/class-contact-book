@@ -417,6 +417,7 @@
                 if (!result.success || result.role !== 'teacher' || !result.user) throw new Error(result.message || '登入驗證失敗。');
 
                 window.allStudents = result.students || [];
+                window.beginTeacherDataSync();
                 await initAuth(result.firebaseToken);
                 document.querySelectorAll('[onclick="location.reload()"]').forEach(button => {
                     button.onclick = window.goToUnifiedLogin;
@@ -565,6 +566,8 @@
         window.bRecordFilterStudentId = '';
         window.bEditingRecordId = null;
         window.B_RECORD_GRADE = '八年級';
+        window.teacherDataSync = { loaded: new Set(), failed: new Map(), timer: null };
+        window.teacherDataSyncSources = ['notes', 'events', 'holidays', 'records', 'leaveRequests', 'groupChat', 'privateChat'];
         window.fbGroupChats = [];
         window.fbPrivateChats = [];
         window.teacherChatReadState = null;
@@ -628,6 +631,63 @@
         };
 
         window.todayStr = window.normalizeDate(new Date());
+
+        window.updateTeacherDataSyncUi = function(mode = 'loading', detail = '') {
+            const overlay = document.getElementById('teacherDataSyncOverlay');
+            const title = document.getElementById('teacherDataSyncTitle');
+            const message = document.getElementById('teacherDataSyncMessage');
+            const retry = document.getElementById('teacherDataSyncRetry');
+            if (!overlay || !title || !message || !retry) return;
+            if (mode === 'ready') {
+                overlay.classList.add('hidden');
+                return;
+            }
+            overlay.classList.remove('hidden');
+            retry.classList.toggle('hidden', mode === 'loading');
+            if (mode === 'error') {
+                title.textContent = '班級資料尚未同步';
+                message.textContent = detail || '請確認網路正常後，按下重新讀取。';
+            } else {
+                title.textContent = '正在同步班級資料';
+                message.textContent = `正在讀取聯絡簿、簽閱與訊息…（${window.teacherDataSync.loaded.size}／${window.teacherDataSyncSources.length}）`;
+            }
+        };
+        window.beginTeacherDataSync = function() {
+            if (window.teacherDataSync.timer) clearTimeout(window.teacherDataSync.timer);
+            window.teacherDataSync.loaded = new Set();
+            window.teacherDataSync.failed = new Map();
+            window.updateTeacherDataSyncUi('loading');
+            window.teacherDataSync.timer = setTimeout(() => {
+                if (window.teacherDataSync.loaded.size < window.teacherDataSyncSources.length) {
+                    window.updateTeacherDataSyncUi('error', '手機網路連線較慢或暫時無法讀取資料，請確認網路後重新讀取。');
+                }
+            }, 12000);
+        };
+        window.markTeacherDataSyncReady = function(source) {
+            if (!window.teacherDataSyncSources.includes(source)) return;
+            window.teacherDataSync.loaded.add(source);
+            window.teacherDataSync.failed.delete(source);
+            if (window.teacherDataSync.loaded.size >= window.teacherDataSyncSources.length) {
+                if (window.teacherDataSync.timer) clearTimeout(window.teacherDataSync.timer);
+                window.updateTeacherDataSyncUi('ready');
+            } else if (!window.teacherDataSync.failed.size) {
+                window.updateTeacherDataSyncUi('loading');
+            }
+        };
+        window.markTeacherDataSyncError = function(source, error) {
+            console.error(`Unable to load teacher ${source}.`, error);
+            window.teacherDataSync.failed.set(source, error);
+            if (window.teacherDataSync.timer) clearTimeout(window.teacherDataSync.timer);
+            window.updateTeacherDataSyncUi('error', '部分班級資料暫時無法讀取，請檢查網路後重新讀取。');
+        };
+        window.retryTeacherDataSync = function() {
+            if (!fbUser) return window.restoreUnifiedSession();
+            window.beginTeacherDataSync();
+            setupGlobalListeners();
+            setupSemesterListeners();
+            window.setupTeacherChatReadStateListener();
+            window.setupTeacherFormsListener();
+        };
 
         window.markTeacherChatRead = function(tab, latestMessage) {
             const nextOrder = window.getChatEntryOrder(latestMessage);
@@ -699,8 +759,9 @@
             const pathNotes = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'notes');
             window.unsubscribers.push(onSnapshot(pathNotes, snap => {
                 window.fbNotes = snap.docs.map(d => ({ date: d.id.replaceAll('-','/'), content: d.data().content }));
+                window.markTeacherDataSyncReady('notes');
                 window.refreshUI();
-            }, err => console.error(err)));
+            }, err => window.markTeacherDataSyncError('notes', err)));
 
             const pathEvents = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'calendar_events');
             window.unsubscribers.push(onSnapshot(pathEvents, snap => {
@@ -710,14 +771,16 @@
                     schoolEvents: Array.isArray(d.data().schoolEvents) ? d.data().schoolEvents : [],
                     importedSchoolEventIds: Array.isArray(d.data().importedSchoolEventIds) ? d.data().importedSchoolEventIds : []
                 }));
+                window.markTeacherDataSyncReady('events');
                 window.refreshUI();
-            }, err => console.error(err)));
+            }, err => window.markTeacherDataSyncError('events', err)));
 
             const pathHolidays = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'holidays');
             window.unsubscribers.push(onSnapshot(pathHolidays, snap => {
                 window.fbHolidays = snap.docs.map(d => ({ date: d.id.replaceAll('-','/'), isHoliday: d.data().isHoliday }));
+                window.markTeacherDataSyncReady('holidays');
                 window.refreshUI();
-            }, err => console.error(err)));
+            }, err => window.markTeacherDataSyncError('holidays', err)));
 
             const pathRecords = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'daily_records');
             window.unsubscribers.push(onSnapshot(pathRecords, snap => {
@@ -725,14 +788,16 @@
                     id: d.id, date: d.data().date, studentId: d.data().studentId,
                     signed: d.data().signed, isLeave: d.data().isLeave, signTime: d.data().signTime
                 }));
+                window.markTeacherDataSyncReady('records');
                 window.refreshUI();
-            }, err => console.error(err)));
+            }, err => window.markTeacherDataSyncError('records', err)));
 
             const pathLeaveRequests = collection(db, 'artifacts', window.fbAppId, 'public', 'data', 'leave_requests');
             window.unsubscribers.push(onSnapshot(pathLeaveRequests, snap => {
                 window.fbLeaveRequests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                window.markTeacherDataSyncReady('leaveRequests');
                 window.refreshUI();
-            }, err => console.error(err)));
+            }, err => window.markTeacherDataSyncError('leaveRequests', err)));
         }
 
         function setupGlobalListeners() {
@@ -747,8 +812,9 @@
                 window.lastGroupChatCount = window.fbGroupChats.length;
                 if (!window.isChatInitialized) window.isChatInitialized = true;
 
+                window.markTeacherDataSyncReady('groupChat');
                 window.refreshUI();
-            }, e => console.error(e)));
+            }, e => window.markTeacherDataSyncError('groupChat', e)));
 
             const pathPrivateChat = collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats');
             window.globalUnsubscribers.push(onSnapshot(pathPrivateChat, snap => {
@@ -756,8 +822,9 @@
                 window.fbPrivateChats.sort((a, b) => window.getChatEntryOrder(a) - window.getChatEntryOrder(b) || String(a.timestamp || '').localeCompare(String(b.timestamp || '')) || String(a.id || '').localeCompare(String(b.id || '')));
                 
                 window.lastPrivateChatCount = window.fbPrivateChats.length;
+                window.markTeacherDataSyncReady('privateChat');
                 window.refreshUI();
-            }, e => console.error(e)));
+            }, e => window.markTeacherDataSyncError('privateChat', e)));
 
             const pathBRecords = collection(db, 'artifacts', window.B_RECORD_APP_ID, 'public', 'data', 'b_records');
             window.globalUnsubscribers.push(onSnapshot(pathBRecords, snap => {
@@ -4258,7 +4325,15 @@
     </div>
 
     <!-- 教師主控台 (含私訊分頁切換) -->
-    <div id="teacherDashboard" class="hidden flex-1 flex flex-col h-full w-full overflow-hidden">
+    <div id="teacherDashboard" class="relative hidden flex-1 flex flex-col h-full w-full overflow-hidden">
+        <div id="teacherDataSyncOverlay" class="hidden absolute inset-0 z-50 flex items-center justify-center bg-slate-50/95 p-5 text-center backdrop-blur-sm">
+            <div class="w-full max-w-sm rounded-3xl border border-blue-100 bg-white p-6 shadow-xl">
+                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-2xl text-blue-600">↻</div>
+                <h2 id="teacherDataSyncTitle" class="mt-4 text-lg font-black text-slate-800">正在同步班級資料</h2>
+                <p id="teacherDataSyncMessage" class="mt-2 text-sm font-medium leading-relaxed text-slate-500">正在讀取聯絡簿、簽閱與訊息…</p>
+                <button id="teacherDataSyncRetry" type="button" onclick="window.retryTeacherDataSync()" class="hidden mt-5 min-h-12 w-full rounded-2xl bg-blue-600 px-4 text-[16px] font-black text-white shadow-lg shadow-blue-200 active:scale-[.98]">重新讀取</button>
+            </div>
+        </div>
         <header class="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center z-20 shrink-0 shadow-sm">
             <div class="flex items-center gap-3">
                 <div class="bg-blue-600 p-2 rounded-lg"><i data-lucide="layout-dashboard" class="w-5 h-5 text-white"></i></div>
