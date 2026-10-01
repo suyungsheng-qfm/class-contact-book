@@ -87,7 +87,8 @@
             if (!next) return '';
             try {
                 const target = new URL(next, window.location.href);
-                const isParentPage = /\/(?:forms|homework)\.html$/.test(target.pathname) && Boolean(target.searchParams.get('id'));
+                const isParentPage = (/\/(?:forms|homework)\.html$/.test(target.pathname) && Boolean(target.searchParams.get('id')))
+                    || (/\/guardians\.html$/.test(target.pathname) && /^\d{4}-\d{2}-\d{2}$/.test(target.searchParams.get('leave') || ''));
                 const isTeacherGallery = /\/gallery\.html$/.test(target.pathname);
                 const allowed = target.origin === window.location.origin
                     && ((role === 'parent' && isParentPage) || (role === 'teacher' && isTeacherGallery));

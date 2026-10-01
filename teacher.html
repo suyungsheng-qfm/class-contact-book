@@ -2683,9 +2683,12 @@
                         : `<span class="text-blue-500 text-[10px] font-black bg-blue-50 px-2 py-1 rounded border border-blue-100 shadow-sm">出席</span>`;
 
                     const leaveRequest = (window.fbLeaveRequests || []).find(item => String(item.studentId) === String(s.studentId) && window.leaveRequestCoversDate(item, window.selectedDateStr));
+                    const inviteButton = !leaveRequest && !isSigned && window.selectedDateStr >= window.todayStr
+                        ? `<button type="button" onclick="window.shareLeaveApplicationLink('${s.studentId}', '${window.selectedDateStr}')" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">傳假單</button>`
+                        : '';
                     const actionHtml = isLeave
-                        ? `${leaveRequest ? `<button onclick="window.printLeaveRequest('${s.studentId}', '${window.selectedDateStr}')" class="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-700 px-2 py-1 rounded transition-colors font-bold border border-amber-200">假單</button>` : ''}<button onclick="window.handleToggleLeave('${s.studentId}', false)" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-500 px-2 py-1 rounded transition-colors font-bold border border-slate-200">取消請假</button>`
-                        : `<button onclick="window.handleToggleLeave('${s.studentId}', true)" class="text-[10px] bg-white hover:bg-amber-50 text-amber-600 px-2 py-1 rounded transition-colors font-bold border border-amber-200 shadow-sm">設為請假</button>`;
+                        ? `${leaveRequest ? `<button onclick="window.printLeaveRequest('${s.studentId}', '${window.selectedDateStr}')" class="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-700 px-2 py-1 rounded transition-colors font-bold border border-amber-200">假單</button>` : ''}${inviteButton}<button onclick="window.handleToggleLeave('${s.studentId}', false)" class="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-500 px-2 py-1 rounded transition-colors font-bold border border-slate-200">取消請假</button>`
+                        : `<button onclick="window.handleToggleLeave('${s.studentId}', true)" class="text-[10px] bg-white hover:bg-amber-50 text-amber-600 px-2 py-1 rounded transition-colors font-bold border border-amber-200 shadow-sm">設為請假</button>${inviteButton}`;
 
                     return `
                     <tr class="group hover:bg-blue-50/50 transition-colors">
@@ -3104,6 +3107,7 @@
                         const isMe = msg.sender === 'teacher';
                         const isImage = msg.messageType === 'image';
                         const isForm = msg.messageType === 'form' && msg.formId;
+                        const isLeaveInvite = msg.sender === 'teacher' && msg.messageType === 'leave_invite' && /^\d{4}-\d{2}-\d{2}$/.test(String(msg.leaveDate || ''));
                         const safeFormTitle = String(msg.formTitle || msg.text || '班級表單').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
                         const isWithdrawn = Boolean(msg.withdrawn) || msg.messageType === 'withdrawn';
                         const withdrawButton = isMe && !isWithdrawn
@@ -3117,9 +3121,11 @@
 
                         const bubbleContent = isImage 
                             ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-sm border border-slate-200" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
+                            : (isLeaveInvite
+                                ? `<div class="min-w-[190px] rounded-xl bg-blue-50 p-3 text-blue-800"><span class="block text-xs font-black tracking-widest text-blue-500">線上請假單</span><span class="mt-1 block font-black">${String(msg.leaveDate)} 請假連結</span><span class="mt-1 block text-xs font-bold text-blue-600">已傳送給家長填寫簽名</span></div>`
                             : (isForm
                                 ? `<a href="./forms.html?id=${encodeURIComponent(String(msg.formId))}" class="block min-w-[190px] rounded-xl bg-violet-50 p-3 text-violet-800"><span class="block text-xs font-black tracking-widest text-violet-500">FORM REMINDER</span><span class="mt-1 block font-black">${safeFormTitle}</span><span class="mt-1 block text-xs font-bold text-violet-600">尚未填寫，請開啟完成表單</span><span class="mt-2 inline-flex rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white">開啟表單</span></a>`
-                                : msg.text);
+                                : msg.text));
 
                         if(isMe) {
                             html += `
@@ -3183,6 +3189,44 @@
         window.openStudentPrivateChat = (studentId, studentName) => {
             window.switchTab('private');
             setTimeout(() => window.selectChatStudent(studentId, studentName), 0);
+        };
+
+        window.shareLeaveApplicationLink = async (studentId, date) => {
+            const student = (window.allStudents || []).find(item => String(item.studentId) === String(studentId));
+            if (!student || !/^\d{4}\/\d{2}\/\d{2}$/.test(date) || date < window.todayStr) return;
+            const leaveDate = date.replaceAll('/', '-');
+            const link = new URL(`./guardians.html?leave=${encodeURIComponent(leaveDate)}`, window.location.href).href;
+            const choice = await Swal.fire({
+                icon: 'question',
+                title: `傳送 ${student.name} 的請假連結`,
+                text: `${date} 的假單會由家長登入後填寫與簽名。`,
+                showCancelButton: true,
+                showDenyButton: true,
+                confirmButtonText: '傳送私訊',
+                denyButtonText: '複製連結',
+                cancelButtonText: '取消'
+            });
+            if (choice.isDenied) {
+                try {
+                    await navigator.clipboard.writeText(link);
+                    Swal.fire({ icon: 'success', title: '請假連結已複製', timer: 1400, showConfirmButton: false });
+                } catch (_) {
+                    Swal.fire({ title: '請手動複製連結', input: 'text', inputValue: link, confirmButtonText: '完成' });
+                }
+                return;
+            }
+            if (!choice.isConfirmed || !checkFbAuth()) return;
+            try {
+                await addDoc(collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'private_chats'), {
+                    studentId: String(student.studentId), sender: 'teacher', name: '蘇老師', seatNo: 'T',
+                    text: `請填寫 ${date} 的線上請假單並簽名。`, messageType: 'leave_invite', leaveDate,
+                    timestamp: window.getPreciseTime(), sentAt: Date.now()
+                });
+                window.sendMessageNotification({ channel: 'private', studentId: String(student.studentId), messageType: 'leave_invite' });
+                Swal.fire({ icon: 'success', title: '已私訊請假連結', timer: 1400, showConfirmButton: false });
+            } catch (error) {
+                Swal.fire('傳送失敗', error.message || '請稍後再試。', 'error');
+            }
         };
 
         window.selectChatStudent = (studentId, shortName) => {
