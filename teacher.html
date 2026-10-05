@@ -3,11 +3,12 @@
 <head>
     <base target="_top">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>教師管理中心 - 807班聯絡簿</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="./chat-viewport.js" defer></script>
     <style>
         :root { --app-height: 100dvh; }
         html, body { width: 100%; min-height: var(--app-height); height: var(--app-height); touch-action: manipulation; }
@@ -47,6 +48,20 @@
         }
         #groupChatMessageList, #privateChatMessageList { flex-shrink: 0; }
         #privateChatMainWindow, #privateChatSidebar { min-height: 0; }
+        @media (max-width: 1023px) {
+            body.chat-composing #teacherDashboard > header { display: none !important; }
+            #groupChatInputArea.chat-composer-docked, #privateChatInputArea.chat-composer-docked {
+                position: fixed !important;
+                top: var(--chat-composer-top) !important;
+                left: var(--chat-composer-left) !important;
+                width: var(--chat-composer-width) !important;
+                margin: 0 !important;
+                z-index: 60 !important;
+            }
+            body.chat-composing #groupChatScrollArea, body.chat-composing #privateChatScrollArea {
+                padding-bottom: calc(var(--chat-composer-height, 5rem) + .75rem);
+            }
+        }
         /* 聊天圖片預覽：關閉鍵固定在手機安全區內，不隨圖片高度跑出畫面。 */
         .swal2-popup.image-preview-popup {
             width: auto !important;
@@ -2490,7 +2505,7 @@
                 const badge = document.getElementById('privateUnreadBadge');
                 if(badge) badge.classList.add('hidden');
                 window.syncPrivateChatLayout && window.syncPrivateChatLayout();
-                setTimeout(window.scrollToPrivateChatBottom, 50);
+                window.showLatestPrivateChatMessage();
             } else if (tab === 'photo') {
                 photoPage.classList.remove('hidden');
                 photoPage.classList.add('flex');
@@ -3188,7 +3203,8 @@
             if (!container) return;
             requestAnimationFrame(() => {
                 const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
-                container.scrollTop = distanceFromBottom <= 24
+                const followLatest = container.id === 'privateChatScrollArea' && container.dataset.followLatest === 'true';
+                container.scrollTop = followLatest || distanceFromBottom <= 24
                     ? maxScrollTop
                     : Math.max(0, maxScrollTop - distanceFromBottom);
             });
@@ -3252,8 +3268,8 @@
             const sidebar = document.getElementById('privateChatSidebar');
             const mainWin = document.getElementById('privateChatMainWindow');
             window.syncPrivateChatLayout();
+            window.showLatestPrivateChatMessage();
             window.refreshUI();
-            setTimeout(window.scrollToPrivateChatBottom, 50);
         };
 
         window.backToChatList = () => {

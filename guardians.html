@@ -3,10 +3,11 @@
 <head>
     <base target="_top">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <title>807｜班級資訊動態</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="./chat-viewport.js" defer></script>
     <style>
         :root { --app-height: 100dvh; }
         html, body { width: 100%; min-height: var(--app-height); height: var(--app-height); touch-action: manipulation; }
@@ -23,6 +24,20 @@
             touch-action: pan-y;
         }
         #groupChatMessageList, #privateChatMessageList { flex-shrink: 0; }
+        @media (max-width: 1023px) {
+            body.chat-composing #mainPage > nav { display: none !important; }
+            #groupChatInputArea.chat-composer-docked, #privateChatInputArea.chat-composer-docked {
+                position: fixed !important;
+                top: var(--chat-composer-top) !important;
+                left: var(--chat-composer-left) !important;
+                width: var(--chat-composer-width) !important;
+                margin: 0 !important;
+                z-index: 60 !important;
+            }
+            body.chat-composing #groupChatScrollArea, body.chat-composing #privateChatScrollArea {
+                padding-bottom: calc(var(--chat-composer-height, 5rem) + .75rem);
+            }
+        }
         /* 聊天圖片預覽：關閉鍵固定在手機安全區內，不隨圖片高度跑出畫面。 */
         .swal2-popup.image-preview-popup {
             width: auto !important;
@@ -117,7 +132,6 @@
         }
 
         @media (max-width: 767px) {
-            body { min-height: 100dvh; }
             #mainPage > nav {
                 order: 2;
                 padding: 0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom));
@@ -1145,7 +1159,7 @@
                 privateChatPage.classList.add('flex');
                 tabPrivate.className = "px-2 sm:px-4 py-1.5 text-[13px] sm:text-[15px] font-bold rounded-lg bg-white shadow-sm text-[#007aff] transition-all relative whitespace-nowrap";
                 if(privateUnreadBadge) privateUnreadBadge.classList.add('hidden'); 
-                setTimeout(window.scrollToPrivateChatBottom, 50);
+                window.showLatestPrivateChatMessage();
             }
             window.updateParentVoiceCallPolling && window.updateParentVoiceCallPolling();
             window.refreshUI();
@@ -1608,7 +1622,8 @@
             if (!container) return;
             requestAnimationFrame(() => {
                 const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
-                container.scrollTop = distanceFromBottom <= 24
+                const followLatest = container.id === 'privateChatScrollArea' && container.dataset.followLatest === 'true';
+                container.scrollTop = followLatest || distanceFromBottom <= 24
                     ? maxScrollTop
                     : Math.max(0, maxScrollTop - distanceFromBottom);
             });
