@@ -49,18 +49,17 @@
         #groupChatMessageList, #privateChatMessageList { flex-shrink: 0; }
         #privateChatMainWindow, #privateChatSidebar { min-height: 0; }
         @media (max-width: 1023px) {
+            body.chat-page-active #teacherDashboard {
+                position: fixed;
+                top: var(--app-viewport-top, 0px);
+                left: 0;
+                height: var(--app-height);
+            }
             body.chat-composing #teacherDashboard > header { display: none !important; }
-            #groupChatInputArea.chat-composer-docked, #privateChatInputArea.chat-composer-docked {
-                position: fixed !important;
-                top: var(--chat-composer-top) !important;
-                left: var(--chat-composer-left) !important;
-                width: var(--chat-composer-width) !important;
-                margin: 0 !important;
-                z-index: 60 !important;
-            }
             body.chat-composing #groupChatScrollArea, body.chat-composing #privateChatScrollArea {
-                padding-bottom: calc(var(--chat-composer-height, 5rem) + .75rem);
+                scroll-behavior: auto;
             }
+            body.chat-composing #groupChatInputArea, body.chat-composing #privateChatInputArea { padding-bottom: .625rem; }
         }
         /* 聊天圖片預覽：關閉鍵固定在手機安全區內，不隨圖片高度跑出畫面。 */
         .swal2-popup.image-preview-popup {
@@ -338,21 +337,6 @@
     </style>
 </head>
 <body class="m-0 p-0 w-full overflow-hidden flex flex-col text-slate-800 bg-slate-50">
-
-    <script>
-        (() => {
-            const syncAppHeight = () => {
-                const height = Math.round(window.visualViewport?.height || window.innerHeight);
-                document.documentElement.style.setProperty('--app-height', `${height}px`);
-            };
-            syncAppHeight();
-            window.addEventListener('resize', syncAppHeight);
-            window.addEventListener('pageshow', syncAppHeight);
-            window.addEventListener('orientationchange', () => setTimeout(syncAppHeight, 150));
-            window.visualViewport?.addEventListener('resize', syncAppHeight);
-            setTimeout(syncAppHeight, 250);
-        })();
-    </script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -2453,6 +2437,8 @@
         window.switchTab = (tab) => {
             const activeTab = tab === 'book' ? 'classwork' : tab;
             window.activeTab = activeTab;
+            document.body.classList.toggle('chat-page-active', tab === 'group' || tab === 'private');
+            window.syncChatViewport();
             const calendarPage = document.getElementById('dashboardPage');
             const contactBookPage = document.getElementById('contactBookPage');
             const groupChatPage = document.getElementById('groupChatPage');

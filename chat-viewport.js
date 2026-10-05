@@ -1,31 +1,49 @@
-// Keep the active chat composer just above the mobile keyboard's visible edge.
+// Resize the chat screen once; keep its composer in the normal flex layout.
 (() => {
     const composerSelector = '#groupChatInputArea, #privateChatInputArea';
     const inputSelector = '#groupChatInput, #privateChatInput';
     let activeComposer = null;
     let scheduled = false;
+    let restingHeight = window.visualViewport?.height || window.innerHeight;
+    let viewportWidth = window.innerWidth;
+    let focusPendingUntil = 0;
+
+    const setViewportValue = (name, value) => {
+        const style = document.documentElement.style;
+        if (style.getPropertyValue(name) === value) return false;
+        style.setProperty(name, value);
+        return true;
+    };
 
     const sync = () => {
         scheduled = false;
+        const viewport = window.visualViewport;
+        const height = Math.round(viewport?.height || window.innerHeight);
+        const mobile = window.matchMedia('(max-width: 1023px)').matches;
+        const chatVisible = document.body.classList.contains('chat-page-active');
         const input = document.activeElement;
         const composer = input?.matches?.(inputSelector) ? input.closest(composerSelector) : null;
-        const nextComposer = window.matchMedia('(max-width: 1023px)').matches && composer?.getClientRects().length ? composer : null;
+        const candidate = composer || activeComposer;
+        if (Math.abs(window.innerWidth - viewportWidth) > 50) {
+            viewportWidth = window.innerWidth;
+            restingHeight = Math.max(height, window.innerHeight);
+        }
+        const keyboardOpen = restingHeight - height > 100 || window.innerHeight - height > 100;
+        const composing = Boolean(mobile && chatVisible && candidate?.getClientRects().length
+            && (keyboardOpen || (composer && Date.now() < focusPendingUntil)));
+        const scrollArea = candidate ? document.getElementById(candidate.id === 'groupChatInputArea' ? 'groupChatScrollArea' : 'privateChatScrollArea') : null;
+        const followLatest = scrollArea && (scrollArea.dataset.followLatest === 'true'
+            || scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight <= 32);
+        const composingChanged = document.body.classList.contains('chat-composing') !== composing;
+        document.body.classList.toggle('chat-composing', composing);
+        activeComposer = composing ? candidate : null;
 
-        if (activeComposer && activeComposer !== nextComposer) activeComposer.classList.remove('chat-composer-docked');
-        activeComposer = nextComposer;
-        document.body.classList.toggle('chat-composing', Boolean(activeComposer));
-        if (!activeComposer) return;
-
-        activeComposer.classList.add('chat-composer-docked');
-        const page = activeComposer.parentElement;
-        const pageRect = page.getBoundingClientRect();
-        const viewport = window.visualViewport;
-        const visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
-        const composerHeight = activeComposer.getBoundingClientRect().height;
-        activeComposer.style.setProperty('--chat-composer-top', `${Math.max(0, Math.round(visibleBottom - composerHeight))}px`);
-        activeComposer.style.setProperty('--chat-composer-left', `${Math.round(pageRect.left)}px`);
-        activeComposer.style.setProperty('--chat-composer-width', `${Math.round(pageRect.width)}px`);
-        page.style.setProperty('--chat-composer-height', `${Math.ceil(composerHeight)}px`);
+        const heightChanged = setViewportValue('--app-height', `${height}px`);
+        setViewportValue('--app-viewport-top', `${mobile && chatVisible ? Math.max(0, Math.round(viewport?.offsetTop || 0)) : 0}px`);
+        if (!composer && !composing) restingHeight = height;
+        if (followLatest && (heightChanged || composingChanged)) {
+            window.requestAnimationFrame(() => { scrollArea.scrollTop = scrollArea.scrollHeight; });
+        }
     };
 
     const scheduleSync = () => {
@@ -34,24 +52,25 @@
         window.requestAnimationFrame(sync);
     };
 
-    document.addEventListener('focusin', event => {
-        if (!event.target.matches?.(inputSelector)) return;
+    const beginComposing = input => {
+        if (!input.matches?.(inputSelector)) return;
+        if (!activeComposer) restingHeight = Math.max(restingHeight, window.visualViewport?.height || window.innerHeight);
+        focusPendingUntil = Date.now() + 650;
         scheduleSync();
-        window.setTimeout(() => {
-            scheduleSync();
-            const scrollArea = document.getElementById(event.target.id === 'groupChatInput' ? 'groupChatScrollArea' : 'privateChatScrollArea');
-            if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
-        }, 120);
-    });
+        window.setTimeout(scheduleSync, 700);
+    };
+    document.addEventListener('focusin', event => beginComposing(event.target));
+    document.addEventListener('pointerdown', event => beginComposing(event.target), { passive: true });
     document.addEventListener('focusout', event => {
         if (event.target.matches?.(inputSelector)) window.setTimeout(scheduleSync, 0);
     });
-    document.addEventListener('input', event => {
-        if (event.target.matches?.(inputSelector)) scheduleSync();
-    });
     window.addEventListener('resize', scheduleSync);
+    window.addEventListener('pageshow', scheduleSync);
+    window.addEventListener('orientationchange', () => window.setTimeout(scheduleSync, 150));
     window.visualViewport?.addEventListener('resize', scheduleSync);
     window.visualViewport?.addEventListener('scroll', scheduleSync);
+    window.syncChatViewport = scheduleSync;
+    sync();
 
     // Opening a private chat should show its latest message, including after images load.
     window.showLatestPrivateChatMessage = () => {
