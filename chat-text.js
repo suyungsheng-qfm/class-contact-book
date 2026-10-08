@@ -1,4 +1,4 @@
-// Shared plain-text rendering for teacher/parent group and private messages.
+// Shared plain-text rendering for teacher/parent chat and contact-book notices.
 // Never interpret message text as HTML or accept executable URL schemes.
 (() => {
     const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({

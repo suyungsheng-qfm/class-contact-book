@@ -60,4 +60,13 @@ test('all four chat views and release resources use the shared renderer', () => 
         assert.ok(fs.readFileSync(path.join(root, file), 'utf8').includes('chat-text.js'));
     }
 });
-console.log(`${count} chat text regression groups passed.`);
+test('teacher and parent contact-book notices use the same safe URL renderer', () => {
+    const teacher = fs.readFileSync(path.join(root, 'teacher.html'), 'utf8');
+    const parent = fs.readFileSync(path.join(root, 'guardians.html'), 'utf8');
+    assert.ok(teacher.includes('${window.formatChatText(note)}'));
+    assert.ok(parent.includes('${window.formatChatText(displayContent)}'));
+    assert.ok(!parent.includes('${displayContent}</div>'));
+    // The editor remains plain text; clickable links apply only to display.
+    assert.match(teacher, /<textarea id="tNoteInput"/);
+});
+console.log(`${count} text/link regression groups passed.`);
