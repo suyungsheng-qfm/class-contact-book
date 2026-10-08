@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="./chat-viewport.js" defer></script>
+    <script src="./chat-text.js"></script>
     <style>
         :root { --app-height: 100dvh; }
         html, body { width: 100%; min-height: var(--app-height); height: var(--app-height); touch-action: manipulation; }
@@ -3138,7 +3139,7 @@
                                 ? `<a href="./homework.html?id=${encodeURIComponent(String(msg.homeworkId))}" class="block min-w-[190px] rounded-xl bg-violet-50 p-3 text-violet-800"><span class="block text-xs font-black tracking-widest text-violet-500">HOMEWORK</span><span class="mt-1 block font-black">${safeHomeworkTitle}</span>${msg.homeworkDeadline ? `<span class="mt-1 block text-xs font-bold text-violet-600">截止：${window.homeworkEscapeHtml(msg.homeworkDeadline)}</span>` : ''}<span class="mt-2 inline-flex rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white">查看作業</span></a>`
                                 : (isCallRequest
                                 ? `<div class="font-black">&#128222; 申請語音通話</div><div class="mt-1 text-xs opacity-80">${Number(msg.callRequestExpiresAt || 0) > Date.now() ? '可按右上電話圖示回應' : '申請已逾時'}</div>`
-                                : msg.text)));
+                                : window.formatChatText(msg.text))));
 
                         if(isMe) {
                             html += `
@@ -3334,7 +3335,7 @@
                                 ? `<div class="min-w-[190px] rounded-xl bg-blue-50 p-3 text-blue-800"><span class="block text-xs font-black tracking-widest text-blue-500">線上請假單</span><span class="mt-1 block font-black">${String(msg.leaveDate)} 請假連結</span><span class="mt-1 block text-xs font-bold text-blue-600">已傳送給家長填寫簽名</span></div>`
                             : (isForm
                                 ? `<a href="./forms.html?id=${encodeURIComponent(String(msg.formId))}" class="block min-w-[190px] rounded-xl bg-violet-50 p-3 text-violet-800"><span class="block text-xs font-black tracking-widest text-violet-500">FORM REMINDER</span><span class="mt-1 block font-black">${safeFormTitle}</span><span class="mt-1 block text-xs font-bold text-violet-600">尚未填寫，請開啟完成表單</span><span class="mt-2 inline-flex rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white">開啟表單</span></a>`
-                                : msg.text));
+                                : window.formatChatText(msg.text)));
 
                         if(isMe) {
                             html += `

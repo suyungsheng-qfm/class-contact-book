@@ -1,10 +1,11 @@
-const CACHE_NAME = 'class-contact-book-v53';
+const CACHE_NAME = 'class-contact-book-v54';
 const APP_SHELL = [
   './',
   './index.html',
   './guardians.html',
   './teacher.html',
   './chat-viewport.js',
+  './chat-text.js',
   './forms.html',
   './homework.html',
   './gallery.html',
