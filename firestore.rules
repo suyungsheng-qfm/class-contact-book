@@ -108,13 +108,20 @@ service cloud.firestore {
         isParent()
           && request.resource.data.sender == 'parent'
           && request.resource.data.studentId == request.auth.token.studentId
+          && !request.resource.data.keys().hasAny(['hiddenByTeacher', 'hiddenAt', 'hiddenBy'])
       );
       allow update: if isTeacher() || (
         isOwnParentMessage()
+          && resource.data.get('hiddenByTeacher', false) != true
           && keepsParentMessageIdentity()
           && onlyWithdrawsMessage()
       );
       allow delete: if false;
+    }
+
+    // Original text/images removed from shared chat are readable only by teachers.
+    match /artifacts/contact-chat/public/data/group_chat_hidden/{messageId} {
+      allow read, write: if isTeacher();
     }
 
     match /artifacts/contact-chat/public/data/private_chats/{messageId} {

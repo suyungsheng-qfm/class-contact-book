@@ -626,7 +626,7 @@
             if (!window.currentUser || window.chatReadState === null) return;
             let unreadCount = 0;
             const chatTypes = [
-                { tab: 'group', badge: 'groupUnreadBadge', field: 'groupReadAt', messages: window.fbGroupChats.filter(message => message.studentId !== window.currentUser.studentId) },
+                { tab: 'group', badge: 'groupUnreadBadge', field: 'groupReadAt', messages: window.fbGroupChats.filter(message => message.studentId !== window.currentUser.studentId && !message.hiddenByTeacher) },
                 { tab: 'private', badge: 'privateUnreadBadge', field: 'privateReadAt', messages: window.fbPrivateChats.filter(message => message.studentId === window.currentUser.studentId && message.sender === 'teacher') }
             ];
 
@@ -1423,7 +1423,8 @@
                         
                         const isMe = msg.studentId === window.currentUser.studentId;
                         const isTeacher = msg.studentId === 'teacher' || msg.sender === 'teacher';
-                        const withdrawGroupButton = msg.sender === 'parent' && !msg.withdrawn && msg.messageType !== 'withdrawn'
+                        const isHidden = Boolean(msg.hiddenByTeacher);
+                        const withdrawGroupButton = msg.sender === 'parent' && !isHidden && !msg.withdrawn && msg.messageType !== 'withdrawn'
                             ? `<button type="button" onclick="window.withdrawChatMessage('group_chat', '${msg.id}')" class="mb-1 text-[10px] font-bold text-slate-100/80 underline underline-offset-2">收回</button>`
                             : '';
                         
@@ -1440,7 +1441,9 @@
                         }
 
                         // 生成訊息內嵌泡泡內容
-                        const bubbleContent = isImage 
+                        const bubbleContent = isHidden
+                            ? '<span class="text-sm italic text-slate-500">此訊息已由教師隱藏</span>'
+                            : isImage
                             ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-inner border border-black/10" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
                             : isForm
                                 ? `<a href="./forms.html?id=${encodeURIComponent(String(msg.formId))}" class="block min-w-[190px] rounded-xl bg-violet-50 p-3 text-violet-800"><span class="block text-xs font-black tracking-widest text-violet-500">CLASS FORM</span><span class="mt-1 block font-black">${safeFormTitle}</span><span class="mt-2 inline-flex rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white">開啟並填寫</span></a>`
@@ -1483,10 +1486,10 @@
                             html += `
                                 <div class="flex justify-start mb-4 pr-12 fade-in">
                                     <div class="w-9 h-9 rounded-full bg-white/25 flex items-center justify-center text-white text-[13px] font-bold shrink-0 mr-2 shadow-sm mt-1">
-                                        ${displaySeat}
+                                        ${window.parentQueryEscapeHtml(displaySeat)}
                                     </div>
                                     <div>
-                                        <div class="text-xs text-slate-100 ml-1 mb-1 font-medium text-shadow-sm">${displayName}</div>
+                                        <div class="text-xs text-slate-100 ml-1 mb-1 font-medium text-shadow-sm">${window.parentQueryEscapeHtml(displayName)}</div>
                                         <div class="flex items-end gap-1.5">
                                             <div class="${isImage ? 'bg-transparent p-0' : 'bg-white text-[#1c1c1e] px-3.5 py-2.5 rounded-2xl rounded-tl-sm shadow-sm'} max-w-full break-words text-[15px] leading-relaxed relative">
                                                 ${bubbleContent}

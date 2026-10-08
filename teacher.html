@@ -342,7 +342,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, getDocs, getDoc, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, getDocs, getDoc, onSnapshot, writeBatch, runTransaction, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js";
 
         function getSemesterData(targetDate) {
@@ -727,7 +727,7 @@
             let unreadCount = 0;
             const activeIds = new Set(window.getActiveStudents().map(student => String(student.studentId)));
             const chatTypes = [
-                { tab: 'group', badge: 'groupUnreadBadge', field: 'teacherGroupReadAt', messages: window.fbGroupChats.filter(message => message.studentId !== 'teacher') },
+                { tab: 'group', badge: 'groupUnreadBadge', field: 'teacherGroupReadAt', messages: window.fbGroupChats.filter(message => message.studentId !== 'teacher' && !message.hiddenByTeacher) },
                 { tab: 'private', badge: 'privateUnreadBadge', field: 'teacherPrivateReadAt', messages: window.fbPrivateChats.filter(message => message.sender === 'parent' && activeIds.has(String(message.studentId))) }
             ];
             chatTypes.forEach(({ tab, badge, field, messages }) => {
@@ -3121,6 +3121,14 @@
                         const safeFormTitle = String(msg.formTitle || msg.text || '班級表單').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
                         const safeHomeworkTitle = String(msg.homeworkTitle || msg.text || '作業資料').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
                         const isWithdrawn = Boolean(msg.withdrawn) || msg.messageType === 'withdrawn';
+                        const isHidden = Boolean(msg.hiddenByTeacher);
+                        const moderationId = encodeURIComponent(msg.id).replace(/'/g, '%27');
+                        const moderationDisabled = window.groupModerationBusy?.has(msg.id) ? 'disabled' : '';
+                        const parentMessageAction = msg.sender === 'parent' && (isHidden || !isWithdrawn)
+                            ? `<div class="mt-1 flex flex-wrap gap-2">${isHidden
+                                ? `<button type="button" ${moderationDisabled} onclick="window.viewHiddenGroupMessage('${moderationId}')" class="min-h-11 rounded-xl bg-slate-100 px-3 text-xs font-bold text-slate-600 disabled:opacity-50">查看原訊息</button><button type="button" ${moderationDisabled} onclick="window.moderateGroupMessage('${moderationId}', false)" class="min-h-11 rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-700 disabled:opacity-50">恢復顯示</button>`
+                                : `<button type="button" ${moderationDisabled} onclick="window.moderateGroupMessage('${moderationId}', true)" class="min-h-11 rounded-xl px-3 text-xs font-bold text-rose-600 underline underline-offset-2 disabled:opacity-50">隱藏訊息</button>`}</div>`
+                            : '';
                         const withdrawButton = isMe && !isWithdrawn
                             ? `<button type="button" onclick="window.withdrawChatMessage('group_chat', '${msg.id}')" class="mb-1 text-[10px] font-bold text-slate-400 underline underline-offset-2">收回</button>`
                             : '';
@@ -3131,7 +3139,9 @@
                         }
 
                         // 圖片渲染
-                        const bubbleContent = isImage 
+                        const bubbleContent = isHidden
+                            ? '<span class="text-sm italic text-slate-500">此訊息已由教師隱藏</span>'
+                            : isImage
                             ? `<img src="${msg.text}" onclick="window.previewImage('${msg.text}')" class="max-w-[200px] sm:max-w-[280px] rounded-xl cursor-zoom-in hover:brightness-95 transition-all shadow-sm border border-slate-200" alt="圖片載入中..." onerror="this.onerror=null; this.src='https://placehold.co/300?text=圖片載入失敗';"/>`
                             : (isForm
                                 ? `<a href="./forms.html?id=${encodeURIComponent(String(msg.formId))}" class="block min-w-[190px] rounded-xl bg-violet-50 p-3 text-violet-800"><span class="block text-xs font-black tracking-widest text-violet-500">CLASS FORM</span><span class="mt-1 block font-black">${safeFormTitle}</span><span class="mt-2 inline-flex rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-black text-white">查看表單</span></a>`
@@ -3161,16 +3171,17 @@
                             html += `
                                 <div class="flex justify-start mb-4 pr-12 fade-in">
                                     <div class="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-[13px] font-bold shrink-0 mr-2 shadow-sm mt-1 border border-slate-300">
-                                        ${displaySeat}
+                                        ${window.studentDataEscapeHtml(displaySeat)}
                                     </div>
                                     <div>
-                                        <div class="text-xs text-slate-500 ml-1 mb-1 font-medium">${displayName}</div>
+                                        <div class="text-xs text-slate-500 ml-1 mb-1 font-medium">${window.studentDataEscapeHtml(displayName)}</div>
                                         <div class="flex items-end gap-1.5">
                                             <div class="${isImage ? 'bg-transparent p-0 border-none shadow-none' : 'bg-white border border-slate-200 text-slate-800 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm'} max-w-full break-words text-[15px] leading-relaxed relative">
                                                 ${bubbleContent}
                                             </div>
                                             <span class="text-[10px] text-slate-400 mb-1 font-medium">${msgTime}</span>
                                         </div>
+                                        ${parentMessageAction}
                                     </div>
                                 </div>
                             `;
@@ -3507,6 +3518,79 @@
                     image: 'max-h-[85vh] object-contain rounded-xl'
                 }
             });
+        };
+
+        // Original content is teacher-only; the shared message is atomically redacted.
+        window.groupModerationBusy = new Set();
+        window.makeHiddenGroupMessage = (original, hiddenAt) => {
+            const redacted = {};
+            ['studentId', 'sender', 'name', 'seatNo', 'timestamp', 'sentAt'].forEach(key => {
+                if (original[key] !== undefined) redacted[key] = original[key];
+            });
+            return { ...redacted, text: '此訊息已由教師隱藏', messageType: 'hidden', hiddenByTeacher: true, hiddenAt, hiddenBy: 'teacher' };
+        };
+        window.moderateGroupMessage = async (encodedId, hide) => {
+            if (!checkFbAuth()) return;
+            const messageId = decodeURIComponent(encodedId);
+            if (window.groupModerationBusy.has(messageId)) return;
+            const confirmation = await Swal.fire({ icon: hide ? 'warning' : 'question',
+                titleText: hide ? '隱藏這則家長訊息？' : '恢復這則訊息？',
+                text: hide ? '班群將改顯示「此訊息已由教師隱藏」。原文僅教師可查看，之後可恢復。已被閱讀或下載的內容無法收回。' : '恢復後，所有家長都能再次看到原本的訊息。',
+                showCancelButton: true, confirmButtonText: hide ? '隱藏訊息' : '恢復顯示', cancelButtonText: '取消' });
+            if (!confirmation.isConfirmed || window.groupModerationBusy.has(messageId)) return;
+            window.groupModerationBusy.add(messageId);
+            window.refreshUI();
+            try {
+                const messageRef = doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat', messageId);
+                const archiveRef = doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat_hidden', messageId);
+                await runTransaction(db, async transaction => {
+                    const snapshot = await transaction.get(messageRef);
+                    if (!snapshot.exists()) throw new Error('找不到這則訊息。');
+                    const current = snapshot.data();
+                    if (current.sender !== 'parent') throw new Error('此功能僅適用於家長的班群訊息。');
+                    if (hide) {
+                        if (current.hiddenByTeacher) return;
+                        if (current.withdrawn || current.messageType === 'withdrawn') throw new Error('家長已收回這則訊息。');
+                        const hiddenAt = serverTimestamp();
+                        transaction.set(archiveRef, { originalData: current, hiddenAt, hiddenBy: 'teacher', status: 'hidden' });
+                        transaction.set(messageRef, window.makeHiddenGroupMessage(current, hiddenAt));
+                    } else {
+                        if (!current.hiddenByTeacher) return;
+                        const archive = await transaction.get(archiveRef);
+                        if (!archive.exists() || !archive.data().originalData) throw new Error('找不到保存的原始訊息，請勿手動刪除保存資料。');
+                        // Respect a withdrawal made by an older client; never revive its text.
+                        const restored = current.withdrawn || current.messageType === 'withdrawn'
+                            ? { ...current, hiddenByTeacher: false }
+                            : { ...archive.data().originalData, hiddenByTeacher: false };
+                        transaction.set(messageRef, restored);
+                        transaction.update(archiveRef, { status: 'restored', restoredAt: serverTimestamp() });
+                    }
+                });
+            } catch (error) {
+                Swal.fire('操作失敗', String(error.code || '').includes('permission-denied')
+                    ? '請先將新版 firestore.rules 發布到 Firebase，再重試。未完成時不會隱藏或搬動訊息。'
+                    : error.message || '請確認網路後再試一次。', 'error');
+            } finally {
+                window.groupModerationBusy.delete(messageId);
+                window.refreshUI();
+            }
+        };
+        window.viewHiddenGroupMessage = async encodedId => {
+            if (!checkFbAuth()) return;
+            try {
+                const snapshot = await getDoc(doc(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat_hidden', decodeURIComponent(encodedId)));
+                const original = snapshot.exists() ? snapshot.data().originalData : null;
+                if (!original) throw new Error('找不到保存的原始訊息。');
+                const isImage = original.messageType === 'image';
+                Swal.fire({ titleText: '原訊息（僅教師可見）',
+                    html: isImage ? '<p class="text-sm text-slate-500">這是一則圖片訊息。</p><button type="button" id="viewHiddenGroupImage" class="mt-3 min-h-11 rounded-xl bg-blue-600 px-4 font-bold text-white">開啟圖片</button>' : `<div class="text-left break-words">${window.formatChatText(original.text)}</div>`,
+                    confirmButtonText: '關閉', width: 'min(94vw, 32rem)',
+                    didOpen: () => {
+                        if (isImage) document.getElementById('viewHiddenGroupImage')?.addEventListener('click', () => {
+                            if (/^https?:\/\//i.test(String(original.text))) window.previewImage(original.text);
+                        });
+                    } });
+            } catch (error) { Swal.fire('讀取失敗', error.message || '請先確認 Firebase 規則已更新。', 'error'); }
         };
 
         // 🌟 處理老師端選擇圖片並非同步上傳
