@@ -341,7 +341,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, getDocs, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, getDocs, getDoc, onSnapshot, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js";
 
         function getSemesterData(targetDate) {
@@ -540,6 +540,13 @@
         window.allStudents = [];
         const TEST_STUDENT_ID = '1410700';
         window.isTestStudent = student => String(student?.studentId || '') === TEST_STUDENT_ID;
+        window.rosterDate = value => value ? String(value).replaceAll('/', '-').slice(0, 10)
+            : new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date());
+        window.isStudentActiveOn = (student, date = window.rosterDate()) => Boolean(student) && !(student.archivePeriods || [])
+            .some(period => period.startDate <= window.rosterDate(date) && (!period.endDate || window.rosterDate(date) < period.endDate));
+        window.getActiveStudents = (date = window.rosterDate()) => (window.allStudents || []).filter(student => window.isStudentActiveOn(student, date));
+        window.getFormRoster = form => window.getActiveStudents(form?.deadline && window.rosterDate(form.deadline) < window.rosterDate() ? form.deadline : window.rosterDate())
+            .filter(student => !window.isTestStudent(student));
         window.activeTab = 'calendar';
         
         window.lastGroupChatCount = 0;
@@ -717,14 +724,16 @@
         window.updateTeacherChatUnreadIndicators = function() {
             if (window.teacherChatReadState === null) return;
             let unreadCount = 0;
+            const activeIds = new Set(window.getActiveStudents().map(student => String(student.studentId)));
             const chatTypes = [
                 { tab: 'group', badge: 'groupUnreadBadge', field: 'teacherGroupReadAt', messages: window.fbGroupChats.filter(message => message.studentId !== 'teacher') },
-                { tab: 'private', badge: 'privateUnreadBadge', field: 'teacherPrivateReadAt', messages: window.fbPrivateChats.filter(message => message.sender === 'parent') }
+                { tab: 'private', badge: 'privateUnreadBadge', field: 'teacherPrivateReadAt', messages: window.fbPrivateChats.filter(message => message.sender === 'parent' && activeIds.has(String(message.studentId))) }
             ];
             chatTypes.forEach(({ tab, badge, field, messages }) => {
                 const badgeElement = document.getElementById(badge);
                 const latestMessage = messages[messages.length - 1];
-                if (!badgeElement || !latestMessage?.timestamp) return;
+                if (!badgeElement) return;
+                if (!latestMessage?.timestamp) { badgeElement.classList.add('hidden'); return; }
                 const lastReadAt = window.getChatEntryOrder(window.teacherChatReadState[field]);
                 if (window.activeTab === tab || !lastReadAt) {
                     window.markTeacherChatRead(tab, latestMessage);
@@ -802,6 +811,9 @@
         function setupGlobalListeners() {
             window.globalUnsubscribers.forEach(unsub => unsub());
             window.globalUnsubscribers = [];
+            window.globalUnsubscribers.push(onSnapshot(collection(db, 'artifacts', 'contact-roster', 'public', 'data', 'student_status'), snapshot => {
+                if (snapshot.docChanges().length) window.refreshStudentArchiveRoster?.();
+            }, error => console.warn('Unable to load roster status.', error)));
 
             const pathGroupChat = collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat');
             window.globalUnsubscribers.push(onSnapshot(pathGroupChat, snap => {
@@ -948,6 +960,7 @@
 
         window.startVoiceCall = async () => {
             if (!window.activeChatStudentId || !checkFbAuth()) return;
+            if (!window.isStudentActiveOn(window.allStudents.find(student => student.studentId === window.activeChatStudentId))) return;
             if (window.voiceCall.peer) return;
             const studentId = window.activeChatStudentId;
             const hasActiveRequest = window.fbPrivateChats.some(message => message.studentId === studentId && message.sender === 'parent' && message.messageType === 'call_request' && Number(message.callRequestExpiresAt || 0) > Date.now());
@@ -1112,6 +1125,18 @@
             recordSwitch.className = 'sticky top-0 z-10 w-full bg-[#f2f2f7]/95 px-4 pt-4 pb-2 backdrop-blur sm:px-6';
             recordSwitch.innerHTML = `<div class="mx-auto flex w-full max-w-2xl rounded-2xl bg-slate-200/80 p-1"><button id="recordAlbumTab" type="button" onclick="window.switchRecordSection('album')" class="min-h-11 flex-1 rounded-xl bg-white px-3 text-sm font-black text-blue-700 shadow-sm">相簿</button><button id="recordBTab" type="button" onclick="window.switchRecordSection('b')" class="min-h-11 flex-1 rounded-xl px-3 text-sm font-black text-slate-500">B表</button></div>`;
             photoPage.insertBefore(recordSwitch, albumPanel);
+            const archiveTab = document.createElement('button');
+            archiveTab.id = 'recordArchiveTab';
+            archiveTab.type = 'button';
+            archiveTab.className = 'min-h-11 flex-1 rounded-xl px-3 text-sm font-black text-slate-500';
+            archiveTab.textContent = '保存區';
+            archiveTab.onclick = () => window.switchRecordSection('archive');
+            recordSwitch.firstElementChild.appendChild(archiveTab);
+            const archivePanel = document.createElement('section');
+            archivePanel.id = 'recordArchivePanel';
+            archivePanel.className = 'hidden w-full max-w-2xl mx-auto space-y-4 p-4 sm:p-6';
+            archivePanel.innerHTML = `<article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div class="flex items-center justify-between gap-3"><div><h3 class="text-xl font-black text-slate-800">學生保存區</h3><p class="mt-2 text-sm leading-relaxed text-slate-500">轉出後保留歷史資料，僅教師可查閱。轉出日期起停止家長登入與通知，並移出現行名單。</p></div><button type="button" onclick="window.loadStudentArchives()" class="min-h-11 shrink-0 rounded-xl bg-slate-100 px-3 text-sm font-black text-slate-600">重新整理</button></div><form id="studentArchiveForm" onsubmit="window.submitStudentArchive(event)" class="mt-5 space-y-4"><label class="block text-sm font-black text-slate-700">學生<select id="studentArchiveStudent" required class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-[16px]"></select></label><label class="block text-sm font-black text-slate-700">轉出日期<input id="studentArchiveDate" type="date" required class="mt-2 min-h-12 w-full rounded-xl border border-slate-200 px-3 text-[16px]"></label><label class="block text-sm font-black text-slate-700">備註（選填）<textarea id="studentArchiveReason" rows="2" maxlength="500" class="mt-2 w-full rounded-xl border border-slate-200 p-3 text-[16px]"></textarea></label><button id="studentArchiveSubmit" type="submit" class="min-h-12 w-full rounded-2xl bg-slate-700 px-4 font-black text-white">轉出封存</button></form><p id="studentArchiveStatus" role="status" class="mt-3 text-sm font-bold text-slate-500"></p></article><div id="studentArchiveList" class="space-y-3"></div>`;
+            photoPage.appendChild(archivePanel);
             const homeworkPanel = document.createElement('section');
             homeworkPanel.id = 'recordHomeworkPanel';
             homeworkPanel.className = 'w-full max-w-2xl mx-auto space-y-4 pt-5';
@@ -1218,7 +1243,7 @@
             const select = document.getElementById('teacherResearchStudentSelect');
             if (!select) return;
             const selectedValue = select.value;
-            const students = (window.allStudents || []).filter(student => !window.isTestStudent?.(student));
+            const students = window.getActiveStudents().filter(student => !window.isTestStudent?.(student));
             select.innerHTML = '<option value="">請選擇學生</option>' + students.map(student => `<option value="${window.studentDataEscapeHtml(String(student.studentId))}">${window.studentDataEscapeHtml(String(student.seatNo || '').padStart(2, '0'))} 號　${window.studentDataEscapeHtml(student.name || '')}</option>`).join('');
             if (students.some(student => String(student.studentId) === selectedValue)) select.value = selectedValue;
         };
@@ -1233,10 +1258,12 @@
             const select = document.getElementById('examScoreStudentSelect');
             if (!select) return;
             const selectedValue = select.value;
-            const students = window.allStudents || [];
+            const students = window.getActiveStudents();
+            const historical = (window.allStudents || []).find(student => String(student.studentId) === String(window.archiveExamStudentId || ''));
+            if (historical && !students.includes(historical)) students.push(historical);
             select.innerHTML = '<option value="">請選擇學生</option>' + students.map(student => {
                 const isTest = window.isTestStudent?.(student);
-                const suffix = isTest ? '（測試帳號）' : '';
+                const suffix = isTest ? '（測試帳號）' : !window.isStudentActiveOn(student) ? '（已封存）' : '';
                 return `<option value="${window.studentDataEscapeHtml(String(student.studentId))}">${window.studentDataEscapeHtml(String(student.seatNo || '').padStart(2, '0'))} 號　${window.studentDataEscapeHtml(student.name || '')}${suffix}</option>`;
             }).join('');
             if (students.some(student => String(student.studentId) === selectedValue)) select.value = selectedValue;
@@ -1670,7 +1697,7 @@
             }
             const responses = (window.formResponses || []).filter(response => !window.isTestStudent(response));
             const respondedIds = new Set(responses.map(response => String(response.studentId)));
-            const pendingStudents = (window.allStudents || [])
+            const pendingStudents = window.getActiveStudents()
                 .filter(student => !window.isTestStudent(student) && !respondedIds.has(String(student.studentId)));
             if (!pendingStudents.length) return Swal.fire('全部已回覆', '目前沒有需要私訊提醒的家長。', 'success');
             const names = pendingStudents.map(student => `${String(student.seatNo).padStart(2, '0')} 號 ${window.formEscapeHtml(student.name)}`).join('、');
@@ -1748,9 +1775,11 @@
             const activeForm = forms.find(form => form.id === window.activeFormId);
             if (!responseBox || !activeForm) { if (responseBox) responseBox.classList.add('hidden'); return; }
             const fields = Array.isArray(activeForm.fields) ? activeForm.fields : [];
-            const responses = (window.formResponses || []).filter(response => !window.isTestStudent(response));
+            const savedResponses = (window.formResponses || []).filter(response => !window.isTestStudent(response));
+            const students = window.getFormRoster(activeForm);
+            const eligibleIds = new Set(students.map(student => String(student.studentId)));
+            const responses = savedResponses.filter(response => eligibleIds.has(String(response.studentId)));
             const respondedIds = new Set(responses.map(response => String(response.studentId)));
-            const students = (window.allStudents || []).filter(student => !window.isTestStudent(student));
             const pendingStudents = students.filter(student => !respondedIds.has(String(student.studentId)));
             const canSendReminder = (activeForm.status === 'published' || activeForm.status === 'open')
                 && (!activeForm.deadline || new Date(`${activeForm.deadline}T23:59:59`).getTime() >= Date.now());
@@ -1777,6 +1806,13 @@
             closeButton.onclick = window.closeTeacherFormResponses;
             responseBox.firstElementChild?.appendChild(closeButton);
             responseBox.classList.remove('hidden');
+            const archivedResponses = savedResponses.filter(response => !eligibleIds.has(String(response.studentId)));
+            if (archivedResponses.length) {
+                const history = document.createElement('details');
+                history.className = 'mt-4 rounded-2xl border border-slate-200 p-4';
+                history.innerHTML = `<summary class="min-h-11 cursor-pointer font-black text-slate-600">保存的歷史回覆（${archivedResponses.length}）</summary>${archivedResponses.map(response => `<article class="mt-3 rounded-xl bg-slate-50 p-3"><p class="font-black">${window.formEscapeHtml(response.seatNo)} 號　${window.formEscapeHtml(response.studentName)}</p>${fields.map(field => `<p class="mt-2 text-sm"><span class="font-bold">${window.formEscapeHtml(field.label)}</span><br>${window.formEscapeHtml(response.answers?.[field.id] || '—')}</p>`).join('')}</article>`).join('')}`;
+                responseBox.appendChild(history);
+            }
         };
 
         window.populateTeacherPhotoSeats = () => {
@@ -1786,7 +1822,7 @@
             const previousValue = select.value;
             select.innerHTML = '<option value="">&#35531;&#36984;&#25799;</option>';
             grid.innerHTML = '';
-            const students = (window.allStudents && window.allStudents.length) ? window.allStudents : Array.from({ length: 30 }, (_, index) => ({ seatNo: String(index + 1) }));
+            const students = (window.allStudents && window.allStudents.length) ? window.getActiveStudents(document.getElementById('teacherPhotoDate')?.value || window.rosterDate()) : [];
             students.forEach((student, index) => {
                 const seat = String(student.seatNo || index + 1).padStart(2, '0');
                 const option = document.createElement('option');
@@ -1937,17 +1973,166 @@
             pick.addEventListener('click', () => input.click());
             input.addEventListener('change', event => selectPhoto(event.target.files[0]));
             remove.addEventListener('click', clearPhoto);
-            today.addEventListener('click', () => { date.value = getLocalDateInputValue(); });
+            date.addEventListener('change', () => window.populateTeacherPhotoSeats());
+            today.addEventListener('click', () => { date.value = getLocalDateInputValue(); window.populateTeacherPhotoSeats(); });
             submit.addEventListener('click', window.submitTeacherPhoto);
             retry.addEventListener('click', window.submitTeacherPhoto);
         };
 
+        window.studentArchiveApi = async (mode, payload = {}) => {
+            const response = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ action: 'studentArchive', mode, sessionToken: window.sessionToken, ...payload }) });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || '保存區操作失敗。');
+            window.allStudents = result.students || window.allStudents;
+            window.studentArchiveHistory = result.history || [];
+            window.populateResearchStudentSelect();
+            window.populateExamScoreStudentSelect();
+            return result;
+        };
+        window.refreshStudentArchiveRoster = async () => {
+            if (window.studentRosterRefreshing) { window.studentRosterRefreshPending = true; return; }
+            window.studentRosterRefreshing = true;
+            try {
+                await window.studentArchiveApi('list');
+                window.renderStudentArchives();
+                window.populateTeacherPhotoSeats();
+                window.refreshUI();
+            } catch (error) { console.warn('Unable to refresh archived roster.', error); }
+            finally {
+                window.studentRosterRefreshing = false;
+                if (window.studentRosterRefreshPending) {
+                    window.studentRosterRefreshPending = false;
+                    window.refreshStudentArchiveRoster();
+                }
+            }
+        };
+        window.renderStudentArchives = () => {
+            const select = document.getElementById('studentArchiveStudent');
+            const list = document.getElementById('studentArchiveList');
+            if (!select || !list) return;
+            const escape = window.studentDataEscapeHtml;
+            const history = window.studentArchiveHistory || [];
+            const openIds = new Set(history.filter(row => row.status === '封存').map(row => String(row.studentId)));
+            const selected = select.value;
+            select.innerHTML = '<option value="">請選擇學生</option>' + window.getActiveStudents().filter(student => !openIds.has(String(student.studentId)) && !student.rosterMissing)
+                .map(student => `<option value="${escape(student.studentId)}">${escape(String(student.seatNo).padStart(2, '0'))} 號　${escape(student.name)}</option>`).join('');
+            if (Array.from(select.options).some(option => option.value === selected)) select.value = selected;
+            const date = document.getElementById('studentArchiveDate');
+            if (!date.value) date.value = window.rosterDate();
+            const students = (window.allStudents || []).filter(student => history.some(row => row.studentId === student.studentId));
+            list.innerHTML = students.length ? students.map(student => {
+                const rows = history.filter(row => row.studentId === student.studentId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+                const open = rows.find(row => row.status === '封存');
+                const scheduled = open && open.startDate > window.rosterDate();
+                const label = open ? scheduled ? '預定轉出' : '已封存' : rows[0]?.status === '已取消' ? '已取消預定' : '已恢復';
+                const id = encodeURIComponent(student.studentId);
+                const actions = [['profile', '個人資料'], ['attendance', '出缺席／假單'], ['private', '歷史私訊'], ['b', 'B表'], ['exam', '段考成績'], ['forms', '表單回覆']]
+                    .map(([view, title]) => `<button type="button" onclick="window.openArchivedStudent('${id}', '${view}')" class="min-h-11 rounded-xl bg-slate-50 px-2 text-sm font-black text-slate-600 ring-1 ring-slate-200">${title}</button>`).join('');
+                return `<article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"><div class="flex items-center justify-between gap-3"><div><h4 class="font-black text-slate-800">${escape(String(student.seatNo).padStart(2, '0'))} 號　${escape(student.name)}</h4><p class="mt-1 text-xs font-bold text-slate-400">學號 ${escape(student.studentId)}</p></div><span class="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">${label}</span></div>${open ? `<p class="mt-3 text-sm font-bold text-slate-600">轉出日期：${escape(open.startDate)}</p><p class="mt-1 whitespace-pre-wrap break-words text-sm text-slate-500">${escape(open.reason || '')}</p>` : ''}<div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">${actions}</div>${open ? `<button type="button" onclick="window.restoreArchivedStudent('${id}')" class="mt-3 min-h-11 w-full rounded-xl bg-blue-50 px-3 text-sm font-black text-blue-700">${scheduled ? '取消預定轉出' : '恢復學生'}</button>` : ''}<details class="mt-3 text-sm text-slate-500"><summary class="min-h-11 cursor-pointer pt-3 font-bold">封存／恢復歷程</summary>${rows.map(row => `<p class="mt-2 break-words rounded-xl bg-slate-50 p-3">${escape(row.startDate)} 起　${escape(row.status)}${row.endDate ? `（${escape(row.endDate)} 恢復／取消）` : ''}${row.reason ? `<br>${escape(row.reason)}` : ''}</p>`).join('')}</details></article>`;
+            }).join('') : '<div class="rounded-2xl bg-white p-6 text-center text-sm font-bold text-slate-400">目前沒有轉出封存紀錄。</div>';
+        };
+        window.loadStudentArchives = async () => {
+            const status = document.getElementById('studentArchiveStatus');
+            if (!status || window.studentArchiveLoading) return;
+            window.studentArchiveLoading = true;
+            status.textContent = '讀取保存區中…';
+            try {
+                await window.studentArchiveApi('list');
+                window.renderStudentArchives();
+                status.textContent = '';
+            } catch (error) { status.textContent = error.message; }
+            finally { window.studentArchiveLoading = false; }
+        };
+        window.submitStudentArchive = async event => {
+            event.preventDefault();
+            const studentId = document.getElementById('studentArchiveStudent').value;
+            const startDate = document.getElementById('studentArchiveDate').value;
+            const reason = document.getElementById('studentArchiveReason').value.trim();
+            const student = (window.allStudents || []).find(item => item.studentId === studentId);
+            if (!student || !startDate) return;
+            const confirmation = await Swal.fire({ icon: 'warning', title: `封存 ${student.name}？`,
+                text: `自 ${startDate} 起移出在籍名單，停止家長登入與通知。歷史資料仍會保留，可由教師恢復。`,
+                showCancelButton: true, confirmButtonText: '確定轉出封存', cancelButtonText: '取消' });
+            if (!confirmation.isConfirmed) return;
+            const button = document.getElementById('studentArchiveSubmit');
+            const status = document.getElementById('studentArchiveStatus');
+            button.disabled = true;
+            status.textContent = '正在儲存並同步存取權限…';
+            try {
+                const result = await window.studentArchiveApi('archive', { studentId, startDate, reason });
+                document.getElementById('studentArchiveReason').value = '';
+                window.renderStudentArchives();
+                window.populateTeacherPhotoSeats();
+                window.refreshUI();
+                status.textContent = result.message;
+            } catch (error) { status.textContent = error.message; }
+            finally { button.disabled = false; }
+        };
+        window.restoreArchivedStudent = async encodedId => {
+            const studentId = decodeURIComponent(encodedId);
+            const confirmation = await Swal.fire({ icon: 'question', title: '恢復學生？', text: '恢復後可重新登入，並從今天起加入在籍名單；過去封存期間仍會保留。', showCancelButton: true, confirmButtonText: '恢復', cancelButtonText: '取消' });
+            if (!confirmation.isConfirmed || window.studentArchiveRestoring) return;
+            window.studentArchiveRestoring = true;
+            const status = document.getElementById('studentArchiveStatus');
+            status.textContent = '正在恢復學生…';
+            try {
+                const result = await window.studentArchiveApi('restore', { studentId });
+                window.renderStudentArchives();
+                window.populateTeacherPhotoSeats();
+                window.refreshUI();
+                status.textContent = result.message;
+            } catch (error) { status.textContent = error.message; }
+            finally { window.studentArchiveRestoring = false; }
+        };
+        window.openArchivedStudent = (encodedId, view) => {
+            const studentId = decodeURIComponent(encodedId);
+            const student = (window.allStudents || []).find(item => item.studentId === studentId);
+            if (!student) return;
+            if (view === 'profile') window.openStudentProfile(studentId);
+            if (view === 'attendance') {
+                window.switchTab('classwork');
+                window.openStudentHistory(studentId, student.name);
+            }
+            if (view === 'private') window.openStudentPrivateChat(studentId, student.name);
+            if (view === 'b') {
+                window.switchRecordSection('b');
+                window.filterBRecords(studentId);
+            }
+            if (view === 'exam') {
+                window.archiveExamStudentId = studentId;
+                window.switchTab('forms');
+                window.switchResearchSection('data');
+                window.populateExamScoreStudentSelect();
+                document.getElementById('examScoreStudentSelect').value = studentId;
+                if (document.getElementById('examScoreExamSelect').value) window.showExamScoreReport();
+            }
+            if (view === 'forms') window.showArchivedStudentFormResponses(studentId);
+        };
+        window.showArchivedStudentFormResponses = async studentId => {
+            const student = (window.allStudents || []).find(item => item.studentId === studentId);
+            Swal.fire({ title: '讀取歷史回覆…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            try {
+                const forms = await Promise.all((window.fbForms || []).map(async form => {
+                    const snapshot = await getDoc(doc(db, 'artifacts', window.FORM_APP_ID, 'public', 'data', 'forms', form.id, 'submissions', studentId));
+                    return snapshot.exists() ? { form, response: snapshot.data() } : null;
+                }));
+                const escape = window.formEscapeHtml;
+                Swal.fire({ title: `${student?.name || '學生'}的表單回覆`, html: `<div class="space-y-3 text-left">${forms.filter(Boolean).map(({ form, response }) => `<article class="rounded-2xl bg-slate-50 p-3"><h4 class="font-black">${escape(form.title)}</h4>${(form.fields || []).map(field => `<p class="mt-2 text-sm"><b>${escape(field.label)}</b><br>${escape(response.answers?.[field.id] || '—')}</p>`).join('')}</article>`).join('') || '<p>尚無保存的表單回覆。</p>'}</div>`, confirmButtonText: '關閉', width: 'min(94vw, 42rem)' });
+            } catch (error) { Swal.fire('讀取失敗', error.message, 'error'); }
+        };
+
         window.switchRecordSection = section => {
-            window.activeRecordSection = section === 'b' ? 'b' : 'album';
+            window.activeRecordSection = ['b', 'archive'].includes(section) ? section : 'album';
             const album = document.getElementById('recordAlbumPanel');
             const bPanel = document.getElementById('recordBPanel');
             const albumTab = document.getElementById('recordAlbumTab');
             const bTab = document.getElementById('recordBTab');
+            document.getElementById('recordArchivePanel')?.classList.toggle('hidden', window.activeRecordSection !== 'archive');
+            const archiveTab = document.getElementById('recordArchiveTab');
+            archiveTab?.classList.toggle('bg-white', window.activeRecordSection === 'archive');
+            archiveTab?.classList.toggle('text-slate-700', window.activeRecordSection === 'archive');
+            archiveTab?.classList.toggle('shadow-sm', window.activeRecordSection === 'archive');
+            archiveTab?.classList.toggle('text-slate-500', window.activeRecordSection !== 'archive');
             album?.classList.toggle('hidden', window.activeRecordSection !== 'album');
             bPanel?.classList.toggle('hidden', window.activeRecordSection !== 'b');
             albumTab?.classList.toggle('bg-white', window.activeRecordSection === 'album');
@@ -1962,9 +2147,10 @@
                 window.renderBRecordForm();
                 window.renderBRecords();
             }
+            if (window.activeRecordSection === 'archive') window.loadStudentArchives();
         };
 
-        // 「班務」將每日簽閱與作業分成兩個子頁；「記錄」只保留相簿與 B 表。
+        // 「班務」分為聯絡簿與作業；「記錄」分為相簿、B表與保存區。
         window.attachHomeworkToClasswork = () => {
             const panel = document.getElementById('recordHomeworkPanel');
             const content = document.getElementById('classworkHomeworkContent');
@@ -2671,11 +2857,12 @@
             let leaveCount = 0;
             let unsignedCount = 0;
             
-            const total = window.allStudents.length;
+            const roster = window.getActiveStudents(window.selectedDateStr);
+            const total = roster.length;
 
             listBody.innerHTML = total === 0 
                 ? `<tr><td colspan="5" class="text-center py-10 text-slate-400 font-bold">目前無學生名單資料</td></tr>`
-                : window.allStudents.map(s => {
+                : roster.map(s => {
                     const record = window.fbRecords.find(r => r.date === window.selectedDateStr && r.studentId === s.studentId) || {};
                     
                     const isLeave = record.isLeave || false;
@@ -3004,7 +3191,10 @@
 
             let html = '';
             
-            const studentChatInfo = window.allStudents.map(student => {
+            const chatRoster = window.getActiveStudents();
+            const historicalStudent = (window.allStudents || []).find(student => student.studentId === window.activeChatStudentId);
+            if (historicalStudent && !chatRoster.includes(historicalStudent)) chatRoster.push(historicalStudent);
+            const studentChatInfo = chatRoster.map(student => {
                 const studentChats = window.fbPrivateChats.filter(c => c.studentId === student.studentId);
                 const lastMsg = studentChats.length > 0 ? studentChats[studentChats.length - 1] : null;
                 return {
@@ -3064,12 +3254,15 @@
                 return;
             }
 
-            inputArea.classList.remove('hidden');
+            const currentStudent = (window.allStudents || []).find(student => student.studentId === window.activeChatStudentId);
+            const canContact = window.isStudentActiveOn(currentStudent);
+            inputArea.classList.toggle('hidden', !canContact);
+            headerText.textContent = canContact ? `與 ${currentStudent?.name || '學生'} 家長私訊中` : `${currentStudent?.name || '學生'}（封存私訊）`;
 
             const studentChats = window.fbPrivateChats.filter(c => c.studentId === window.activeChatStudentId);
             const activeCallRequest = studentChats.find(message => message.sender === 'parent' && message.messageType === 'call_request' && Number(message.callRequestExpiresAt || 0) > Date.now());
             if (callButton) {
-                callButton.classList.toggle('hidden', !activeCallRequest);
+                callButton.classList.toggle('hidden', !activeCallRequest || !canContact);
                 callButton.title = activeCallRequest ? '回應通話申請' : '目前沒有有效的通話申請';
             }
             
@@ -3126,7 +3319,7 @@
                         const isLeaveInvite = msg.sender === 'teacher' && msg.messageType === 'leave_invite' && /^\d{4}-\d{2}-\d{2}$/.test(String(msg.leaveDate || ''));
                         const safeFormTitle = String(msg.formTitle || msg.text || '班級表單').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
                         const isWithdrawn = Boolean(msg.withdrawn) || msg.messageType === 'withdrawn';
-                        const withdrawButton = isMe && !isWithdrawn
+                        const withdrawButton = isMe && !isWithdrawn && canContact
                             ? `<button type="button" onclick="window.withdrawChatMessage('private_chats', '${msg.id}')" class="mb-1 text-[10px] font-bold text-slate-400 underline underline-offset-2">收回</button>`
                             : '';
                         
@@ -3210,7 +3403,7 @@
 
         window.shareLeaveApplicationLink = async (studentId, date) => {
             const student = (window.allStudents || []).find(item => String(item.studentId) === String(studentId));
-            if (!student || !/^\d{4}\/\d{2}\/\d{2}$/.test(date) || date < window.todayStr) return;
+            if (!student || !window.isStudentActiveOn(student) || !window.isStudentActiveOn(student, date) || !/^\d{4}\/\d{2}\/\d{2}$/.test(date) || date < window.todayStr) return;
             const leaveDate = date.replaceAll('/', '-');
             const link = new URL(`./guardians.html?leave=${encodeURIComponent(leaveDate)}`, window.location.href).href;
             const choice = await Swal.fire({
@@ -3321,6 +3514,7 @@
             const messages = chatCollection === 'group_chat' ? window.fbGroupChats : window.fbPrivateChats;
             const message = messages.find(item => item.id === messageId);
             if (!message || message.sender !== 'teacher' || message.withdrawn) return;
+            if (chatCollection === 'private_chats' && !window.isStudentActiveOn(window.allStudents.find(student => student.studentId === message.studentId))) return;
             if (chatCollection === 'group_chat' && message.messageType === 'form' && message.formId) {
                 return window.retractTeacherForm(message.formId);
             }
@@ -3383,6 +3577,9 @@
 
         window.handleImageUpload = async (inputElement, type, retryFile = null) => {
             if(!checkFbAuth() || !fbUser) return;
+            if (type === 'private' && !window.isStudentActiveOn((window.allStudents || []).find(student => student.studentId === window.activeChatStudentId))) {
+                return Swal.fire('學生已封存', '此對話只保留歷史訊息，恢復學生後才能傳送。', 'info');
+            }
             const file = retryFile || inputElement.files[0];
             if (!file) return;
 
@@ -3493,6 +3690,9 @@
 
         window.sendPrivateMessage = async (retryText = null) => {
             if(!checkFbAuth() || !fbUser || !window.activeChatStudentId) return;
+            if (!window.isStudentActiveOn(window.allStudents.find(student => student.studentId === window.activeChatStudentId))) {
+                return Swal.fire('學生已封存', '此對話只保留歷史訊息，恢復學生後才能傳送。', 'info');
+            }
             const input = document.getElementById('privateChatInput');
             const text = (retryText || input.value).trim();
             if(!text) return;
@@ -4287,11 +4487,11 @@
             document.getElementById('shModalTitle').innerText = `${studentName} - 出缺席紀錄`;
             document.getElementById('studentHistoryModal').classList.remove('hidden');
             window.shViewDate = new Date(window.viewDate);
-            window.refreshUI();
+            renderHistoryCalendar();
         };
 
         window.closeStudentHistory = () => { document.getElementById('studentHistoryModal').classList.add('hidden'); };
-        window.changeHistoryMonth = (offset) => { window.shViewDate.setMonth(window.shViewDate.getMonth() + offset); window.refreshUI(); };
+        window.changeHistoryMonth = (offset) => { window.shViewDate.setMonth(window.shViewDate.getMonth() + offset); renderHistoryCalendar(); };
 
         function renderHistoryCalendar() {
             const grid = document.getElementById('shCalendarGrid');
@@ -4318,7 +4518,14 @@
                 const isSigned = sSigned.has(dStr);
                 const isLeave = sLeave.has(dStr);
                 
-                const dayEl = document.createElement('div');
+                const printableLeave = isLeave && (window.fbLeaveRequests || []).some(item => String(item.studentId) === String(window.shStudentId) && window.leaveRequestCoversDate(item, dStr) && item.parentSignatureDataUrl);
+                const dayEl = document.createElement(printableLeave ? 'button' : 'div');
+                if (printableLeave) {
+                    dayEl.type = 'button';
+                    dayEl.title = '開啟假單列印預覽';
+                    dayEl.setAttribute('aria-label', `${dStr} 請假，開啟假單`);
+                    dayEl.onclick = () => window.printLeaveRequest(window.shStudentId, dStr);
+                }
                 let className = "aspect-square flex items-center justify-center rounded-xl text-[13px] font-bold transition-all ";
                 
                 if (isLeave) {

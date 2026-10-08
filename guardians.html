@@ -201,7 +201,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, setPersistence, browserSessionPersistence, onAuthStateChanged, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, addDoc, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js";
 
@@ -815,6 +815,32 @@
         function setupGlobalListeners() {
             window.globalUnsubscribers.forEach(unsub => unsub());
             window.globalUnsubscribers = [];
+            window.clearTimeout(window.parentArchiveTimer);
+            const accessRef = doc(db, 'artifacts', 'contact-roster', 'public', 'data', 'student_status', String(window.currentUser.studentId));
+            window.globalUnsubscribers.push(onSnapshot(accessRef, snapshot => {
+                window.clearTimeout(window.parentArchiveTimer);
+                const status = snapshot.exists() ? snapshot.data() : null;
+                if (!status?.blocked) return;
+                const effectiveAt = status.effectiveAt?.toMillis?.();
+                if (!Number.isFinite(effectiveAt)) return;
+                const checkAccess = async () => {
+                    const remaining = effectiveAt - Date.now();
+                    if (remaining > 0) {
+                        window.parentArchiveTimer = window.setTimeout(checkAccess, Math.min(remaining, 86400000));
+                        return;
+                    }
+                    window.globalUnsubscribers.forEach(unsub => unsub());
+                    window.unsubscribers.forEach(unsub => unsub());
+                    window.currentUser = null;
+                    window.sessionToken = '';
+                    window.stopParentVoiceCall?.();
+                    sessionStorage.removeItem('contact-book-session');
+                    sessionStorage.setItem('contact-book-login-error', '此學生帳號已由教師轉出封存。');
+                    try { await signOut(getAuth(app)); }
+                    finally { window.goToUnifiedLogin(); }
+                };
+                checkAccess().catch(error => console.warn('Unable to close archived parent session.', error));
+            }, error => console.warn('Unable to load student access status.', error)));
 
             const pathGroupChat = collection(db, 'artifacts', window.CHAT_APP_ID, 'public', 'data', 'group_chat');
             window.globalUnsubscribers.push(onSnapshot(pathGroupChat, snap => {

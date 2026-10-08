@@ -2,9 +2,17 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function parentAccessActive() {
+      let statusPath = /databases/$(database)/documents/artifacts/contact-roster/public/data/student_status/$(request.auth.token.studentId);
+      return !exists(statusPath)
+        || get(statusPath).data.blocked != true
+        || request.time < get(statusPath).data.effectiveAt;
+    }
+
     function signedIn() {
       return request.auth != null
-        && (request.auth.token.role == 'teacher' || request.auth.token.role == 'parent');
+        && (request.auth.token.role == 'teacher'
+          || (request.auth.token.role == 'parent' && parentAccessActive()));
     }
 
     function isTeacher() {
@@ -35,6 +43,15 @@ service cloud.firestore {
     function onlyWithdrawsMessage() {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasOnly(['withdrawn', 'withdrawnAt', 'messageType', 'text']);
+    }
+
+    // Status is written only by the teacher-authenticated Apps Script backend.
+    // A blocked parent may read only their own status so the app can close its session.
+    match /artifacts/contact-roster/public/data/student_status/{studentId} {
+      allow get: if isTeacher() || (request.auth != null
+        && request.auth.token.role == 'parent' && request.auth.token.studentId == studentId);
+      allow list: if isTeacher();
+      allow write: if false;
     }
 
     match /artifacts/{appId}/public/data/notes/{noteId} {
