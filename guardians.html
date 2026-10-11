@@ -1424,6 +1424,8 @@
                         const isMe = msg.studentId === window.currentUser.studentId;
                         const isTeacher = msg.studentId === 'teacher' || msg.sender === 'teacher';
                         const isHidden = Boolean(msg.hiddenByTeacher);
+                        const editedLabel = isTeacher && msg.edited && !isHidden && !msg.withdrawn && msg.messageType !== 'withdrawn'
+                            ? '<span class="block text-[10px]">已編輯</span>' : '';
                         const withdrawGroupButton = msg.sender === 'parent' && !isHidden && !msg.withdrawn && msg.messageType !== 'withdrawn'
                             ? `<button type="button" onclick="window.withdrawChatMessage('group_chat', '${msg.id}')" class="mb-1 text-[10px] font-bold text-slate-100/80 underline underline-offset-2">收回</button>`
                             : '';
@@ -1473,7 +1475,7 @@
                                             <div class="${isImage ? 'bg-transparent p-0 border-none shadow-none' : 'bg-white border-2 border-[#d97706]/30 text-[#1c1c1e] px-3.5 py-2.5 rounded-2xl rounded-tl-sm shadow-md'} max-w-full break-words text-[15px] leading-relaxed relative">
                                                 ${bubbleContent}
                                             </div>
-                                            <span class="text-[10px] text-slate-100/70 mb-1 font-medium">${msgTime}</span>
+                                            <span class="shrink-0 whitespace-nowrap text-[10px] text-slate-100/70 mb-1 font-medium">${msgTime}${editedLabel}</span>
                                         </div>
                                     </div>
                                 </div>
